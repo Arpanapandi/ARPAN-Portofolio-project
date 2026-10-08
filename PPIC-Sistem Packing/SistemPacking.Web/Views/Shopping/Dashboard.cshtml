@@ -1,0 +1,61 @@
+@{
+    ViewData["Title"] = "Dashboard Shopping";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Shopping</li>
+    <li class="breadcrumb-item active">Dashboard Shopping</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-speedometer2"></i> Dashboard Shopping</h2>
+</div>
+
+<div class="card border-0 shadow-sm" style="border-radius:12px;">
+    <div class="card-body py-4">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle" id="dashboardTable" style="width: 100%;">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 50px;">No</th>
+                        <th>VIN</th>
+                        <th>Label</th>
+                        <th>Kanban</th>
+                        <th>Jam Scan</th>
+                        <th>User</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#dashboardTable').DataTable({
+            pageLength: 20,
+            ajax: {
+                url: '/Shopping/GetDashboardLogs',
+                type: 'GET'
+            },
+            columns: [
+                { 
+                    data: null,
+                    render: function (data, type, row, meta) {
+                        return meta.row + 1;
+                    }
+                },
+                { data: 'vin' },
+                { data: 'label' },
+                { data: 'kanban' },
+                { data: 'jamScan' },
+                { data: 'user' }
+            ],
+            language: { url: '/js/id.json' }
+        });
+    });
+</script>
+}

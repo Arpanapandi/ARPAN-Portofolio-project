@@ -1,0 +1,710 @@
+@model IEnumerable<dashboardKlinik.Models.AntrianKlinik>
+@{
+    Layout = null;
+    var sedangDipanggil = ViewData["SedangDipanggil"] as dashboardKlinik.Models.AntrianKlinik;
+    var antrianMenunggu = ViewData["AntrianMenunggu"] as List<dashboardKlinik.Models.AntrianKlinik> ?? new List<dashboardKlinik.Models.AntrianKlinik>();
+    var totalHariIni = (int)(ViewData["TotalHariIni"] ?? 0);
+    var totalMenunggu = (int)(ViewData["TotalMenunggu"] ?? 0);
+    var totalSelesai = (int)(ViewData["TotalSelesai"] ?? 0);
+}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Display Antrian TV - Klinik PT. Velasto Indonesia</title>
+    <link rel="icon" type="image/png" href="~/favicon.png" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- SignalR Client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body.tv-display-body {
+            background: #090d16;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* HEADER */
+        .tv-header {
+            background: #111827;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+            padding: 16px 36px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 90px;
+        }
+
+        .tv-brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .tv-brand-logo {
+            width: 54px;
+            height: 54px;
+            background: linear-gradient(135deg, #1a73e8, #6366f1);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(26, 115, 232, 0.4);
+        }
+
+        .tv-brand-logo img {
+            height: 34px;
+            width: auto;
+        }
+
+        .tv-brand-title h2 {
+            font-size: 24px;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+
+        .tv-brand-title p {
+            font-size: 13px;
+            color: #94a3b8;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .tv-header-right {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .tv-stats-pill {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 8px 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .tv-stat-item {
+            text-align: center;
+        }
+
+        .tv-stat-item .val {
+            font-size: 18px;
+            font-weight: 800;
+            color: #38bdf8;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .tv-stat-item .lbl {
+            font-size: 10px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        .tv-clock-box {
+            text-align: right;
+        }
+
+        .tv-clock-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 1px;
+        }
+
+        .tv-clock-date {
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        /* MAIN CONTENT GRID */
+        .tv-main {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 24px;
+            padding: 24px 36px;
+            height: calc(100vh - 90px - 50px);
+        }
+
+        /* ACTIVE CALL CARD (LEFT) */
+        .tv-active-card {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            border-radius: 28px;
+            padding: 36px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 40px rgba(56, 189, 248, 0.05);
+            overflow: hidden;
+        }
+
+        .tv-active-card.calling-animation {
+            animation: borderPulse 1.5s infinite;
+        }
+
+        @@keyframes borderPulse {
+            0%, 100% { border-color: rgba(56, 189, 248, 0.4); box-shadow: 0 0 30px rgba(56, 189, 248, 0.2); }
+            50% { border-color: rgba(56, 189, 248, 1); box-shadow: 0 0 60px rgba(56, 189, 248, 0.6); }
+        }
+
+        .tv-active-badge {
+            background: #0284c7;
+            color: #ffffff;
+            padding: 8px 24px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 24px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 20px rgba(2, 132, 199, 0.5);
+        }
+
+        .tv-active-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 110px;
+            font-weight: 900;
+            color: #38bdf8;
+            line-height: 1;
+            margin-bottom: 20px;
+            letter-spacing: -2px;
+            text-shadow: 0 0 40px rgba(56, 189, 248, 0.5);
+        }
+
+        .tv-active-patient {
+            font-size: 32px;
+            font-weight: 800;
+            color: #ffffff;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+        }
+
+        .tv-active-dept {
+            font-size: 20px;
+            color: #cbd5e1;
+            margin-bottom: 28px;
+        }
+
+        .tv-destination-box {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1.5px solid rgba(56, 189, 248, 0.3);
+            border-radius: 18px;
+            padding: 14px 32px;
+            color: #38bdf8;
+            font-size: 18px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* WAITING QUEUE LIST (RIGHT) */
+        .tv-queue-list-panel {
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 28px;
+            padding: 28px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tv-panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .tv-panel-title h3 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tv-queue-scroll {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .tv-queue-item {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 18px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s;
+        }
+
+        .tv-queue-item:first-child {
+            border-color: rgba(234, 179, 8, 0.4);
+            background: linear-gradient(90deg, rgba(234, 179, 8, 0.1) 0%, #1e293b 100%);
+        }
+
+        .tv-item-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .tv-item-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 26px;
+            font-weight: 800;
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.1);
+            padding: 6px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+
+        .tv-item-patient h5 {
+            font-size: 17px;
+            font-weight: 700;
+            color: #ffffff;
+            margin: 0 0 2px;
+        }
+
+        .tv-item-patient p {
+            font-size: 13px;
+            color: #94a3b8;
+            margin: 0;
+        }
+
+        .tv-item-status {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        /* BOTTOM RUNNING TEXT */
+        .tv-marquee-footer {
+            height: 50px;
+            background: #0f172a;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            overflow: hidden;
+        }
+
+        .tv-marquee-badge {
+            background: #dc2626;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            margin-right: 18px;
+            flex-shrink: 0;
+        }
+
+        .marquee-content {
+            white-space: nowrap;
+            overflow: hidden;
+            animation: marquee 25s linear infinite;
+            font-size: 14px;
+            color: #cbd5e1;
+        }
+
+        @@keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* AUDIO ACTIVATION MODAL / HINT */
+        .audio-enable-banner {
+            position: fixed;
+            bottom: 60px;
+            right: 36px;
+            background: rgba(26, 115, 232, 0.95);
+            backdrop-filter: blur(8px);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 14px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            transition: all 0.3s;
+        }
+
+        .audio-enable-banner:hover {
+            transform: scale(1.03);
+        }
+    </style>
+</head>
+<body class="tv-display-body">
+    <!-- HEADER -->
+    <header class="tv-header">
+        <div class="tv-brand">
+            <div class="tv-brand-logo">
+                <img src="~/favicon.png" alt="Logo" />
+            </div>
+            <div class="tv-brand-title">
+                <h2>KLINIK PT. VELASTO INDONESIA</h2>
+                <p>Monitoring Antrian Berobat Pasien</p>
+            </div>
+        </div>
+
+        <div class="tv-header-right">
+            <!-- Statistik Hari Ini -->
+            <div class="tv-stats-pill">
+                <div class="tv-stat-item">
+                    <div class="val" id="tvTotalHariIni">@totalHariIni</div>
+                    <div class="lbl">Total</div>
+                </div>
+                <div style="width: 1px; height: 24px; background: rgba(255,255,255,0.1);"></div>
+                <div class="tv-stat-item">
+                    <div class="val" style="color: #fbbf24;" id="tvTotalMenunggu">@totalMenunggu</div>
+                    <div class="lbl">Menunggu</div>
+                </div>
+                <div style="width: 1px; height: 24px; background: rgba(255,255,255,0.1);"></div>
+                <div class="tv-stat-item">
+                    <div class="val" style="color: #4ade80;" id="tvTotalSelesai">@totalSelesai</div>
+                    <div class="lbl">Selesai</div>
+                </div>
+            </div>
+
+            <!-- Fullscreen Button -->
+            <button onclick="toggleDisplayFullscreen()" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: white; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px;" title="Toggle Fullscreen TV">
+                <i class="bi bi-fullscreen" id="fsIcon"></i>
+            </button>
+
+            <!-- Digital Clock -->
+            <div class="tv-clock-box">
+                <div class="tv-clock-time" id="tvClockTime">00:00:00</div>
+                <div class="tv-clock-date" id="tvClockDate">Senin, 1 Januari 2026</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN DISPLAY CONTENT -->
+    <main class="tv-main">
+        <!-- LEFT PANEL: SEDANG DIPANGGIL / STANDBY -->
+        <div class="tv-active-card @(sedangDipanggil != null ? "calling-animation" : "")" id="activeCallingCard">
+            <div class="tv-active-badge" id="activeBadge" style="@(sedangDipanggil != null ? "background: #0284c7;" : "background: #059669;")">
+                @if (sedangDipanggil != null)
+                {
+                    <text><i class="bi bi-megaphone-fill"></i> SEDANG DIPANGGIL</text>
+                }
+                else
+                {
+                    <text><i class="bi bi-check-circle-fill"></i> RUANG PERIKSA SIAP</text>
+                }
+            </div>
+
+            <div class="tv-active-number" id="activeNumber">
+                @(sedangDipanggil != null ? sedangDipanggil.NomorAntrian : "--")
+            </div>
+
+            <div class="tv-active-patient" id="activePatient">
+                @(sedangDipanggil != null ? sedangDipanggil.NamaPasien : "Ruang Periksa Siap")
+            </div>
+
+            <div class="tv-active-dept" id="activeDept">
+                @(sedangDipanggil != null ? $"{sedangDipanggil.Plant} - {sedangDipanggil.Departemen}" : "Ruang periksa siap melayani pasien berikutnya")
+            </div>
+
+            <div class="tv-destination-box" id="activeDestinationBox" style="@(sedangDipanggil != null ? "" : "display: none;")">
+                <i class="bi bi-door-open-fill"></i> SILAKAN MENUJU KE RUANG PERIKSA
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: DAFTAR ANTRIAN BERIKUTNYA -->
+        <div class="tv-queue-list-panel">
+            <div class="tv-panel-title">
+                <h3><i class="bi bi-list-ol" style="color: #fbbf24;"></i> Antrian Berikutnya</h3>
+                <span style="font-size: 13px; color: #94a3b8;"><i class="bi bi-arrow-repeat spin-animation"></i> Live Real-Time</span>
+            </div>
+
+            <div class="tv-queue-scroll" id="waitingQueueList">
+                @if (antrianMenunggu.Any())
+                {
+                    @foreach (var item in antrianMenunggu)
+                    {
+                        <div class="tv-queue-item">
+                            <div class="tv-item-left">
+                                <div class="tv-item-number">@item.NomorAntrian</div>
+                                <div class="tv-item-patient">
+                                    <h5>@item.NamaPasien</h5>
+                                    <p>@item.Plant - @item.Departemen</p>
+                                </div>
+                            </div>
+                            <div class="tv-item-status">
+                                <i class="bi bi-hourglass-split"></i> Menunggu
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div style="text-align: center; padding: 40px 20px; color: #64748b;">
+                        <i class="bi bi-check2-circle" style="font-size: 48px; color: #4ade80;"></i>
+                        <h4 style="color: #cbd5e1; margin-top: 12px;">Tidak Ada Antrian Menunggu</h4>
+                        <p style="font-size: 13px;">Seluruh pasien yang mendaftar telah dipanggil.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </main>
+
+    <!-- FOOTER MARQUEE -->
+    <footer class="tv-marquee-footer">
+        <span class="tv-marquee-badge">INFO KLINIK</span>
+        <div class="marquee-content">
+            🏥 Selamat datang di Klinik PT. Velasto Indonesia • Harap menjaga ketertiban dan kebersihan ruang tunggu • Pasien yang telah dipanggil silakan langsung menuju ruang periksa dokter • Scan QR Code pada meja registrasi untuk mendaftar antrian mandiri • Layanan buka Senin - Jumat 08:00 - 17:00 WIB
+        </div>
+    </footer>
+
+    <!-- Audio Enable Prompt (Browsers block autoplay sound without initial interaction) -->
+    <div class="audio-enable-banner" id="audioBanner" onclick="enableAudio()">
+        <i class="bi bi-volume-up-fill" style="font-size: 20px;"></i>
+        <span>Klik untuk Mengaktifkan Suara Panggilan Otomatis</span>
+    </div>
+
+    <!-- SCRIPT REAL-TIME & AUDIO CALL -->
+    <script>
+        let audioUnlocked = false;
+
+        function enableAudio() {
+            audioUnlocked = true;
+            document.getElementById('audioBanner').style.display = 'none';
+            playChimeSound();
+        }
+
+        // Live Clock
+        function updateClock() {
+            const now = new Date();
+            const timeOpts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            const dateOpts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('tvClockTime').textContent = now.toLocaleTimeString('id-ID', timeOpts);
+            document.getElementById('tvClockDate').textContent = now.toLocaleDateString('id-ID', dateOpts);
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Fullscreen Toggle
+        function toggleDisplayFullscreen() {
+            const icon = document.getElementById('fsIcon');
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().then(() => {
+                    icon.className = 'bi bi-fullscreen-exit';
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().then(() => {
+                        icon.className = 'bi bi-fullscreen';
+                    });
+                }
+            }
+        }
+
+        // Play Chime Bell Sound using Web Audio API
+        function playChimeSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                
+                const playTone = (freq, time, duration) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.25, time);
+                    gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(time);
+                    osc.stop(time + duration);
+                };
+
+                const now = ctx.currentTime;
+                playTone(587.33, now, 0.4);        // D5
+                playTone(880.00, now + 0.35, 0.6);  // A5
+            } catch (e) {
+                console.warn('Audio play error:', e);
+            }
+        }
+
+        // Text-to-Speech Voice Announcement
+        function speakAnnouncement(text) {
+            if (!window.speechSynthesis) return;
+
+            playChimeSound();
+
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'id-ID';
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+
+                // Try to use Indonesian voice if available
+                const voices = window.speechSynthesis.getVoices();
+                const idVoice = voices.find(v => v.lang.includes('id') || v.lang.includes('ID'));
+                if (idVoice) utterance.voice = idVoice;
+
+                window.speechSynthesis.speak(utterance);
+            }, 800);
+        }
+
+        // ==========================
+        // SIGNALR REAL-TIME LISTENER
+        // ==========================
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/klinikHub")
+            .withAutomaticReconnect()
+            .build();
+
+        // Listen for Voice Announcement
+        connection.on("PanggilAntrianVoice", (data) => {
+            console.log("Voice announcement received:", data);
+            
+            // Update Active Calling Card
+            document.getElementById('activeNumber').textContent = data.nomorAntrian;
+            document.getElementById('activePatient').textContent = data.namaPasien;
+            document.getElementById('activeDept').textContent = `${data.plant} - ${data.departemen}`;
+            
+            const badge = document.getElementById('activeBadge');
+            badge.innerHTML = '<i class="bi bi-megaphone-fill"></i> SEDANG DIPANGGIL';
+            badge.style.background = '#0284c7';
+
+            const destBox = document.getElementById('activeDestinationBox');
+            if (destBox) destBox.style.display = 'flex';
+
+            const card = document.getElementById('activeCallingCard');
+            card.classList.add('calling-animation');
+
+            // Trigger Voice
+            if (audioUnlocked) {
+                speakAnnouncement(data.pesanSuara);
+            }
+
+            // Refresh queue list
+            refreshDisplayData();
+        });
+
+        // Listen for general queue updates
+        connection.on("AntrianUpdated", (data) => {
+            refreshDisplayData();
+        });
+
+        async function refreshDisplayData() {
+            try {
+                const res = await fetch('@Url.Action("GetDisplayData", "Antrian")');
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('tvTotalHariIni').textContent = data.totalHariIni;
+                    document.getElementById('tvTotalMenunggu').textContent = data.totalMenunggu;
+                    document.getElementById('tvTotalSelesai').textContent = data.totalSelesai;
+
+                    const card = document.getElementById('activeCallingCard');
+                    const badge = document.getElementById('activeBadge');
+                    const destBox = document.getElementById('activeDestinationBox');
+
+                    if (data.sedangDipanggil) {
+                        document.getElementById('activeNumber').textContent = data.sedangDipanggil.nomorAntrian;
+                        document.getElementById('activePatient').textContent = data.sedangDipanggil.namaPasien;
+                        document.getElementById('activeDept').textContent = `${data.sedangDipanggil.plant} - ${data.sedangDipanggil.departemen}`;
+                        
+                        badge.innerHTML = '<i class="bi bi-megaphone-fill"></i> SEDANG DIPANGGIL';
+                        badge.style.background = '#0284c7';
+                        if (destBox) destBox.style.display = 'flex';
+                        card.classList.add('calling-animation');
+                    } else {
+                        // Reset tampilan display ke standby karena pemeriksaan sudah selesai
+                        document.getElementById('activeNumber').textContent = '--';
+                        document.getElementById('activePatient').textContent = 'Ruang Periksa Siap';
+                        document.getElementById('activeDept').textContent = 'Ruang periksa siap melayani pasien berikutnya';
+                        
+                        badge.innerHTML = '<i class="bi bi-check-circle-fill"></i> RUANG PERIKSA SIAP';
+                        badge.style.background = '#059669';
+                        if (destBox) destBox.style.display = 'none';
+                        card.classList.remove('calling-animation');
+                    }
+
+                    // Render Waiting Queue List
+                    const listContainer = document.getElementById('waitingQueueList');
+                    if (data.antrianMenunggu && data.antrianMenunggu.length > 0) {
+                        listContainer.innerHTML = data.antrianMenunggu.map(item => `
+                            <div class="tv-queue-item">
+                                <div class="tv-item-left">
+                                    <div class="tv-item-number">${item.nomorAntrian}</div>
+                                    <div class="tv-item-patient">
+                                        <h5>${item.namaPasien}</h5>
+                                        <p>${item.plant} - ${item.departemen}</p>
+                                    </div>
+                                </div>
+                                <div class="tv-item-status">
+                                    <i class="bi bi-hourglass-split"></i> Menunggu
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        listContainer.innerHTML = `
+                            <div style="text-align: center; padding: 40px 20px; color: #64748b;">
+                                <i class="bi bi-check2-circle" style="font-size: 48px; color: #4ade80;"></i>
+                                <h4 style="color: #cbd5e1; margin-top: 12px;">Tidak Ada Antrian Menunggu</h4>
+                                <p style="font-size: 13px;">Seluruh pasien yang mendaftar telah dipanggil.</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (err) {
+                console.error('Error refreshing display:', err);
+            }
+        }
+
+        connection.start().catch(err => console.error(err));
+        // Periodic refresh every 10 seconds
+        setInterval(refreshDisplayData, 10000);
+    </script>
+</body>
+</html>

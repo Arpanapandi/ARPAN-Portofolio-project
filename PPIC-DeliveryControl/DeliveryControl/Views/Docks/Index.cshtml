@@ -1,0 +1,264 @@
+@model IEnumerable<DeliveryControl.Models.Dock>
+
+@{
+    ViewData["Title"] = "Master Dock";
+}
+
+@* Hidden form for anti-forgery token *@
+<form id="hiddenTokenForm" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-box-seam"></i> Master Dock</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <button type="button" class="btn btn-danger me-2" id="bulkDeleteBtn" style="display:none;" onclick="confirmBulkDelete()">
+            <i class="bi bi-trash"></i> Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+        <a asp-action="DownloadTemplate" class="btn btn-success me-2">
+            <i class="bi bi-download"></i> Template Excel
+        </a>
+        <button type="button" class="btn btn-info me-2" data-bs-toggle="modal" data-bs-target="#importModal">
+            <i class="bi bi-upload"></i> Import Excel
+        </button>
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Tambah Dock
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form asp-action="Index" method="get" class="row g-3">
+            <div class="col-md-10">
+                <select class="form-select" name="customerId">
+                    <option value="">-- Semua Customer --</option>
+                    @foreach (var customer in (Microsoft.AspNetCore.Mvc.Rendering.SelectList)ViewData["CustomerId"]!)
+                    {
+                        <option value="@customer.Value" selected="@(customer.Value == ViewData["CurrentCustomerId"]?.ToString())">
+                            @customer.Text
+                        </option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectAll" class="form-check-input" title="Pilih Semua">
+                            </th>
+                            <th>Kode Dock</th>
+                            <th>Nama Dock</th>
+                            <th>Customer</th>
+                            <th>Lokasi</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td>
+                                    <input type="checkbox" class="form-check-input row-checkbox" value="@item.DockId">
+                                </td>
+                                <td class="fw-bold" style="color: var(--primary-blue);">@item.DockCode</td>
+                                <td>@item.DockName</td>
+                                <td>
+                                    <span class="badge bg-secondary">@item.Customer.CustomerName</span>
+                                </td>
+                                <td>@(item.Location ?? "-")</td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">Aktif</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Tidak Aktif</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a asp-action="Details" asp-route-id="@item.DockId" class="btn btn-sm btn-info" title="Detail">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a asp-action="Edit" asp-route-id="@item.DockId" class="btn btn-sm btn-warning" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a asp-action="Delete" asp-route-id="@item.DockId" class="btn btn-sm btn-danger" title="Hapus">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Tidak ada data dock yang ditemukan.
+            </div>
+        }
+    </div>
+</div>
+
+@section Modals {
+    <!-- Modal Import Excel -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="importModalLabel">
+                            <i class="bi bi-upload"></i> Import Data Dock dari Excel
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> 
+                            <strong>Panduan Import:</strong>
+                            <ol class="mb-0 mt-2">
+                                <li>Download template Excel terlebih dahulu</li>
+                                <li>Isi data sesuai format template</li>
+                                <li>Customer ID harus sesuai dengan ID di database</li>
+                                <li>Kode Dock akan di-generate otomatis</li>
+                                <li>Upload file yang sudah diisi</li>
+                            </ol>
+                        </div>
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Pilih File Excel</label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                            <div class="form-text">Format file: .xlsx atau .xls</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Upload & Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select All functionality
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function() {
+                    const checkboxes = document.querySelectorAll('.row-checkbox');
+                    checkboxes.forEach(function(cb) {
+                        cb.checked = selectAllCheckbox.checked;
+                    });
+                    updateBulkDeleteButton();
+                });
+            }
+
+            // Individual checkbox change
+            const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+            rowCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    updateBulkDeleteButton();
+                    updateSelectAllState();
+                });
+            });
+        });
+
+        function updateBulkDeleteButton() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            if (checkedBoxes.length > 0) {
+                bulkDeleteBtn.style.display = 'inline-block';
+                selectedCount.textContent = checkedBoxes.length;
+            } else {
+                bulkDeleteBtn.style.display = 'none';
+            }
+        }
+
+        function updateSelectAllState() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            const selectAll = document.getElementById('selectAll');
+            
+            if (selectAll) {
+                selectAll.checked = checkboxes.length === checkedBoxes.length && checkboxes.length > 0;
+            }
+        }
+
+        function confirmBulkDelete() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            
+            if (checkedBoxes.length === 0) {
+                alert('Tidak ada dock yang dipilih!');
+                return false;
+            }
+            
+            const ids = Array.from(checkedBoxes).map(function(cb) { 
+                return cb.value; 
+            }).join(',');
+            
+            if (confirm('Anda yakin ingin menghapus ' + checkedBoxes.length + ' dock terpilih?\n\nData yang memiliki relasi (Schedule) tidak akan dihapus.')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '@Url.Action("BulkDelete", "Docks")';
+                
+                // Get token from hidden form
+                const tokenElement = document.querySelector('#hiddenTokenForm input[name="__RequestVerificationToken"]');
+                if (!tokenElement) {
+                    alert('Error: Anti-forgery token tidak ditemukan!');
+                    return false;
+                }
+                
+                const token = tokenElement.value;
+                
+                const tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = '__RequestVerificationToken';
+                tokenInput.value = token;
+                
+                const idsInput = document.createElement('input');
+                idsInput.type = 'hidden';
+                idsInput.name = 'selectedIds';
+                idsInput.value = ids;
+                
+                form.appendChild(tokenInput);
+                form.appendChild(idsInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+            
+            return false;
+        }
+    </script>
+}
+

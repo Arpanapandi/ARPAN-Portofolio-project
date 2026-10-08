@@ -1,0 +1,278 @@
+@model DeliveryControl.Controllers.StockController.CustomerSummaryViewModel
+
+@{
+    ViewData["Title"] = "Summary Critical Stock per Customer";
+    var maxDate = DateTime.Today.ToString("yyyy-MM-dd");
+    var selDateStr = Model.SelectedDate.ToString("yyyy-MM-dd");
+}
+
+<style>
+    /* Sci-Fi Table Styling */
+    .table-container-sci-fi {
+        background: #0f1929;
+        border: 1px solid #1e3a5f;
+        border-radius: 12px;
+        padding: 15px;
+        box-shadow: 0 0 20px rgba(59,130,246,0.15);
+        overflow-x: auto;
+    }
+    .excel-table {
+        background-color: transparent;
+        color: #e2e8f0;
+        border-collapse: separate;
+        border-spacing: 2px;
+        width: 100%;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .excel-table th, .excel-table td {
+        padding: 10px 12px;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 1.1rem;
+        border-radius: 4px;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    .excel-table thead th {
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        font-size: 0.95rem;
+        color: #fff;
+    }
+    /* Group dividers removed in favor of separate cells */
+    .excel-table th.border-r, .excel-table td.border-r {
+        border-right: none !important; 
+    }
+
+    /* Fixed Columns (NO, CUST) */
+    .excel-table tbody td:nth-child(1), .excel-table tbody td:nth-child(2),
+    .excel-table thead th[rowspan="3"] {
+        background-color: rgba(30, 41, 59, 0.8) !important;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    /* Header Groups */
+    /* Total Item Active */
+    .excel-table thead th:nth-child(3)[colspan="4"] {
+        background: rgba(13, 148, 136, 0.6) !important;
+        border: 1px solid rgba(20, 184, 166, 0.4);
+        box-shadow: 0 0 10px rgba(20, 184, 166, 0.2);
+    }
+    /* Stock < 0.5 Day */
+    .excel-table thead th:nth-child(4)[colspan="4"] {
+        background: rgba(185, 28, 28, 0.6) !important;
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+    }
+    /* Stock < 1 Day */
+    .excel-table thead th:nth-child(5)[colspan="4"] {
+        background: rgba(217, 119, 6, 0.6) !important;
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+    }
+    /* Stock < 2 Day */
+    .excel-table thead th:nth-child(6)[colspan="4"] {
+        background: rgba(21, 128, 61, 0.6) !important;
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
+    }
+
+    /* Second & Third row headers (Total Item Active) */
+    .excel-table thead tr:nth-child(2) th:nth-child(1),
+    .excel-table thead tr:nth-child(2) th:nth-child(2),
+    .excel-table thead tr:nth-child(2) th:nth-child(3),
+    .excel-table thead tr:nth-child(2) th:nth-child(4) {
+        background: rgba(13, 148, 136, 0.4) !important;
+    }
+    
+    /* E, S, N sub headers */
+    .excel-table thead th.bg-e { background: rgba(185, 28, 28, 0.7) !important; color: #fff !important; }
+    .excel-table thead th.bg-s { background: rgba(217, 119, 6, 0.7) !important; color: #fff !important; }
+    .excel-table thead th.bg-n { background: rgba(21, 128, 61, 0.7) !important; color: #fff !important; }
+
+    /* The "Total" column headers in each group */
+    .excel-table thead tr:nth-child(2) th:nth-child(6) { background: rgba(185, 28, 28, 0.5) !important; }
+    .excel-table thead tr:nth-child(2) th:nth-child(8) { background: rgba(217, 119, 6, 0.5) !important; }
+    .excel-table thead tr:nth-child(2) th:nth-child(10) { background: rgba(21, 128, 61, 0.5) !important; }
+
+    /* The Hose, Mold, RVI sub headers in E, S, N */
+    .excel-table thead tr:nth-child(3) th {
+        color: #fff !important;
+    }
+    .excel-table thead tr:nth-child(3) th:nth-child(1), .excel-table thead tr:nth-child(3) th:nth-child(2), .excel-table thead tr:nth-child(3) th:nth-child(3) {
+        background: rgba(185, 28, 28, 0.4) !important;
+    }
+    .excel-table thead tr:nth-child(3) th:nth-child(4), .excel-table thead tr:nth-child(3) th:nth-child(5), .excel-table thead tr:nth-child(3) th:nth-child(6) {
+        background: rgba(217, 119, 6, 0.4) !important;
+    }
+    .excel-table thead tr:nth-child(3) th:nth-child(7), .excel-table thead tr:nth-child(3) th:nth-child(8), .excel-table thead tr:nth-child(3) th:nth-child(9) {
+        background: rgba(21, 128, 61, 0.4) !important;
+    }
+
+    /* Data Cell Backgrounds */
+    /* Total Item Active group (cols 3-6) */
+    .excel-table tbody td:nth-child(3), .excel-table tbody td:nth-child(4), .excel-table tbody td:nth-child(5), .excel-table tbody td:nth-child(6) {
+        background: rgba(13, 148, 136, 0.15) !important;
+        border: 1px solid rgba(20, 184, 166, 0.15);
+    }
+    /* Stock < 0.5 Day group (cols 7-10) */
+    .excel-table tbody td:nth-child(7), .excel-table tbody td:nth-child(8), .excel-table tbody td:nth-child(9), .excel-table tbody td:nth-child(10) {
+        background: rgba(185, 28, 28, 0.25) !important;
+        border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+    /* Stock < 1 Day group (cols 11-14) */
+    .excel-table tbody td:nth-child(11), .excel-table tbody td:nth-child(12), .excel-table tbody td:nth-child(13), .excel-table tbody td:nth-child(14) {
+        background: rgba(217, 119, 6, 0.25) !important;
+        border: 1px solid rgba(245, 158, 11, 0.2);
+    }
+    /* Stock < 2 Day group (cols 15-18) */
+    .excel-table tbody td:nth-child(15), .excel-table tbody td:nth-child(16), .excel-table tbody td:nth-child(17), .excel-table tbody td:nth-child(18) {
+        background: rgba(21, 128, 61, 0.25) !important;
+        border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    /* Hover effect for rows */
+    .excel-table tbody tr:hover td {
+        filter: brightness(1.5);
+    }
+
+    /* Page Title styling */
+    .sci-fi-title {
+        font-family: 'Orbitron', 'Segoe UI', sans-serif;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-shadow: 0 0 10px rgba(56,189,248,0.5);
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="text-white mb-0 sci-fi-title">STOCK FG CUSTOMER</h2>
+        
+        <form method="get" class="d-flex align-items-center gap-2">
+            <span class="text-white fw-bold fs-5">@Model.SelectedDate.ToString("d-MMM-yy")</span>
+            <input type="date" name="date" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                   value="@selDateStr" max="@maxDate" onchange="this.form.submit()" style="width: auto;">
+        </form>
+    </div>
+
+    <div class="col-12 mt-2">
+        <div class="dashboard-nav-wrapper mb-2">
+            <partial name="_DashboardNav" />
+        </div>
+        <hr class="mt-0 opacity-25" />
+    </div>
+
+    <div class="table-responsive table-container-sci-fi" style="overflow-x: auto;">
+        <table class="excel-table">
+            <thead>
+                <tr>
+                    <th rowspan="3" style="width: 40px;">NO</th>
+                    <th rowspan="3" class="border-r" style="width: 150px;">CUST</th>
+                    
+                    <th colspan="4" class="border-r">Total Item Active</th>
+                    <th colspan="4" class="border-r">Stock &lt; 0.5 Day</th>
+                    <th colspan="4" class="border-r">Stock &lt; 1 Day</th>
+                    <th colspan="4" class="border-r">Stock &lt; 2 Day</th>
+                </tr>
+                <tr>
+                    <th rowspan="2">All</th>
+                    <th rowspan="2" class="bg-hose">Hose</th>
+                    <th rowspan="2" class="bg-mold">Mold</th>
+                    <th rowspan="2" class="border-r bg-rvi">RVI</th>
+                    
+                    <th colspan="3" class="bg-e">E</th>
+                    <th rowspan="2" class="border-r">Total</th>
+
+                    <th colspan="3" class="bg-s">S</th>
+                    <th rowspan="2" class="border-r">Total</th>
+
+                    <th colspan="3" class="bg-n">N</th>
+                    <th rowspan="2" class="border-r">Total</th>
+                </tr>
+                <tr>
+                    <th class="bg-hose">Hose<br/>Item</th>
+                    <th class="bg-mold">Mold<br/>Item</th>
+                    <th class="bg-rvi">RVI<br/>Item</th>
+
+                    <th class="bg-hose">Hose<br/>Item</th>
+                    <th class="bg-mold">Mold<br/>Item</th>
+                    <th class="bg-rvi">RVI<br/>Item</th>
+
+                    <th class="bg-hose">Hose<br/>Item</th>
+                    <th class="bg-mold">Mold<br/>Item</th>
+                    <th class="bg-rvi">RVI<br/>Item</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.No</td>
+                        <td class="border-r fw-bold">@row.Customer</td>
+                        
+                        <!-- Total Item Active -->
+                        <td>@row.ActiveAll</td>
+                        <td class="bg-hose">@row.ActiveHose</td>
+                        <td class="bg-mold">@row.ActiveMold</td>
+                        <td class="border-r bg-rvi">@row.ActiveRvi</td>
+
+                        <!-- Stock < 0.5 Day -->
+                        <td>@row.Stock05Hose</td>
+                        <td>@row.Stock05Mold</td>
+                        <td>@row.Stock05Rvi</td>
+                        <td class="border-r fw-bold">@row.Stock05Total</td>
+
+                        <!-- Stock < 1 Day -->
+                        <td>@row.Stock1Hose</td>
+                        <td>@row.Stock1Mold</td>
+                        <td>@row.Stock1Rvi</td>
+                        <td class="border-r fw-bold">@row.Stock1Total</td>
+
+                        <!-- Stock < 2 Day -->
+                        <td>@row.Stock2Hose</td>
+                        <td>@row.Stock2Mold</td>
+                        <td>@row.Stock2Rvi</td>
+                        <td class="border-r fw-bold">@row.Stock2Total</td>
+                    </tr>
+                }
+                @if (Model.Rows.Any())
+                {
+                    <tr style="background: rgba(30, 41, 59, 0.9); font-weight: 700; border-top: 2px solid rgba(148, 163, 184, 0.5);">
+                        <td></td>
+                        <td class="border-r text-end pe-3" style="color: #fff; letter-spacing: 0.05em;">GRAND TOTAL</td>
+                        
+                        <!-- Total Item Active -->
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.ActiveAll)</td>
+                        <td class="bg-hose" style="color: #fff;">@Model.Rows.Sum(r => r.ActiveHose)</td>
+                        <td class="bg-mold" style="color: #fff;">@Model.Rows.Sum(r => r.ActiveMold)</td>
+                        <td class="border-r bg-rvi" style="color: #fff;">@Model.Rows.Sum(r => r.ActiveRvi)</td>
+
+                        <!-- Stock < 0.5 Day -->
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock05Hose)</td>
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock05Mold)</td>
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock05Rvi)</td>
+                        <td class="border-r fw-bold" style="color: #fff;">@Model.Rows.Sum(r => r.Stock05Total)</td>
+
+                        <!-- Stock < 1 Day -->
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock1Hose)</td>
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock1Mold)</td>
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock1Rvi)</td>
+                        <td class="border-r fw-bold" style="color: #fff;">@Model.Rows.Sum(r => r.Stock1Total)</td>
+
+                        <!-- Stock < 2 Day -->
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock2Hose)</td>
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock2Mold)</td>
+                        <td style="color: #fff;">@Model.Rows.Sum(r => r.Stock2Rvi)</td>
+                        <td class="border-r fw-bold" style="color: #fff;">@Model.Rows.Sum(r => r.Stock2Total)</td>
+                    </tr>
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="18" class="text-center p-3 border-r">Tidak ada data untuk tanggal ini.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

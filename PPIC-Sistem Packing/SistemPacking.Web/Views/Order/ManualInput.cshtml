@@ -1,0 +1,81 @@
+@{
+    ViewData["Title"] = "Input Manual Order";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item"><a asp-action="Index">Order Management</a></li>
+    <li class="breadcrumb-item active">Input Manual</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title"><i class="bi bi-pencil-square"></i> Input Manual Order</h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form id="manualInputForm">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Order Date (Jadwal)</label>
+                    <input type="date" class="form-control" name="OrderDate" required value="@DateTime.Now.ToString("yyyy-MM-dd")">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Order No</label>
+                    <input type="text" class="form-control" name="OrderNo" required placeholder="Masukkan Order No">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Customer Name</label>
+                    <input type="text" class="form-control" name="CustomerName" required placeholder="Nama Customer">
+                </div>
+                
+                <hr class="mt-4 mb-2" />
+                <h5><i class="bi bi-box"></i> Detail Barang</h5>
+                
+                <div class="col-md-4">
+                    <label class="form-label">Part No (Kanban Code)</label>
+                    <input type="text" class="form-control" name="PartNo" required placeholder="Customer Part No">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">VIN</label>
+                    <input type="text" class="form-control" name="VIN" required placeholder="VIN">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">QTY</label>
+                    <input type="number" class="form-control" name="TargetQty" min="1" required>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary" id="btnSave">
+                    <i class="bi bi-save me-1"></i> Simpan
+                </button>
+                <a asp-action="Index" class="btn btn-secondary">Batal</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $('#manualInputForm').submit(function(e) {
+        e.preventDefault();
+        $('#btnSave').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Menyimpan...');
+        
+        $.post('/Order/SaveManualInput', $(this).serialize() + '&__RequestVerificationToken=' + $('[name="__RequestVerificationToken"]').val())
+            .done(function(res) {
+                if (res.success) {
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500 })
+                        .then(() => window.location.href = '/Order/Index');
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Gagal', html: res.message });
+                    $('#btnSave').prop('disabled', false).html('<i class="bi bi-save me-1"></i> Simpan');
+                }
+            })
+            .fail(function() {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: 'Terjadi kesalahan jaringan.' });
+                $('#btnSave').prop('disabled', false).html('<i class="bi bi-save me-1"></i> Simpan');
+            });
+    });
+</script>
+@Html.AntiForgeryToken()
+}

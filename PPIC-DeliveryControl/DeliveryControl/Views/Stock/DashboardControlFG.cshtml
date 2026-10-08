@@ -1,0 +1,743 @@
+@{
+    ViewData["Title"] = "Dashboard Control FG";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    /* ── Header bar ── */
+    .cfgfg-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .cfgfg-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #38bdf8;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .cfgfg-clock {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: rgba(15,23,42,0.7);
+        border: 1px solid rgba(56,189,248,0.3);
+        border-radius: 8px;
+        padding: 5px 14px;
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #38bdf8;
+        letter-spacing: 0.06em;
+        font-variant-numeric: tabular-nums;
+    }
+    /* ── Filter panel ── */
+    .cfgfg-filter-panel {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        background: linear-gradient(135deg,#0f172a,#1e293b);
+        border: 1px solid rgba(59,130,246,0.2);
+        border-radius: 12px;
+        padding: 14px 20px;
+        margin-bottom: 18px;
+    }
+    .cfgfg-filter-row   { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .cfgfg-label        { font-size:0.84rem; color:#94a3b8; font-weight:600; white-space:nowrap; }
+    /* ── Indicator cards ── */
+    .ctrl-indicator {
+        transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+        border-width: 2px !important;
+    }
+    .ctrl-indicator:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .status-indicator-live {
+        width: 8px; height: 8px; border-radius: 50%;
+        display: inline-block; margin-bottom: 5px;
+    }
+    .status-indicator-live.active {
+        background: #10b981;
+        box-shadow: 0 0 10px #10b981;
+        animation: pulse-live 2s infinite;
+    }
+    @@keyframes pulse-live {
+        0%,100% { opacity:1; } 50% { opacity:0.4; }
+    }
+    /* ── Table ── */
+    #ctrlTable { width: max-content; min-width: 100%; table-layout: auto; }
+    #ctrlTable thead th { background:#1e293b; color:#94a3b8; font-size:0.94rem; letter-spacing:.04em; padding:10px 10px; position: sticky; top: 0; z-index: 2; white-space: nowrap; }
+    #ctrlTable tbody td { padding:10px 10px; font-size:0.98rem; vertical-align:middle; border-color:rgba(255,255,255,0.05); white-space: nowrap; }
+    #ctrlTable tbody tr:hover { background:rgba(56,189,248,0.04); }
+    #ctrlTable td:nth-child(2) { white-space: nowrap; }
+    #ctrlTable td:nth-child(3) { min-width: 170px; }
+    #ctrlTable td:nth-child(4) { min-width: 180px; }
+    .cfgfg-vin { font-size: 16px; line-height: 1.2; }
+    .cfgfg-part-badge { font-size:1rem; padding:0.36rem 0.55rem; }
+    /* Pastikan scroll vertikal/horizontal aktif di landscape maupun portrait */
+    #ctrlTableCard .table-responsive {
+        width: 100%;
+        max-width: 100%;
+        overflow-y: auto;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* ── Portrait Rotate Mode (Dashboard Control FG only) ── */
+    html.dcfg-portrait-mode,
+    html.dcfg-portrait-mode body {
+        width: 100vh !important;
+        height: 100vw !important;
+        min-height: 100vw !important;
+        overflow: hidden !important;
+    }
+    html.dcfg-portrait-mode {
+        transform-origin: top left;
+        transform: translateX(100vw) rotate(90deg);
+    }
+    html.dcfg-portrait-mode .top-navbar        { display: none !important; }
+    html.dcfg-portrait-mode #sidebar           { display: none !important; }
+    html.dcfg-portrait-mode .futuristic-footer { display: none !important; }
+    html.dcfg-portrait-mode #mainContent {
+        margin-left: 0 !important;
+        margin-top: 0 !important;
+        width: 100% !important;
+        height: 100vw !important;
+        min-height: 100vw !important;
+        overflow: hidden !important;  /* hanya .table-responsive yang scroll */
+    }
+    html.dcfg-portrait-mode .content-wrapper {
+        width: 100% !important;
+        min-height: 0 !important;
+        padding: 0.75rem !important;
+        padding-bottom: 0 !important;
+    }
+    html.dcfg-portrait-mode #ctrlTableCard .table-responsive {
+        overflow-y: auto !important;
+        overflow-x: auto !important;
+    }
+    html.dcfg-portrait-mode #ctrlTable {
+        table-layout: auto !important;
+        width: max-content !important;
+        min-width: 100% !important;
+    }
+    html.dcfg-portrait-mode #ctrlTable thead th {
+        white-space: nowrap !important;
+        font-size: 0.74rem;
+        padding: 6px 5px;
+        letter-spacing: 0;
+    }
+    html.dcfg-portrait-mode #ctrlTable tbody td {
+        white-space: nowrap !important;
+        font-size: 0.76rem;
+        padding: 6px 5px;
+        word-break: normal;
+        overflow: visible;
+        vertical-align: middle;
+    }
+    html.dcfg-portrait-mode #ctrlTable td:nth-child(2),
+    html.dcfg-portrait-mode #ctrlTable th:nth-child(2) { max-width: 80px; min-width: 55px; }
+    html.dcfg-portrait-mode #ctrlTable td:nth-child(3),
+    html.dcfg-portrait-mode #ctrlTable th:nth-child(3) { max-width: 100px; min-width: 70px; }
+    html.dcfg-portrait-mode #ctrlTable td:nth-child(4) { min-width: 130px; }
+    /* Sembunyikan item name di bawah VIN agar baris lebih pendek */
+    html.dcfg-portrait-mode #ctrlTable td:nth-child(3) small { display: none; }
+    html.dcfg-portrait-mode .cfgfg-vin {
+        font-size: 14px;
+        white-space: nowrap !important;
+        overflow: visible;
+        text-overflow: clip;
+        display: block;
+        line-height: 1.2;
+        text-align: left !important;
+    }
+    html.dcfg-portrait-mode .cfgfg-part-badge {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.35rem;
+        white-space: nowrap;
+        word-break: normal;
+        display: inline-block;
+    }
+    /* Kecilkan badge LEVEL dan STATUS proporsional */
+    html.dcfg-portrait-mode .stock-badge {
+        font-size: 0.65rem !important;
+        padding: 2px 5px !important;
+    }
+    html.dcfg-portrait-mode #ctrlTable .badge {
+        font-size: 0.65rem !important;
+        padding: 2px 5px !important;
+    }
+
+    /* ── Lock scroll pada seluruh halaman — hanya .table-responsive yang boleh scroll ── */
+    html.dcfg-scroll-locked,
+    html.dcfg-scroll-locked body {
+        overflow: hidden !important;
+        height: 100% !important;
+    }
+    html.dcfg-scroll-locked #mainContent {
+        overflow: hidden !important;
+        height: calc(100vh - var(--navbar-height)) !important;
+    }
+    html.dcfg-scroll-locked .content-wrapper {
+        overflow: hidden !important;
+    }
+    /* Fade transition saat ganti rak */
+    #ctrlTableBody { transition: opacity 0.25s ease; }
+    #ctrlTableBody.fading { opacity: 0.15; }
+</style>
+
+<!-- ① Top header: title + clock -->
+<div class="cfgfg-header">
+    <div class="cfgfg-title">
+        <i class="bi bi-grid-3x3-gap-fill"></i>
+        Visual Stock FG Per RAK
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button id="btnAutoScroll"
+                class="btn btn-sm btn-outline-success d-flex align-items-center gap-1"
+                title="Auto scroll &amp; pindah rak otomatis"
+                style="font-size:0.78rem; padding:4px 12px; border-radius:8px;">
+            <i class="bi bi-play-circle" id="icnAutoScroll"></i>
+            <span id="lblAutoScroll">Auto Scroll</span>
+        </button>
+        <button id="btnRotateCFG"
+                class="btn btn-sm btn-outline-info d-flex align-items-center gap-1"
+                title="Putar ke mode Portrait"
+                style="font-size:0.78rem; padding:4px 12px; border-radius:8px;">
+            <i class="bi bi-phone" id="icnRotateCFG"></i>
+            <span>Portrait</span>
+        </button>
+        <div class="cfgfg-clock">
+            <i class="bi bi-clock-fill"></i>
+            <span id="cfgClock">--:--:--</span>
+        </div>
+    </div>
+</div>
+
+<!-- ② Filter panel: Plant | Tanggal | Rak | PIC satu baris -->
+<div class="cfgfg-filter-panel">
+    <span class="cfgfg-label">Plant:</span>
+    <select id="ctrlPlant" class="custom-select-input">
+        <option value="Overall">Overall</option>
+        <option value="Molded">Molded</option>
+        <option value="Hose">Hose</option>
+        <option value="RVI">RVI</option>
+    </select>
+    <span class="cfgfg-label ms-2">Tanggal:</span>
+    <input type="date" id="ctrlDate" class="custom-date-input"
+           value="@DateTime.Today.ToString("yyyy-MM-dd")" />
+    <span class="cfgfg-label ms-2">Rak:</span>
+    <select id="ctrlRak" class="custom-select-input" style="min-width:140px;">
+        <option value="">-- Pilih Rak --</option>
+    </select>
+    <span class="cfgfg-label ms-2">PIC:</span>
+    <select id="ctrlPIC" class="custom-select-input" style="min-width:140px;">
+        <option value="">-- Semua PIC --</option>
+        <option value="Andi">Andi</option>
+        <option value="Budi">Budi</option>
+        <option value="Citra">Citra</option>
+        <option value="Dian">Dian</option>
+        <option value="Eko">Eko</option>
+        <option value="Farida">Farida</option>
+        <option value="Gunawan">Gunawan</option>
+        <option value="Hendra">Hendra</option>
+    </select>
+</div>
+<!-- ③ Indicator cards -->
+<div class="row mb-3" id="ctrlIndicatorRow">
+    <div class="col-md-3 mb-3">
+        <div class="cyber-card p-3 text-center border-danger ctrl-indicator">
+            <small class="text-muted d-block text-uppercase">Shortage</small>
+            <h2 class="fw-bold mb-0 text-danger" id="indShortage">-</h2>
+            <small class="text-white-50">Low Stock Items</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="cyber-card p-3 text-center ctrl-indicator" style="border-color:#f59e0b!important;border:1px solid #f59e0b;">
+            <small class="text-muted d-block text-uppercase">Normal</small>
+            <h2 class="fw-bold mb-0" style="color:#f59e0b;" id="indNormal">-</h2>
+            <small class="text-white-50">Safe Stock Items</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="cyber-card p-3 text-center border-info ctrl-indicator">
+            <small class="text-muted d-block text-uppercase">Over</small>
+            <h2 class="fw-bold mb-0 text-info" id="indOver">-</h2>
+            <small class="text-white-50">Excessive Stock</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="cyber-card p-3 text-center ctrl-indicator">
+            <div class="status-indicator-live" id="indLive"></div>
+            <small class="text-muted d-block text-uppercase">Total Item</small>
+            <h2 class="fw-bold mb-0 text-white fs-4" id="indTotal">-</h2>
+            <small class="text-white-50">IN STORAGE</small>
+        </div>
+    </div>
+</div>
+<!-- ③ Detail table card -->
+<div class="cyber-card" id="ctrlTableCard">
+    <div class="card-header"
+         style="border-bottom:1px solid rgba(59,130,246,0.2);">
+        <span id="ctrlTableTitle" class="fw-bold text-primary">
+            <i class="bi bi-list-ul me-2"></i> Pilih rak untuk melihat detail
+        </span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="ctrlTable"
+               style="border-collapse:separate;border-spacing:0;">
+            <thead>
+                <tr>
+                    <th class="text-center" style="min-width:40px;">NO</th>
+                    <th style="min-width:120px;">LOKASI</th>
+                    <th style="min-width:170px;">ITEM / VIN</th>
+                    <th style="min-width:180px;">PART NO</th>
+                    <th class="text-center" style="min-width:70px;">QPC</th>
+                    <th class="text-center text-danger" style="min-width:70px;">MIN</th>
+                    <th class="text-center" style="min-width:70px;color:#f59e0b;">ROP</th>
+                    <th class="text-center text-success" style="min-width:70px;">MAX</th>
+                    <th class="text-center" style="min-width:84px;">LEVEL</th>
+                    <th class="text-center" style="min-width:70px;color:#67e8f9;">ACT</th>
+                    <th class="text-center" style="min-width:96px;">STATUS</th>
+                    @if (Context.Session.GetString("Role") == "Super Admin")
+                    {
+                        <th style="min-width:100px;">KETERANGAN</th>
+                    }
+                </tr>
+            </thead>
+            <tbody id="ctrlTableBody">
+                <tr><td colspan="@(Context.Session.GetString("Role") == "Super Admin" ? 12 : 11)" class="text-center py-5 text-muted">Pilih rak untuk melihat data.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Keterangan -->
+<div class="modal fade" id="remarkModal" tabindex="-1" aria-labelledby="remarkModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark border border-secondary">
+      <div class="modal-header border-secondary py-2">
+        <h6 class="modal-title text-white" id="remarkModalLabel">Edit Keterangan</h6>
+        <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pb-2">
+        <p class="text-muted small mb-2" id="remarkModalVin"></p>
+        <textarea id="remarkInput" class="form-control bg-dark text-white border-secondary" rows="4"
+                  placeholder="Masukkan keterangan..." style="resize:vertical;"></textarea>
+      </div>
+      <div class="modal-footer border-secondary py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+        <button type="button" class="btn btn-primary btn-sm" id="btnSaveRemark">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+<script>
+$(document).ready(function () {
+    // Lock scroll seluruh halaman: hanya .table-responsive yang boleh scroll
+    $('html').addClass('dcfg-scroll-locked');
+
+    let allItems     = [];
+    let currentPlant = 'Overall';
+    let currentRack  = null;
+    var rackList     = [];          // daftar rak valid
+    var loadSeq      = 0;           // monotonically increasing — dipakai untuk buang respons stale
+
+    // Real-time clock
+    function tickClock() {
+        const now = new Date();
+        const hh  = String(now.getHours()).padStart(2,'0');
+        const mm  = String(now.getMinutes()).padStart(2,'0');
+        const ss  = String(now.getSeconds()).padStart(2,'0');
+        $('#cfgClock').text(hh + ':' + mm + ':' + ss);
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    // Load rak dropdown — tambahkan opsi Overall untuk semua rak
+    function loadRakList(plant) {
+        $('#ctrlRak').html('<option value="Overall">Overall</option>');
+        $.getJSON('/Stock/GetRackList?plant=' + encodeURIComponent(plant), function(racks) {
+            // Filter rak yang benar-benar valid (tidak kosong, bukan "-")
+            rackList = racks.filter(function(r) { return r && r !== '-' && r.trim() !== ''; });
+            rackList.forEach(function(r) {
+                $('#ctrlRak').append('<option value="' + r + '">Rak ' + r + '</option>');
+            });
+            $('#ctrlRak').val('Overall');
+            loadRakItems(plant, 'Overall', function() {
+                // Restore auto scroll jika sedang aktif sebelumnya
+                if (localStorage.getItem('dcfg_autoscroll') === '1' && !autoScrollActive) {
+                    setTimeout(startAutoScroll, 400);
+                }
+            });
+        });
+    }
+
+    // Load items per rak — silent=true: jangan tampilkan spinner (untuk auto-scroll)
+    function loadRakItems(plant, rack, onDone, silent) {
+        if (!rack) return;
+        currentRack = rack;
+        var mySeq = ++loadSeq;   // token unik untuk request ini — respons stale akan diabaikan
+        var title = rack === 'Overall'
+            ? (plant === 'Overall' ? 'Semua Rak' : plant + ' / Semua Rak')
+            : (plant === 'Overall' ? 'Rak ' + rack : plant + ' / Rak ' + rack);
+        $('#ctrlTableTitle').html('<i class="bi bi-grid-3x3-gap-fill me-2"></i> Detail \u2014 ' + title);
+        if (!silent) {
+            $('#ctrlTableBody').html('<tr><td colspan="12" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>');
+        }
+        $('#ctrlStatShortage,#ctrlStatNormal,#ctrlStatOver,#ctrlStatTotal').hide();
+
+        $.getJSON('/Stock/GetRackItems?plant=' + encodeURIComponent(plant) + '&rack=' + encodeURIComponent(rack), function(items) {
+            // Buang respons lama jika sudah ada request lebih baru
+            if (mySeq !== loadSeq) return;
+            allItems = items || [];
+            if (allItems.length === 0) {
+                $('#ctrlTableBody').removeClass('fading').html('<tr><td colspan="12" class="text-center py-4 text-muted">Tidak ada item di rak ini.</td></tr>');
+                updateStats(0, 0, 0);
+                setTableHeight();
+                if (typeof onDone === 'function') onDone();
+                return;
+            }
+            var shortage = 0, normal = 0, over = 0;
+            allItems.forEach(function(d) {
+                if (d.status === 'Shortage') shortage++;
+                else if (d.status === 'Over') over++;
+                else normal++;
+            });
+            updateStats(shortage, normal, over);
+            renderAllItems();
+            $('#ctrlTableBody').removeClass('fading');
+            setTableHeight();
+            if (typeof onDone === 'function') onDone();
+        }).fail(function() {
+            if (mySeq !== loadSeq) return;
+            $('#ctrlTableBody').removeClass('fading').html('<tr><td colspan="12" class="text-center py-4 text-danger">Gagal memuat data rak.</td></tr>');
+            if (typeof onDone === 'function') onDone();
+        });
+    }
+
+    function updateStats(s, n, o) {
+        // Big indicator cards only
+        $('#indShortage').text(s);
+        $('#indNormal').text(n);
+        $('#indOver').text(o);
+        $('#indTotal').text(s + n + o);
+        $('#indLive').addClass('active');
+    }
+
+    function renderAllItems() {
+        var rows = '';
+        allItems.forEach(function(d) {
+            var statusBadge = d.status === 'Shortage'
+                ? '<span class="badge bg-danger">Shortage</span>'
+                : d.status === 'Over'
+                ? '<span class="badge bg-info text-dark">Over</span>'
+                : '<span class="badge bg-success">Normal</span>';
+
+            var lv = d.level;
+            var levelBadge = lv < 1.5
+                ? '<span class="stock-badge stock-level-red px-2 py-1"><i class="bi bi-exclamation-triangle-fill"></i> ' + lv + 'D</span>'
+                : lv < 2.0
+                ? '<span class="stock-badge stock-level-yellow px-2 py-1"><i class="bi bi-info-circle-fill"></i> ' + lv + 'D</span>'
+                : lv <= 3.0
+                ? '<span class="stock-badge stock-level-green px-2 py-1"><i class="bi bi-check-circle-fill"></i> ' + lv + 'D</span>'
+                : '<span class="stock-badge stock-level-blue px-2 py-1"><i class="bi bi-star-fill"></i> ' + lv + 'D</span>';
+
+            var partNosHtml = d.partNos && d.partNos.length > 0
+                ? d.partNos.map(function(p) { return '<span class="badge bg-secondary cfgfg-part-badge">' + p + '</span>'; }).join('')
+                : '<span class="text-muted">-</span>';
+
+            var actColor = d.act <= 0 ? 'color:#ef4444;' : d.act < d.min ? 'color:#f59e0b;' : 'color:#10b981;';
+
+            rows += '<tr>'
+                + '<td class="text-center">' + d.no + '</td>'
+                + '<td><small style="color:#94a3b8;">' + d.lokasi + '</small></td>'
+                + '<td><div class="fw-bold text-white cfgfg-vin">' + d.vin + '</div></td>'
+                + '<td>' + partNosHtml + '</td>'
+                + '<td class="text-center fw-bold text-info" style="font-size:1.05rem;">' + d.qpc + '</td>'
+                + '<td class="text-center fw-bold text-danger" style="font-size:1.05rem;">' + d.min + '</td>'
+                + '<td class="text-center fw-bold" style="color:#f59e0b;font-size:1.05rem;">' + d.rop + '</td>'
+                + '<td class="text-center fw-bold text-success" style="font-size:1.05rem;">' + d.max + '</td>'
+                + '<td class="text-center">' + levelBadge + '</td>'
+                + '<td class="text-center fw-bold" style="' + actColor + 'font-size:1.05rem;">' + d.act + '</td>'
+                + '<td class="text-center">' + statusBadge + '</td>'
+                @if (Context.Session.GetString("Role") == "Super Admin")
+                {
+                    <text>+ '<td class="remark-cell" style="color:#a78bfa;cursor:pointer;" title="Klik untuk edit keterangan" data-itemcode="' + $('<div>').text(d.itemCode||'').html() + '" data-remark="' + $('<div>').text(d.remark||'').html() + '" data-vin="' + $('<div>').text(d.vin||'').html() + '">' + (d.remark ? '<span>' + $('<div>').text(d.remark).html() + '</span>' : '<span class="text-muted fst-italic" style="font-size:0.8rem;">+ keterangan</span>') + '</td>'</text>
+                }
+                + '</tr>';
+        });
+        $('#ctrlTableBody').html(rows);
+    }
+
+    $('#ctrlPlant').on('change', function() {
+        currentPlant = $(this).val();
+        currentRack  = null;
+        allItems     = [];
+        resetTable();
+        loadRakList(currentPlant);
+    });
+
+    $('#ctrlRak').on('change', function() {
+        var rack = $(this).val();
+        if (!rack) { resetTable(); return; }
+        loadRakItems(currentPlant, rack);
+    });
+
+    function resetTable() {
+        $('#ctrlTableBody').html('<tr><td colspan="12" class="text-center py-5 text-muted">Pilih rak untuk melihat data.</td></tr>');
+        $('#ctrlTableTitle').html('<i class="bi bi-list-ul me-2"></i> Pilih rak untuk melihat detail');
+        $('#indShortage,#indNormal,#indOver,#indTotal').text('-');
+        $('#indLive').removeClass('active');
+    }
+
+    loadRakList(currentPlant);
+
+    // ── Auto Scroll + Auto Next Rak ──
+    var autoScrollActive = false;
+    var autoScrollTimer  = null;
+    var SCROLL_STEP      = 2;           // px per tick
+    var SCROLL_INTERVAL  = 30;          // ms per tick
+    var PAUSE_AT_BOTTOM  = 5000;        // ms berhenti sebelum pindah rak (5 detik)
+    var pausingForNext   = false;
+
+    function getScrollTarget() {
+        return $('#ctrlTableCard .table-responsive')[0];
+    }
+
+    function getNextRack() {
+        var idx = rackList.indexOf(currentRack);
+        if (idx === -1 || rackList.length === 0) return rackList[0] || null;
+        return rackList[(idx + 1) % rackList.length];
+    }
+
+    // Pindah ke rak berikutnya — silent load (tanpa spinner), fade effect
+    function goToNextRack() {
+        var next = getNextRack();
+        if (!next) { pausingForNext = false; return; }
+        $('#ctrlRak').val(next);
+        var el = getScrollTarget();
+        // Fade out data lama
+        $('#ctrlTableBody').addClass('fading');
+        setTimeout(function() {
+            if (el) el.scrollTop = 0;
+            loadRakItems(currentPlant, next, function() {
+                if (el) el.scrollTop = 0;
+                setTimeout(function() {
+                    if (autoScrollActive) pausingForNext = false;
+                }, 200);
+            }, true /* silent */);
+        }, 250); // tunggu fade out selesai
+    }
+
+    function startAutoScroll() {
+        if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
+        autoScrollActive = true;
+        pausingForNext   = false;
+        localStorage.setItem('dcfg_autoscroll', '1');
+        $('#btnAutoScroll').removeClass('btn-outline-success').addClass('btn-success');
+        $('#icnAutoScroll').attr('class', 'bi bi-pause-circle');
+        $('#lblAutoScroll').text('Stop Scroll');
+
+        autoScrollTimer = setInterval(function() {
+            if (pausingForNext) return;
+            var el = getScrollTarget();
+            if (!el) return;
+
+            var canScroll = el.scrollHeight > (el.clientHeight + 2);
+            var atBottom  = !canScroll || (el.scrollTop + el.clientHeight) >= (el.scrollHeight - 4);
+
+            if (atBottom) {
+                // Sampai bawah (atau konten muat semua) — pause lalu next rak
+                pausingForNext = true;
+                setTimeout(function() {
+                    if (autoScrollActive) goToNextRack();
+                }, PAUSE_AT_BOTTOM);
+            } else {
+                el.scrollTop += SCROLL_STEP;
+            }
+        }, SCROLL_INTERVAL);
+    }
+
+    function stopAutoScroll() {
+        autoScrollActive = false;
+        pausingForNext   = false;
+        localStorage.removeItem('dcfg_autoscroll');
+        if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
+        $('#btnAutoScroll').removeClass('btn-success').addClass('btn-outline-success');
+        $('#icnAutoScroll').attr('class', 'bi bi-play-circle');
+        $('#lblAutoScroll').text('Auto Scroll');
+    }
+
+    $('#btnAutoScroll').on('click', function() {
+        if (autoScrollActive) { stopAutoScroll(); } else { startAutoScroll(); }
+    });
+
+    // Hentikan jika user manual scroll
+    $('#ctrlTableCard .table-responsive').on('wheel.autoScroll touchstart.autoScroll', function() {
+        if (autoScrollActive) stopAutoScroll();
+    });
+
+    // Hentikan jika user manual pilih rak
+    $('#ctrlRak').on('change.manualUser', function() {
+        if (autoScrollActive) stopAutoScroll();
+    });
+
+    // Saat halaman ditutup/pindah: bersihkan class
+    $(window).on('beforeunload.dcfgPortrait', function() {
+        $('html').removeClass('dcfg-portrait-mode dcfg-scroll-locked');
+    });
+
+    // ── Hitung tinggi tabel agar hanya tabel yang scroll ──
+    function setTableHeight() {
+        setTimeout(function () {
+            // Portrait: tinggi visual = innerWidth (layar diputar 90°)
+            // Landscape: tinggi visual = innerHeight
+            var isPortrait = $('html').hasClass('dcfg-portrait-mode');
+            var totalH   = isPortrait ? window.innerWidth : window.innerHeight;
+            var navbarH  = isPortrait ? 0 : ($('.top-navbar').outerHeight(true) || 0);
+            var padTop   = parseInt($('.content-wrapper').css('padding-top'))  || 12;
+            var headerH  = $('.cfgfg-header').outerHeight(true)               || 0;
+            var filterH  = $('.cfgfg-filter-panel').outerHeight(true)          || 0;
+            var indH     = $('#ctrlIndicatorRow').outerHeight(true)            || 0;
+            var cardHdrH = $('#ctrlTableCard .card-header').outerHeight(true)  || 0;
+            var tableH   = totalH - navbarH - padTop - headerH - filterH - indH - cardHdrH - 24;
+            if (tableH > 80) {
+                $('#ctrlTableCard .table-responsive').css('height', tableH + 'px');
+            }
+        }, 80);
+    }
+    function setPortraitTableHeight() { setTableHeight(); }
+
+    $('#btnRotateCFG').on('click', function () {
+        $('html').toggleClass('dcfg-portrait-mode');
+        var isPortrait = $('html').hasClass('dcfg-portrait-mode');
+        $('#icnRotateCFG').attr('class', isPortrait ? 'bi bi-phone-landscape' : 'bi bi-phone');
+        $(this).find('span').text(isPortrait ? 'Landscape' : 'Portrait');
+        if (isPortrait) {
+            $(this).removeClass('btn-outline-info').addClass('btn-info');
+        } else {
+            $(this).removeClass('btn-info').addClass('btn-outline-info');
+        }
+        setTableHeight();
+    });
+    // Recompute on window resize
+    $(window).on('resize.dcfgPortrait', function () {
+        setTableHeight();
+    });
+    // Hitung tinggi tabel saat load pertama
+    setTableHeight();
+
+    // ── SignalR: auto-refresh saat ada pulling / preparation ──
+    var signalRDebounce = null;
+
+    function silentRefresh() {
+        // Reload data rak aktif tanpa spinner (silent), jaga posisi scroll
+        if (!currentRack) return;
+        var el = getScrollTarget();
+        var prevScrollTop = el ? el.scrollTop : 0;
+        loadRakItems(currentPlant, currentRack, function() {
+            if (el) el.scrollTop = prevScrollTop;
+        }, true /* silent */);
+    }
+
+    var stockConnection = new signalR.HubConnectionBuilder()
+        .withUrl("/stockHub")
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .build();
+
+    stockConnection.on("updateStock", function () {
+        // Debounce: tunda 800ms agar tidak flood saat banyak event sekaligus
+        clearTimeout(signalRDebounce);
+        signalRDebounce = setTimeout(function() {
+            silentRefresh();
+            if (window.showUpdateNotification) {
+                window.showUpdateNotification('Data stock diperbarui (realtime)', 'pulling', 3000);
+            }
+        }, 800);
+    });
+
+    stockConnection.start().catch(function(err) {
+        console.error("SignalR DashboardControlFG (stockHub):", err.toString());
+    });
+
+    // ── deliveryHub: update Act Dock In saat Enter Dock dicatat ──
+    var deliveryConnection = new signalR.HubConnectionBuilder()
+        .withUrl("/deliveryHub")
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .build();
+
+    deliveryConnection.on("deliveryUpdated", function (data) {
+        if (data && data.action === "enterDock") {
+            // Refresh tabel untuk update kolom Act Dock In
+            clearTimeout(signalRDebounce);
+            signalRDebounce = setTimeout(function() {
+                silentRefresh();
+                if (window.showUpdateNotification) {
+                    window.showUpdateNotification('Enter Dock tercatat (realtime)', 'delivery', 3000);
+                }
+            }, 500);
+        }
+    });
+
+    deliveryConnection.start().catch(function(err) {
+        console.error("SignalR DashboardControlFG (deliveryHub):", err.toString());
+    });
+
+    // ---- Modal Keterangan ----
+    var _remarkItemCode = '';
+
+    $(document).on('click', '.remark-cell', function() {
+        _remarkItemCode = $(this).data('itemcode');
+        var remark = $(this).data('remark') || '';
+        var vin = $(this).data('vin') || '';
+        $('#remarkModalVin').text(vin ? 'Item: ' + vin : '');
+        $('#remarkInput').val(remark);
+        var modal = new bootstrap.Modal(document.getElementById('remarkModal'));
+        modal.show();
+    });
+
+    $('#btnSaveRemark').on('click', function() {
+        var newRemark = $('#remarkInput').val().trim();
+        var btn = $(this).prop('disabled', true).text('Menyimpan...');
+        fetch('/Stock/SaveItemRemark', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ itemCode: _remarkItemCode, remark: newRemark })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.prop('disabled', false).text('Simpan');
+            if (data.ok) {
+                // Update in-memory array and re-render
+                for (var i = 0; i < allItems.length; i++) {
+                    if (allItems[i].itemCode === _remarkItemCode) {
+                        allItems[i].remark = data.remark;
+                        break;
+                    }
+                }
+                renderAllItems();
+                bootstrap.Modal.getInstance(document.getElementById('remarkModal')).hide();
+            } else {
+                alert('Gagal menyimpan: ' + (data.message || 'Unknown error'));
+            }
+        })
+        .catch(function() {
+            btn.prop('disabled', false).text('Simpan');
+            alert('Gagal terhubung ke server.');
+        });
+    });
+});
+</script>
+}

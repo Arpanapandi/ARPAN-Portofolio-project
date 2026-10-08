@@ -1,0 +1,51 @@
+@model DeliveryControl.Models.ItemMapping
+
+@{
+    ViewData["Title"] = "Hapus Mapping";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-trash"></i> Hapus Mapping</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Item Mapping</a></li>
+                <li class="breadcrumb-item active">Hapus</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card border-danger border-opacity-25">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Konfirmasi Hapus Mapping</h5>
+            </div>
+            <div class="card-body p-4">
+                <div class="alert alert-warning">
+                    <strong>Peringatan!</strong> Menghapus mapping ini akan menyebabkan sistem gagal mengenali part number terkait pada saat import jadwal di masa mendatang.
+                </div>
+
+                <dl class="row mt-4">
+                    <dt class="col-sm-5 text-muted">DOCK</dt>
+                    <dd class="col-sm-7 fw-bold">@(Model.Customer ?? "-")</dd>
+
+                    <dt class="col-sm-5 text-muted">Part No (External)</dt>
+                    <dd class="col-sm-7 fw-bold text-warning">@(Model.CustomerPartNumber ?? "-")</dd>
+
+                    <dt class="col-sm-5 text-muted">VIN (Internal)</dt>
+                    <dd class="col-sm-7 fw-bold text-success">@(Model.VIN ?? "-")</dd>
+                </dl>
+
+                <form asp-action="Delete" method="post" class="mt-4">
+                    <input type="hidden" asp-for="MappingId" />
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a asp-action="Index" class="btn btn-secondary px-4 rounded-pill">Batal</a>
+                        <button type="submit" class="btn btn-danger px-4 rounded-pill">Ya, Hapus Mapping</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

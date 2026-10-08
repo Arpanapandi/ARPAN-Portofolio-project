@@ -1,0 +1,257 @@
+@model DeliveryControl.Models.ScheduleTemplate
+
+@{
+    ViewData["Title"] = "Konfigurasi Mapping";
+}
+
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Template Jadwal</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Mapping: @Model.Name</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Kolom Kiri: Upload Sample & Header Hint -->
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-file-earmark-arrow-up me-1"></i> 1. Upload Contoh File
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-4">Upload file contoh untuk melihat struktur kolom/keyword yang ada di file tersebut.</p>
+                
+                <div class="mb-3">
+                    <input type="file" id="sampleFile" class="form-control" accept=".xlsx,.xls,.pdf,.png,.jpg" />
+                </div>
+                <button type="button" class="btn btn-outline-info w-100 mb-4" id="btnUploadSample">
+                    <i class="bi bi-stars me-1"></i> Analisis File
+                </button>
+
+                <div id="headerHintSection" style="display:none;">
+                    <h6 class="fw-bold border-bottom pb-2 mb-3">Kolom/Kata Ditemukan:</h6>
+                    <div id="headerCloud" class="d-flex flex-wrap gap-1">
+                        <!-- Will be populated by JS -->
+                    </div>
+                    <div class="mt-3 small text-info">
+                        <i class="bi bi-info-circle"></i> Klik pada kata di atas untuk menyalinnya ke kolom mapping.
+                    </div>
+                </div>
+
+                <div id="uploadLoader" style="display:none;" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2 small">Menganalisis file...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kolom Kanan: Mapping Table -->
+    <div class="col-md-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-diagram-3 me-1"></i> 2. Konfigurasi Pemetaan (Mapping)</span>
+                <span class="badge bg-light text-primary">Target: @Model.CustomerName</span>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info py-2 small mb-4">
+                    <i class="bi bi-lightbulb me-2"></i> Mapping memberitahu sistem kata apa yang harus dicari di file untuk field tertentu. Misal: <strong>Manifest</strong> dicari dari keyword <strong>"DN NO"</strong> atau <strong>"Manifest No"</strong>.
+                </div>
+
+                <table class="table table-bordered align-middle" id="mappingTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th style="width: 250px;">Field Sistem</th>
+                            <th>Keyword di File (Koma pisahkan)</th>
+                            <th class="text-center" style="width: 120px;">Tipe Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            var targetFields = (List<string>)ViewBag.TargetFields;
+                            foreach (var field in targetFields)
+                            {
+                                var existing = Model.Mappings.FirstOrDefault(m => m.TargetField == field);
+                                <tr>
+                                    <td class="fw-bold bg-light-subtle">
+                                        <i class="bi bi-tag-fill text-primary me-2"></i>@field
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control mapping-source" 
+                                               data-field="@field" 
+                                               value="@(existing?.SourceKeywords ?? "")"
+                                               placeholder="Contoh: @field, @(field == "Manifest" ? "DN NO, No Manifest" : (field == "Qty" ? "Quantity, Qty Order" : (field == "Customer" ? "ASTRA HONDA MOTOR, TMMIN" : (field == "Date" ? "DN Date, Calc Date" : "Keyword lain"))))" />
+                                    </td>
+                                    <td class="text-center">
+                                        @{
+                                            bool isHeader = existing?.IsHeader ?? (field == "Date" || field == "Customer" || field == "Route" || field == "Cycle" ? true : false);
+                                        }
+                                        <select class="form-select form-select-sm mapping-header" data-field="@field">
+                                            @if (!isHeader) {
+                                                <option value="false" selected>Detail</option>
+                                                <option value="true">Header</option>
+                                            } else {
+                                                <option value="false">Detail</option>
+                                                <option value="true" selected>Header</option>
+                                            }
+                                        </select>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+
+                <div class="mt-4 pt-3 border-top d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-secondary" onclick="window.location.reload()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Reset
+                    </button>
+                    <button type="button" class="btn btn-primary px-5" id="btnSaveMappings">
+                        <i class="bi bi-check2-circle me-1"></i> Simpan Konfigurasi
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            let activeInput = null;
+
+            // Track input mana yang terakhir di-klik untuk fitur copy-by-click
+            $('.mapping-source').on('focus', function() {
+                activeInput = $(this);
+                $('.mapping-source').removeClass('border-primary shadow-sm');
+                $(this).addClass('border-primary shadow-sm');
+            });
+
+            $('#btnUploadSample').on('click', function() {
+                const fileInput = document.getElementById('sampleFile');
+                if (fileInput.files.length === 0) {
+                    alert('Pilih file terlebih dahulu!');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('sampleFile', fileInput.files[0]);
+                formData.append('templateId', '@Model.Id');
+
+                $('#btnUploadSample').hide();
+                $('#uploadLoader').show();
+                $('#headerHintSection').hide();
+
+                $.ajax({
+                    url: '@Url.Action("UploadSample")',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        $('#uploadLoader').hide();
+                        $('#btnUploadSample').show();
+
+                        if (response.success) {
+                            $('#headerCloud').empty();
+                            if (response.headers.length > 0) {
+                                response.headers.forEach(h => {
+                                    const badge = $('<span class="badge bg-light text-dark border p-2 cursor-pointer header-tag"></span>')
+                                        .text(h)
+                                        .on('click', function() {
+                                            if (activeInput) {
+                                                let val = activeInput.val();
+                                                const newTag = $(this).text();
+                                                if (val) {
+                                                    const tags = val.split(',').map(t => t.trim());
+                                                    if (!tags.includes(newTag)) {
+                                                        activeInput.val(val + ', ' + newTag);
+                                                    }
+                                                } else {
+                                                    activeInput.val(newTag);
+                                                }
+                                                activeInput.trigger('change');
+                                            } else {
+                                                alert('Klik pada salah satu kotak input di kanan terlebih dahulu!');
+                                            }
+                                        });
+                                    $('#headerCloud').append(badge);
+                                });
+                                $('#headerHintSection').fadeIn();
+                            } else {
+                                alert('Tidak dapat mengekstrak teks dari file ini.');
+                            }
+                        } else {
+                            alert('Gagal menganalisis file: ' + response.message);
+                        }
+                    },
+                    error: function() {
+                        $('#uploadLoader').hide();
+                        $('#btnUploadSample').show();
+                        alert('Terjadi kesalahan koneksi server.');
+                    }
+                });
+            });
+
+            $('#btnSaveMappings').on('click', function() {
+                const mappings = [];
+                $('.mapping-source').each(function() {
+                    const field = $(this).data('field');
+                    const keywords = $(this).val().trim();
+                    const isHeader = $('.mapping-header[data-field="' + field + '"]').val() === 'true';
+
+                    if (keywords) {
+                        mappings.push({
+                            TargetField: field,
+                            SourceKeywords: keywords,
+                            IsHeader: isHeader
+                        });
+                    }
+                });
+
+                if (mappings.length === 0) {
+                    alert('Minimal ada 1 mapping yang diisi!');
+                    return;
+                }
+
+                $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Menyimpan...');
+
+                $.ajax({
+                    url: '@Url.Action("SaveMappings")',
+                    type: 'POST',
+                    data: {
+                        templateId: '@Model.Id',
+                        mappingsJson: JSON.stringify(mappings)
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            alert('Mapping berhasil disimpan!');
+                            window.location.href = '@Url.Action("Index")';
+                        } else {
+                            alert('Gagal menyimpan: ' + response.message);
+                            $('#btnSaveMappings').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Simpan Konfigurasi');
+                        }
+                    },
+                    error: function() {
+                        alert('Terjadi kesalahan koneksi server.');
+                        $('#btnSaveMappings').prop('disabled', false).html('<i class="bi bi-check2-circle me-1"></i> Simpan Konfigurasi');
+                    }
+                });
+            });
+        });
+    </script>
+    <style>
+        .header-tag:hover {
+            background-color: var(--bs-primary) !important;
+            color: white !important;
+            cursor: pointer;
+        }
+        .bg-light-subtle { background-color: #f8f9fa; }
+    </style>
+}

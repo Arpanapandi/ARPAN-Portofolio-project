@@ -1,0 +1,70 @@
+@using System.Collections
+@{
+    ViewData["Title"] = "Edit Downtime ⇄ Machine Mapping";
+    var machine = (Machine)ViewBag.Machine;
+    var reasons = (IEnumerable<DowntimeReason>)ViewBag.Reasons;
+    var selectedReasonIds = (ICollection<int>)ViewBag.SelectedReasonIds;
+}
+
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-0"><i class="fa-solid fa-link me-2"></i>Edit Mapping Downtime ⇄ Machine</h2>
+            <div class="text-secondary small">Pilih problem/downtime reason yang akan tampil untuk mesin ini</div>
+        </div>
+        <a asp-action="DowntimeMachineMappings" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-8">
+                <h5 class="mb-2">@machine.Name</h5>
+                <div class="text-secondary small">
+                    <div><strong>Line ID:</strong> @machine.LineId</div>
+                    <div><strong>Status:</strong> @(machine.Status == MachineStatus.Aktif ? "Aktif" : "Tidak Aktif")</div>
+                    @if (machine.Plant != null)
+                    {
+                        <div><strong>Plant:</strong> @machine.Plant.Code - @machine.Plant.Name</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditDowntimeMachines" method="post">
+            <input type="hidden" name="id" value="@machine.Id" />
+
+            <h6 class="mb-3">Pilih Downtime Reasons:</h6>
+            <div class="row">
+                @foreach (var reason in reasons)
+                {
+                    var isChecked = selectedReasonIds.Contains(reason.Id);
+                    <div class="col-md-6 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="reasonIds" value="@reason.Id" @(isChecked ? "checked" : "") id="reason_@reason.Id" />
+                            <label class="form-check-label" for="reason_@reason.Id">
+                                <strong>[@reason.Category]</strong> @reason.Description
+                            </label>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="mt-3 d-flex gap-2">
+                <button type="submit" class="btn btn-info">
+                    <i class="fa-solid fa-save me-1"></i>Simpan Mapping
+                </button>
+                <a asp-action="DowntimeMachineMappings" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+

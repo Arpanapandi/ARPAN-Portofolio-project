@@ -1,0 +1,111 @@
+@model Machine
+@{
+    ViewData["Title"] = "Edit Machine";
+    // Pastikan Model tidak null
+    if (Model == null)
+    {
+        throw new InvalidOperationException("Machine model tidak dapat dimuat. Silakan refresh halaman.");
+    }
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fa-solid fa-edit me-2"></i>Edit Machine</h2>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditMachine" method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            
+            <div class="mb-3">
+                <label asp-for="Id" class="form-label">Machine ID <span class="text-danger">*</span></label>
+                <input asp-for="Id" class="form-control" maxlength="4" required />
+                <span asp-validation-for="Id" class="text-danger"></span>
+                <small class="form-text text-muted">ID mesin (maksimal 4 karakter)</small>
+            </div>
+            
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">Machine Name</label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="LineId" class="form-label">Line ID</label>
+                <input asp-for="LineId" class="form-control" />
+                <span asp-validation-for="LineId" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="PlantId" class="form-label">PLANT</label>
+                <select asp-for="PlantId" class="form-select" asp-items="@(ViewBag.PlantId ?? new SelectList(new List<object>(), "Id", "DisplayText"))">
+                    <option value="">-- Pilih Plant --</option>
+                </select>
+                <span asp-validation-for="PlantId" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Status" class="form-label">Status <span class="text-danger">*</span></label>
+                <select asp-for="Status" class="form-select" required>
+                    <option value="">-- Pilih Status --</option>
+                    <option value="@MachineStatus.Aktif">Aktif</option>
+                    <option value="@MachineStatus.TidakAktif">Tidak Aktif</option>
+                </select>
+                <span asp-validation-for="Status" class="text-danger"></span>
+                <small class="form-text text-muted">Pilih status mesin (Aktif atau Tidak Aktif)</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Machine Photo (optional)</label>
+                <input type="file" name="imageFile" class="form-control" accept="image/*" />
+                @if (Model != null && !string.IsNullOrEmpty(Model.ImageUrl))
+                {
+                    <div class="mt-2">
+                        <span class="text-secondary small">Current:</span><br />
+                        <div class="d-flex align-items-center gap-2 mt-2">
+                            <img src="@Model.ImageUrl" alt="@(Model.Name ?? "Machine")" style="max-height:80px; border-radius: 4px;" />
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="deleteImage" id="deleteImage" value="true" />
+                                <label class="form-check-label text-danger" for="deleteImage">
+                                    <i class="fa-solid fa-trash me-1"></i>Hapus gambar
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ManufacturingYear" class="form-label">Tahun Mesin</label>
+                <input asp-for="ManufacturingYear" type="date" class="form-control" />
+                <span asp-validation-for="ManufacturingYear" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="InstallationYear" class="form-label">Tahun Instalasi</label>
+                <input asp-for="InstallationYear" type="date" class="form-control" />
+                <span asp-validation-for="InstallationYear" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Keterangan</label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-save me-2"></i>Save Changes
+                </button>
+                <a asp-action="Machines" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}
+

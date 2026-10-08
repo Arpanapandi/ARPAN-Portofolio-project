@@ -1,0 +1,48 @@
+@model DeliveryControl.Models.Dock
+
+@{
+    ViewData["Title"] = "Hapus Dock";
+}
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h4><i class="bi bi-trash"></i> Konfirmasi Hapus Dock</h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Peringatan!</strong> Anda yakin ingin menghapus dock ini?
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-4">Kode Dock</dt>
+                    <dd class="col-sm-8"><strong class="text-primary">@Model.DockCode</strong></dd>
+
+                    <dt class="col-sm-4">Nama Dock</dt>
+                    <dd class="col-sm-8">@Model.DockName</dd>
+
+                    <dt class="col-sm-4">Customer</dt>
+                    <dd class="col-sm-8">@Model.Customer.CustomerName</dd>
+
+                    <dt class="col-sm-4">Lokasi</dt>
+                    <dd class="col-sm-8">@(Model.Location ?? "-")</dd>
+                </dl>
+
+                <form asp-action="Delete" method="post">
+                    <input type="hidden" asp-for="DockId" />
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Ya, Hapus
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+

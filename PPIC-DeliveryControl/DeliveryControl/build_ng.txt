@@ -1,0 +1,12 @@
+C:\Program Files\dotnet\sdk\10.0.101\Microsoft.Common.CurrentVersion.targets(5381,5): warning MSB3026: Could not copy "C:\DeliveryControl\DeliveryControl\obj\Debug\net8.0\apphost.exe" to "bin\Debug\net8.0\DeliveryControl.exe". Beginning retry 1 in 1000ms. The process cannot access the file 'C:\DeliveryControl\DeliveryControl\bin\Debug\net8.0\DeliveryControl.exe' because it is being used by another process. The file is locked by: "DeliveryControl (16544)" [C:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+C:\Program Files\dotnet\sdk\10.0.101\Microsoft.Common.CurrentVersion.targets(5381,5): warning MSB3026: Could not copy "C:\DeliveryControl\DeliveryControl\obj\Debug\net8.0\apphost.exe" to "bin\Debug\net8.0\DeliveryControl.exe". Beginning retry 2 in 1000ms. The process cannot access the file 'C:\DeliveryControl\DeliveryControl\bin\Debug\net8.0\DeliveryControl.exe' because it is being used by another process. The file is locked by: "DeliveryControl (16544)" [C:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+  DeliveryControl -> C:\DeliveryControl\DeliveryControl\bin\Debug\net8.0\DeliveryControl.dll
+
+Build succeeded.
+
+C:\Program Files\dotnet\sdk\10.0.101\Microsoft.Common.CurrentVersion.targets(5381,5): warning MSB3026: Could not copy "C:\DeliveryControl\DeliveryControl\obj\Debug\net8.0\apphost.exe" to "bin\Debug\net8.0\DeliveryControl.exe". Beginning retry 1 in 1000ms. The process cannot access the file 'C:\DeliveryControl\DeliveryControl\bin\Debug\net8.0\DeliveryControl.exe' because it is being used by another process. The file is locked by: "DeliveryControl (16544)" [C:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+C:\Program Files\dotnet\sdk\10.0.101\Microsoft.Common.CurrentVersion.targets(5381,5): warning MSB3026: Could not copy "C:\DeliveryControl\DeliveryControl\obj\Debug\net8.0\apphost.exe" to "bin\Debug\net8.0\DeliveryControl.exe". Beginning retry 2 in 1000ms. The process cannot access the file 'C:\DeliveryControl\DeliveryControl\bin\Debug\net8.0\DeliveryControl.exe' because it is being used by another process. The file is locked by: "DeliveryControl (16544)" [C:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+    2 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.25

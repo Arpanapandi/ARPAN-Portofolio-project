@@ -1,0 +1,384 @@
+@model IEnumerable<SistemPacking.Web.Models.Customer>
+@{
+    ViewData["Title"] = "Master Customer";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">Customer</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-building"></i> Master Customer</h2>
+    <div>
+        <a href="/Master/DownloadTemplateCustomer" class="btn btn-outline-info me-2">
+            <i class="bi bi-download me-1"></i>Template
+        </a>
+        <button class="btn btn-outline-success me-2" onclick="$('#importModal').modal('show')">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import
+        </button>
+        <a href="/Master/ExportCustomers" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Export
+        </a>
+        <button class="btn btn-danger me-2 d-none" id="btnBulkDelete" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="showModal()">
+            <i class="bi bi-plus-circle me-1"></i>Tambah Customer
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="customerTable">
+            <thead>
+                <tr>
+                    <th class="text-center" style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="checkAll">
+                    </th>
+                    <th>No</th>
+                    <th>Nama Customer</th>
+                    <th>Dock</th>
+                    <th>Route</th>
+                    <th>Cycle</th>
+                    <th>STD Shopping</th>
+                    <th>STD Packing</th>
+                    <th>STD Pickup</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int rowNo = 1; }
+                @foreach (var c in Model)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input chk-item" type="checkbox" value="@c.Id">
+                        </td>
+                        <td>@(rowNo++)</td>
+                        <td class="fw-semibold text-primary">@c.CustomerName</td>
+                        <td>@(c.Dock ?? "-")</td>
+                        <td>@(c.Route ?? "-")</td>
+                        <td>@(c.Cycle ?? "-")</td>
+                        <td>@(c.StdShopping ?? "-")</td>
+                        <td>@(c.StdPacking ?? "-")</td>
+                        <td>@(c.StdPickup ?? "-")</td>
+                        <td>
+                            @if (c.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger">Nonaktif</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-xs btn-outline-primary" onclick="editCustomer(@c.Id, '@c.CustomerCode', '@c.CustomerName', '@c.Address', '@c.ContactPerson', '@c.Phone', @(c.IsActive ? "true" : "false"), '@c.Dock', '@c.Route', '@c.Cycle', '@(c.StdShopping ?? "")', '@(c.StdPacking ?? "")', '@(c.StdPickup ?? "")')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Master Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pilih File Excel (.xlsx) <span class="text-danger">*</span></label>
+                        <input type="file" id="importFile" name="file" class="form-control" accept=".xlsx" required />
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnImport" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i> Upload & Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Form -->
+<div class="modal fade" id="customerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Tambah Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="customerForm">
+                    <input type="hidden" id="Id" value="0" />
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Customer Code <span class="text-danger">*</span></label>
+                            <input type="text" id="CustomerCode" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Customer Name <span class="text-danger">*</span></label>
+                            <input type="text" id="CustomerName" class="form-control" required />
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Address</label>
+                        <textarea id="Address" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Contact Person</label>
+                            <input type="text" id="ContactPerson" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Phone</label>
+                            <input type="text" id="Phone" class="form-control" />
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Dock</label>
+                            <input type="text" id="Dock" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Route</label>
+                            <input type="text" id="Route" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Cycle</label>
+                            <input type="text" id="Cycle" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">STD Shopping</label>
+                            <input type="time" id="StdShopping" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">STD Packing</label>
+                            <input type="time" id="StdPacking" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">STD Pickup</label>
+                            <input type="time" id="StdPickup" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="IsActive" checked />
+                        <label class="form-check-label" for="IsActive">Aktif</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#customerTable').DataTable({
+            language: { url: '/js/id.json' },
+            columnDefs: [
+                { targets: 0, orderable: false, className: 'text-center' },
+                { targets: -1, orderable: false }
+            ]
+        });
+
+        // Check All logic
+        $('#checkAll').change(function () {
+            $('.chk-item').prop('checked', $(this).prop('checked'));
+            toggleBulkDeleteBtn();
+        });
+
+        $('#customerTable tbody').on('change', '.chk-item', function () {
+            if (!$(this).prop('checked')) {
+                $('#checkAll').prop('checked', false);
+            }
+            toggleBulkDeleteBtn();
+        });
+
+        function toggleBulkDeleteBtn() {
+            var selected = $('.chk-item:checked').length;
+            if (selected > 0) {
+                $('#selectedCount').text(selected);
+                $('#btnBulkDelete').removeClass('d-none');
+            } else {
+                $('#btnBulkDelete').addClass('d-none');
+            }
+        }
+
+        $('#saveBtn').click(function () {
+            if (!$('#CustomerCode').val() || !$('#CustomerName').val()) {
+                showToast('warning', 'Kode dan Nama wajib diisi!');
+                return;
+            }
+
+            const data = {
+                Id: parseInt($('#Id').val()),
+                CustomerCode: $('#CustomerCode').val(),
+                CustomerName: $('#CustomerName').val(),
+                Address: $('#Address').val() || '',
+                ContactPerson: $('#ContactPerson').val() || '',
+                Phone: $('#Phone').val() || '',
+                Dock: $('#Dock').val(),
+                Route: $('#Route').val(),
+                Cycle: $('#Cycle').val(),
+                StdShopping: $('#StdShopping').val(),
+                StdPacking: $('#StdPacking').val(),
+                StdPickup: $('#StdPickup').val(),
+                IsActive: $('#IsActive').is(':checked')
+            };
+
+            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Master/SaveCustomer',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                        $('#saveBtn').prop('disabled', false).text('Simpan');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Terjadi kesalahan jaringan', 'error');
+                    $('#saveBtn').prop('disabled', false).text('Simpan');
+                }
+            });
+        });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('customerModal'));
+
+    function showModal() {
+        $('#modalTitle').text('Tambah Customer');
+        $('#customerForm')[0].reset();
+        $('#Id').val(0);
+        $('#IsActive').prop('checked', true);
+        modal.show();
+    }
+
+    function editCustomer(id, code, name, address, contact, phone, isActive, dock, route, cycle, stdShopping, stdPacking, stdPickup) {
+        $('#modalTitle').text('Edit Customer');
+        $('#Id').val(id);
+        $('#CustomerCode').val(code);
+        $('#CustomerName').val(name);
+        $('#Address').val(address === 'null' ? '' : address);
+        $('#ContactPerson').val(contact === 'null' ? '' : contact);
+        $('#Phone').val(phone === 'null' ? '' : phone);
+        $('#Dock').val(dock === 'null' ? '' : dock);
+        $('#Route').val(route === 'null' ? '' : route);
+        $('#Cycle').val(cycle === 'null' ? '' : cycle);
+        $('#StdShopping').val(stdShopping);
+        $('#StdPacking').val(stdPacking);
+        $('#StdPickup').val(stdPickup);
+        $('#IsActive').prop('checked', isActive);
+        modal.show();
+    }
+
+    function doImport() {
+        var file = $('#importFile')[0].files[0];
+        if (!file) {
+            Swal.fire('Error', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+        $('#btnImport').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Loading...');
+
+        $.ajax({
+            url: '/Master/ImportCustomers',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    Swal.fire('Berhasil', res.message, 'success').then(() => location.reload());
+                } else {
+                    var errorMsg = res.message + "<br><br>" + (res.errors ? res.errors.join('<br>') : '');
+                    Swal.fire({
+                        title: 'Import Gagal', 
+                        html: errorMsg, 
+                        icon: 'error',
+                        customClass: { htmlContainer: 'text-start' }
+                    });
+                }
+            },
+            error: function () {
+                Swal.fire('Error', 'Gagal menghubungi server', 'error');
+            },
+            complete: function () {
+                $('#btnImport').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload & Import');
+            }
+        });
+    }
+
+    function bulkDelete() {
+        var selected = [];
+        $('.chk-item:checked').each(function () {
+            selected.push(parseInt($(this).val()));
+        });
+
+        if (selected.length === 0) return;
+
+        Swal.fire({
+            title: 'Hapus ' + selected.length + ' data?',
+            text: "Data yang dihapus tidak dapat dikembalikan!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/BulkDeleteCustomers',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: { 'RequestVerificationToken': $('[name="__RequestVerificationToken"]').val() },
+                    data: JSON.stringify(selected),
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire('Terhapus!', res.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    }
+                });
+            }
+        });
+    }
+</script>
+@Html.AntiForgeryToken()
+}

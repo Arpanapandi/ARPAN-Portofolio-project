@@ -1,0 +1,314 @@
+@model DeliveryControl.Models.ViewModels.BulkScheduleViewModel
+
+@{
+    ViewData["Title"] = "Buat Jadwal Delivery (Bulk)";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-calendar-check"></i> Buat Jadwal Delivery (Bulk)</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Delivery Schedule</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Bulk Create</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="alert alert-info">
+            <h5><i class="bi bi-info-circle"></i> Cara Penggunaan:</h5>
+            <ol class="mb-0">
+                <li><strong>Pilih tanggal</strong> jadwal delivery</li>
+                <li>Sistem akan otomatis <strong>menampilkan customer</strong> yang sesuai dengan hari tersebut (berdasarkan Cycle)</li>
+                <li><strong>Checklist customer</strong> yang ingin dijadwalkan</li>
+                <li>Klik <strong>"Buat Schedule"</strong> untuk membuat jadwal secara bulk</li>
+            </ol>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h6><i class="bi bi-calendar3"></i> Hari Terpilih</h6>
+                <h3 class="text-primary mb-0">
+                    @Model.ScheduledDate.ToString("dddd", new System.Globalization.CultureInfo("id-ID"))
+                </h3>
+                <p class="text-muted mb-0">@Model.ScheduledDate.ToString("dd MMMM yyyy", new System.Globalization.CultureInfo("id-ID"))</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-calendar-date"></i> Pilih Tanggal & Customer</h5>
+    </div>
+    <div class="card-body">
+        <form asp-action="BulkCreate" method="get" class="mb-4">
+            <div class="row align-items-end">
+                <div class="col-md-4">
+                    <label for="selectedDate" class="form-label"><i class="bi bi-calendar"></i> Tanggal Jadwal</label>
+                    <input type="date" 
+                           id="selectedDate" 
+                           name="selectedDate" 
+                           class="form-control" 
+                           value="@Model.ScheduledDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Filter Customer
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <hr />
+
+        <form asp-action="BulkCreate" method="post" id="bulkScheduleForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ScheduledDate" value="@Model.ScheduledDate.ToString("yyyy-MM-dd")" />
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="mb-0">
+                        Ditemukan <span class="badge bg-success" id="matchingCount">0</span> customer yang sesuai hari ini
+                        <small class="text-muted">(Total: @Model.AvailableCustomers.Count customer)</small>
+                    </h6>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" asp-for="IsAutoGenerate" id="autoGenerateToggle">
+                        <label class="form-check-label" for="autoGenerateToggle">
+                            Generate otomatis sesuai Cycle (Senin–Jumat, skip Sabtu & Minggu)
+                        </label>
+                    </div>
+                    <small class="text-muted d-block" id="autoModeNote" style="display:none;">
+                        Dalam mode otomatis, sistem akan memilih customer berdasarkan Cycle/hari. Checklist manual diabaikan.
+                    </small>
+                </div>
+                <div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="selectMatchingBtn">
+                        <i class="bi bi-check-square"></i> Pilih Semua Sesuai Hari
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="selectAllBtn">
+                        <i class="bi bi-check-all"></i> Pilih Semua
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="deselectAllBtn">
+                        <i class="bi bi-square"></i> Hapus Semua
+                    </button>
+                </div>
+            </div>
+
+            @if (!Model.AvailableCustomers.Any())
+            {
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Tidak ada customer aktif yang tersedia.
+                </div>
+            }
+            else
+            {
+                <div class="bulk-table-wrapper">
+                    <table class="table table-hover table-bordered mb-0" id="customerTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th width="50" class="text-center">
+                                    <input type="checkbox" id="checkAll" class="form-check-input" />
+                                </th>
+                                <th width="80">CUST</th>
+                                <th>Nama Customer</th>
+                                <th>Route</th>
+                                <th>Cycle</th>
+                                <th>Docking</th>
+                                <th>Pickup</th>
+                                <th>ETD</th>
+                                <th>Range</th>
+                                <th>SKID</th>
+                                <th>Area</th>
+                                <th width="80" class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var customer in Model.AvailableCustomers)
+                            {
+                                var rowClass = customer.IsMatchingDay ? "table-success" : "table-light";
+                                var statusBadge = customer.IsMatchingDay 
+                                    ? "<span class='badge bg-success'><i class='bi bi-check-circle'></i> Sesuai</span>" 
+                                    : "<span class='badge bg-secondary'><i class='bi bi-dash-circle'></i> Beda Hari</span>";
+                                
+                                <tr class="@rowClass customer-row" data-matching="@customer.IsMatchingDay.ToString().ToLower()">
+                                    <td class="text-center">
+                                        <input type="checkbox" 
+                                               name="SelectedCustomerIds" 
+                                               value="@customer.CustomerId" 
+                                               class="form-check-input customer-checkbox"
+                                               data-matching="@customer.IsMatchingDay.ToString().ToLower()" />
+                                    </td>
+                                    <td>
+                                        <strong>@customer.CustomerCode</strong>
+                                    </td>
+                                    <td>@customer.CustomerName</td>
+                                    <td>@(customer.Route ?? "-")</td>
+                                    <td>
+                                        @if (!string.IsNullOrWhiteSpace(customer.Cycle))
+                                        {
+                                            <span class="badge bg-info">@customer.Cycle</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>@(customer.Docking ?? "-")</td>
+                                    <td>@(customer.Pickup ?? "-")</td>
+                                    <td>@(customer.ETD ?? "-")</td>
+                                    <td>@(customer.Range ?? "-")</td>
+                                    <td>@(customer.SKID ?? "-")</td>
+                                    <td>@(customer.Area ?? "-")</td>
+                                    <td class="text-center">@Html.Raw(statusBadge)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4">
+                    <div class="alert alert-primary">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Keterangan:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>Baris <span class="badge bg-success">hijau</span> = Customer yang cycle-nya sesuai dengan hari yang dipilih</li>
+                            <li>Baris abu-abu = Customer yang cycle-nya berbeda atau tidak ada cycle</li>
+                            <li>Data Route, Cycle, Pickup, ETD, SKID, Area akan otomatis terisi dari master Customer</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                    <div>
+                        <span class="text-muted">Customer Terpilih: <strong id="selectedCount">0</strong></span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="bi bi-check-circle"></i> Buat Schedule (<span id="submitCount">0</span> Customer)
+                        </button>
+                    </div>
+                </div>
+            }
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            // Update counter
+            function updateCounter() {
+                var isAuto = $('#autoGenerateToggle').is(':checked');
+                var checked = $('.customer-checkbox:checked').length;
+                $('#selectedCount').text(checked);
+                $('#submitCount').text(checked);
+                
+                // Count matching customers
+                var matching = $('.customer-row[data-matching="true"]').length;
+                $('#matchingCount').text(matching);
+                
+                // Enable/disable submit button
+                if (isAuto) {
+                    $('#submitBtn').removeClass('disabled').prop('disabled', false);
+                } else if (checked > 0) {
+                    $('#submitBtn').removeClass('disabled').prop('disabled', false);
+                } else {
+                    $('#submitBtn').addClass('disabled').prop('disabled', true);
+                }
+            }
+
+            // Check All
+            $('#checkAll').change(function() {
+                $('.customer-checkbox').prop('checked', this.checked);
+                updateCounter();
+            });
+
+            // Individual checkbox
+            $('.customer-checkbox').change(function() {
+                updateCounter();
+                
+                // Update check all status
+                var total = $('.customer-checkbox').length;
+                var checked = $('.customer-checkbox:checked').length;
+                $('#checkAll').prop('checked', total === checked);
+            });
+
+            // Select All Button
+            $('#selectAllBtn').click(function() {
+                $('.customer-checkbox').prop('checked', true);
+                $('#checkAll').prop('checked', true);
+                updateCounter();
+            });
+
+            // Deselect All Button
+            $('#deselectAllBtn').click(function() {
+                $('.customer-checkbox').prop('checked', false);
+                $('#checkAll').prop('checked', false);
+                updateCounter();
+            });
+
+            // Select Matching Only Button
+            $('#selectMatchingBtn').click(function() {
+                $('.customer-checkbox').prop('checked', false);
+                $('.customer-checkbox[data-matching="true"]').prop('checked', true);
+                updateCounter();
+            });
+
+            // Form submit validation
+            $('#bulkScheduleForm').submit(function(e) {
+                var isAuto = $('#autoGenerateToggle').is(':checked');
+                var checked = $('.customer-checkbox:checked').length;
+
+                if (!isAuto && checked === 0) {
+                    e.preventDefault();
+                    alert('Silakan pilih minimal 1 customer untuk dijadwalkan!');
+                    return false;
+                }
+                
+                // Confirmation
+                var date = '@Model.ScheduledDate.ToString("dd/MM/yyyy")';
+                var msg = isAuto
+                    ? 'Apakah Anda yakin ingin membuat schedule delivery OTOMATIS untuk tanggal ' + date + '?'
+                    : 'Apakah Anda yakin ingin membuat ' + checked + ' schedule delivery untuk tanggal ' + date + '?';
+                
+                if (!confirm(msg)) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+
+            // Toggle mode: otomatis vs manual
+            function updateAutoToggle() {
+                var isAuto = $('#autoGenerateToggle').is(':checked');
+                $('.customer-checkbox, #checkAll, #selectAllBtn, #deselectAllBtn, #selectMatchingBtn')
+                    .prop('disabled', isAuto);
+
+                if (isAuto) {
+                    $('#autoModeNote').show();
+                } else {
+                    $('#autoModeNote').hide();
+                }
+            }
+
+            $('#autoGenerateToggle').change(updateAutoToggle);
+
+            // Initialize state
+            updateAutoToggle();
+            updateCounter();
+            
+            // Auto submit when date changed
+            $('#selectedDate').change(function() {
+                $(this).closest('form').submit();
+            });
+        });
+    </script>
+}
+

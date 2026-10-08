@@ -1,0 +1,138 @@
+@model DeliveryControl.Models.Item
+
+@{
+    ViewData["Title"] = "Detail Item";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-box"></i> Detail Item</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Item</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Detail</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-info-circle"></i> Informasi Item</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-3">VIN (Unique Code)</dt>
+                    <dd class="col-sm-9"><strong>@Model.ItemCode</strong></dd>
+
+                    <dt class="col-sm-3">LOKASI RACK</dt>
+                    <dd class="col-sm-9">@Model.ItemName</dd>
+
+                    <dt class="col-sm-3">Deskripsi</dt>
+                    <dd class="col-sm-9">@(Model.Description ?? "-")</dd>
+
+                    <dt class="col-sm-3">Unit</dt>
+                    <dd class="col-sm-9">@(Model.Unit ?? "-")</dd>
+
+                    <dt class="col-sm-3">Kategori</dt>
+                    <dd class="col-sm-9">
+                        @if (!string.IsNullOrEmpty(Model.Category))
+                        {
+                            <span class="badge bg-info">@Model.Category</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-3">Berat (KG)</dt>
+                    <dd class="col-sm-9">@(Model.Weight?.ToString("N2") ?? "-")</dd>
+
+                    <dt class="col-sm-3">Volume (M³)</dt>
+                    <dd class="col-sm-9">@(Model.Volume?.ToString("N2") ?? "-")</dd>
+
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9 mb-3">
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge bg-success">Aktif</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Tidak Aktif</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-12"><hr /></dt>
+
+                    <dt class="col-sm-3 text-primary">Plant</dt>
+                    <dd class="col-sm-9">@(Model.Plant ?? "-")</dd>
+
+                    <dt class="col-sm-3 text-primary">Lokasi Rak</dt>
+                    <dd class="col-sm-9">
+                        @if (!string.IsNullOrEmpty(Model.Rack))
+                        {
+                            <span class="fw-bold">@Model.Rack . @Model.NoRack</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-3 text-primary">Qty per Lot</dt>
+                    <dd class="col-sm-9">@(Model.QtyLot?.ToString() ?? "-")</dd>
+
+                    <dt class="col-sm-3 text-primary">Kapasitas Rak</dt>
+                    <dd class="col-sm-9">
+                        @if (Model.RackMin.HasValue)
+                        {
+                            <span>Min: @Model.RackMin / Max: @Model.RackMax</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+                </dl>
+
+                <div class="d-flex gap-2 mt-4">
+                    <a asp-action="Index" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Kembali
+                    </a>
+                    <a asp-action="Edit" asp-route-id="@Model.ItemId" class="btn btn-warning">
+                        <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <a asp-action="Delete" asp-route-id="@Model.ItemId" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> Hapus
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> Riwayat</h6>
+            </div>
+            <div class="card-body">
+                <p class="small">
+                    <strong>Dibuat:</strong><br />
+                    @Model.CreatedDate.ToString("dd MMM yyyy HH:mm")
+                </p>
+                @if (Model.UpdatedDate.HasValue)
+                {
+                    <p class="small">
+                        <strong>Terakhir Diupdate:</strong><br />
+                        @Model.UpdatedDate.Value.ToString("dd MMM yyyy HH:mm")
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+

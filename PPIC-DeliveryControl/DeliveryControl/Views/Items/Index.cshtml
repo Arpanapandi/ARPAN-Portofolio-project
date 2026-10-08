@@ -1,0 +1,405 @@
+@model IEnumerable<DeliveryControl.Models.Item>
+
+@{
+    ViewData["Title"] = "Master Item";
+}
+
+<div class="row mb-4 align-items-center">
+    <div class="col-md-5">
+        <h2 class="mb-0"><i class="bi bi-boxes"></i> Master Item</h2>
+    </div>
+    <div class="col-md-7 text-end">
+        <div class="btn-group gap-2 flex-wrap">
+            <a asp-action="ExportExcel" class="premium-btn btn-glass-success shadow-sm">
+                <i class="bi bi-file-earmark-arrow-down-fill me-1"></i> Export Excel
+            </a>
+            <a asp-action="DownloadTemplate" class="premium-btn btn-glass-success shadow-sm">
+                <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Template Excel
+            </a>
+            <button type="button" class="premium-btn btn-glass-info shadow-sm" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="bi bi-box-arrow-in-down me-1"></i> Import Excel
+            </button>
+            <a asp-action="Create" class="premium-btn btn-primary shadow-sm">
+                <i class="bi bi-plus-circle-fill me-1"></i> Tambah Item
+            </a>
+            <a asp-controller="Stock" asp-action="Targets" class="premium-btn btn-dark-blue shadow-sm">
+                <i class="bi bi-bullseye me-1"></i> Stock Targets
+            </a>
+            <form asp-action="BulkDeleteAll" method="post" class="d-inline" onsubmit="return confirm('APAKAH ANDA YAKIN? Tindakan ini akan MENGHAPUS SELURUH DATA MASTER ITEM. Data transaksi (Pulling, Preparation, Delivery) TIDAK akan terhapus. Tindakan ini tidak dapat dibatalkan!')">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="premium-btn btn-glass-danger shadow-sm">
+                    <i class="bi bi-trash-fill me-1"></i> Hapus Semua Data
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-gradient {
+        background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .premium-btn {
+        padding: 0.5rem 1.25rem;
+        border-radius: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255,255,255,0.1);
+        font-size: 0.9rem;
+    }
+    .premium-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        filter: brightness(1.1);
+    }
+    .btn-glass-success {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981 !important;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    .btn-glass-info {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6 !important;
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+    .btn-dark-blue {
+        background: #1e293b;
+        color: #94a3b8 !important;
+    }
+    .btn-glass-danger {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444 !important;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    .bg-dark-blue { background: #0f172a !important; }
+    .bg-red { background: #991b1b !important; }
+    .bg-yellow { background: #eab308 !important; }
+    .table-hover tbody tr:hover { background: rgba(59, 130, 246, 0.05); }
+    .rack-summary-badge { display:inline-flex; align-items:center; gap:4px; background:rgba(59,130,246,0.15); border:1px solid rgba(59,130,246,0.3); border-radius:20px; padding:2px 8px; font-size:0.75rem; color:#60a5fa; font-weight:600; cursor:pointer; transition:all 0.2s; }
+    .rack-summary-badge:hover { background:rgba(59,130,246,0.3); }
+    .rack-detail-row { display:none; background: #0a1628 !important; }
+    .rack-detail-row.show { display:table-row; }
+    .rack-detail-inner { padding:10px 20px; border-top:1px solid rgba(59,130,246,0.15); }
+    .rack-loc-pill { display:inline-flex; align-items:center; gap:4px; background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:20px; padding:3px 10px; font-size:0.78rem; color:#34d399; font-weight:600; margin:2px; }
+    .rack-loc-pill .rack-letter { color:#60a5fa; }
+    .rack-loc-pill .rack-no { color:#fbbf24; }
+    .rack-loc-pill .rack-plant { color:#94a3b8; font-size:0.7rem; font-weight:400; }
+    .master-table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+    th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; vertical-align: middle; border: 1px solid rgba(255,255,255,0.05) !important; }
+    td { font-size: 0.85rem; vertical-align: middle; border: 1px solid rgba(255,255,255,0.05) !important; color: #cbd5e1; }
+</style>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form asp-action="Index" method="get" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" class="form-control" name="searchString" value="@ViewBag.SearchString" 
+                       placeholder="Cari kode atau nama..." />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="category">
+                    <option value="">-- Semua Kategori --</option>
+                    @foreach (var cat in (IEnumerable<string>)ViewData["Categories"]!)
+                    {
+                        <option value="@cat" selected="@(cat == ViewData["CurrentCategory"]?.ToString())">@cat</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="plant">
+                    <option value="">-- Semua Lokasi Rak --</option>
+                    @foreach (var plant in (IEnumerable<string>)ViewData["Plants"]!)
+                    {
+                        <option value="@plant" selected="@(plant == ViewData["CurrentPlant"]?.ToString())">@plant</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="rack">
+                    <option value="">-- Semua Rak --</option>
+                    @foreach (var rack in (IEnumerable<string>)ViewData["Racks"]!)
+                    {
+                        <option value="@rack" selected="@(rack == ViewData["CurrentRack"]?.ToString())">Rak @rack</option>
+                    }
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Cari
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+    <div class="card-body">
+            <div class="master-table-wrapper">
+                <table class="table table-hover mb-0" id="itemsTable">
+                    <thead>
+                        <tr>
+                            <th class="bg-dark-blue text-white text-center">NO</th>
+                            <th class="bg-dark-blue text-white">ITEM NAME</th>
+                            <th class="bg-dark-blue text-white">PROD. PLANT</th>
+                            <th class="bg-dark-blue text-white text-center">RACK</th>
+                            <th class="bg-dark-blue text-white text-center">RACK NO</th>
+                            <th class="bg-dark-blue text-white">CUST</th>
+                            <th class="bg-dark-blue text-white text-center">STATUS</th>
+                            <th class="bg-dark-blue text-white">PROD.</th>
+                            <th class="bg-dark-blue text-white">VIN</th>
+                            <th class="bg-dark-blue text-white text-center">QPC</th>
+                            <th class="bg-red text-white text-center">MIN 0,5D</th>
+                            <th class="bg-yellow text-dark text-center">ROP 1D</th>
+                            <th class="bg-info text-white text-center">MAX 2D</th>
+                            <th class="bg-dark-blue text-white text-center">ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int pageSize = 20;
+                            int startNo = ((ViewBag.CurrentPage as int? ?? 1) - 1) * pageSize;
+                            int loopIndex = 0;
+                            // Group by VIN — items with same VIN are multiple racks of one product
+                            var vinGroups = Model.GroupBy(i => i.VIN ?? i.ItemCode).ToList();
+                        }
+                        @foreach (var group in vinGroups)
+                        {
+                            var primary = group.OrderBy(i => i.Rack).First();
+                            var allRacks = group.Where(i => i.Rack != null)
+                                               .OrderBy(i => i.Rack).ThenBy(i => i.NoRack).ToList();
+                            var distinctRacks = string.Join(",", allRacks.Select(i => i.Rack).Distinct().OrderBy(r => r));
+                            var distinctNoRacks = string.Join(",", allRacks.Select(i => i.NoRack).Where(n => n.HasValue).Select(n => n!.Value).Distinct().OrderBy(n => n));
+                            var hasMulti = allRacks.Count > 1;
+                            var rowId = $"rack-detail-{primary.ItemId}";
+                            <tr>
+                                <td class="text-center">@(startNo + loopIndex++ + 1)</td>
+                                <td class="fw-bold text-primary">@primary.ItemName</td>
+                                <td>@(primary.Plant ?? "-")</td>
+                                <td class="text-center">
+                                    @if (hasMulti)
+                                    {
+                                        <span class="rack-summary-badge" onclick="toggleRackDetail('@rowId')" title="Klik untuk lihat detail lokasi rak">
+                                            <i class="bi bi-layers-fill" style="font-size:0.7rem;"></i>
+                                            @distinctRacks
+                                            <i class="bi bi-chevron-down" id="icon-@rowId" style="font-size:0.65rem;"></i>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>@(primary.Rack ?? "-")</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    @if (hasMulti)
+                                    {
+                                        <span class="rack-summary-badge" onclick="toggleRackDetail('@rowId')" title="Klik untuk lihat detail lokasi rak">
+                                            @distinctNoRacks
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>@(primary.NoRack?.ToString() ?? "-")</span>
+                                    }
+                                </td>
+                                <td>@(primary.Customer ?? "-")</td>
+                                <td class="text-center">
+                                    @if (primary.StatusItem?.Equals("Reguler", StringComparison.OrdinalIgnoreCase) == true)
+                                    {
+                                        <span class="badge bg-success opacity-75">Reguler</span>
+                                    }
+                                    else if (primary.StatusItem?.Equals("PMSP FM", StringComparison.OrdinalIgnoreCase) == true)
+                                    {
+                                        <span class="badge bg-primary opacity-75">PMSP FM</span>
+                                    }
+                                    else if (primary.StatusItem?.Equals("PMSP SM", StringComparison.OrdinalIgnoreCase) == true)
+                                    {
+                                        <span class="badge bg-warning text-dark opacity-75">PMSP SM</span>
+                                    }
+                                    else if (primary.StatusItem?.Equals("PMSP", StringComparison.OrdinalIgnoreCase) == true)
+                                    {
+                                        <span class="badge bg-warning text-dark opacity-75">PMSP</span>
+                                    }
+                                    else if (primary.StatusItem?.Equals("After Market", StringComparison.OrdinalIgnoreCase) == true)
+                                    {
+                                        <span class="badge opacity-75" style="background-color:#64748b;">After Mkt</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger opacity-75">No Order</span>
+                                    }
+                                </td>
+                                <td>@(primary.Category ?? "-")</td>
+                                <td>@(primary.VIN ?? "-")</td>
+                                <td class="text-center fw-bold text-info">@(primary.QtyLot?.ToString() ?? "-")</td>
+                                <td class="text-center fw-bold text-danger">@(primary.RackMin?.ToString() ?? "-")</td>
+                                <td class="text-center fw-bold text-warning">@(primary.ROP?.ToString() ?? "-")</td>
+                                <td class="text-center fw-bold text-success">@(primary.RackMax?.ToString() ?? "-")</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <form asp-action="ToggleStatus" asp-route-id="@primary.ItemId" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm @(primary.IsActive ? "btn-success" : "btn-outline-secondary")" title="@(primary.IsActive ? "Deactivate (Set No Order)" : "Activate (Set Reguler)")">
+                                                <i class="bi @(primary.IsActive ? "bi-check-circle-fill" : "bi-circle")"></i>
+                                            </button>
+                                        </form>
+                                        <a asp-action="Details" asp-route-id="@primary.ItemId" class="btn btn-sm btn-info text-white" title="Detail">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <a asp-action="Edit" asp-route-id="@primary.ItemId" asp-route-returnPage="@ViewBag.CurrentPage" asp-route-returnSearch="@ViewBag.SearchString" asp-route-returnCategory="@ViewBag.CategoryFilter" class="btn btn-sm btn-warning text-white" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a asp-action="Delete" asp-route-id="@primary.ItemId" class="btn btn-sm btn-danger" title="Hapus">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            @if (hasMulti)
+                            {
+                                <tr class="rack-detail-row" id="@rowId">
+                                    <td colspan="14">
+                                        <div class="rack-detail-inner">
+                                            <small class="text-muted me-2"><i class="bi bi-geo-alt-fill text-info me-1"></i>Detail Lokasi Rak (@allRacks.Count lokasi):</small>
+                                            @foreach (var loc in allRacks)
+                                            {
+                                                <span class="rack-loc-pill">
+                                                    <span class="rack-letter">@loc.Rack</span>
+                                                    <span style="color:#475569;">.</span>
+                                                    <span class="rack-no">@loc.NoRack</span>
+                                                    @if (!string.IsNullOrEmpty(loc.Plant))
+                                                    {
+                                                        <span class="rack-plant">(@loc.Plant)</span>
+                                                    }
+                                                    <a asp-action="Edit" asp-route-id="@loc.ItemId" asp-route-returnPage="@ViewBag.CurrentPage" asp-route-returnSearch="@ViewBag.SearchString" asp-route-returnCategory="@ViewBag.CategoryFilter" class="ms-1" style="color:#f59e0b;font-size:0.7rem;" title="Edit lokasi ini">
+                                                        <i class="bi bi-pencil-fill"></i>
+                                                    </a>
+                                                </span>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+            
+            @if (!Model.Any())
+            {
+                <div class="alert alert-info mt-3 text-center">
+                    <i class="bi bi-info-circle me-2"></i> Belum ada data. Silakan Import Excel.
+                </div>
+            }
+    </div>
+
+    <!-- Pagination -->
+    <div class="row mt-2 mb-4">
+        <div class="col-12">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+function toggleRackDetail(rowId) {
+    var row = document.getElementById(rowId);
+    var icon = document.getElementById('icon-' + rowId);
+    if (!row) return;
+    row.classList.toggle('show');
+    if (icon) {
+        icon.className = row.classList.contains('show')
+            ? 'bi bi-chevron-up'
+            : 'bi bi-chevron-down';
+        icon.style.fontSize = '0.65rem';
+    }
+}
+
+// ── Stay on page after Edit save ──────────────────────────────────────
+(function () {
+    var STORE_KEY = 'items_page_before_edit';
+    var EXPIRY_MS = 30 * 1000; // 30 detik — cukup untuk proses edit+save
+
+    // RESTORE: cek apakah ada halaman tersimpan yang masih fresh
+    var raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+        try {
+            var data = JSON.parse(raw);
+            var age  = Date.now() - (data.ts || 0);
+            if (age < EXPIRY_MS && data.search !== window.location.search) {
+                // Baru kembali dari edit, redirect ke halaman semula
+                localStorage.removeItem(STORE_KEY);
+                window.location.replace(window.location.pathname + data.search);
+                return;
+            } else {
+                // Expired atau sudah di halaman yang benar — bersihkan
+                localStorage.removeItem(STORE_KEY);
+            }
+        } catch (e) {
+            localStorage.removeItem(STORE_KEY);
+        }
+    }
+
+    // SAVE: event delegation — catat halaman saat user klik Edit
+    document.addEventListener('click', function (e) {
+        var link = e.target.closest('a[href*="/Items/Edit/"]');
+        if (link) {
+            localStorage.setItem(STORE_KEY, JSON.stringify({
+                search : window.location.search,
+                ts     : Date.now()
+            }));
+        }
+    });
+})();
+</script>
+}
+
+@section Modals {
+    <!-- Modal Import Excel -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="importModalLabel">
+                            <i class="bi bi-upload"></i> Import Data Item dari Excel
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info border-0 shadow-sm" style="background: rgba(59, 130, 246, 0.1); color: #f1f5f9;">
+                            <h6 class="fw-bold"><i class="bi bi-info-circle-fill me-2 text-info"></i> Panduan Format 12 Kolom:</h6>
+                            <ul class="mb-0 mt-2 small opacity-75">
+                                <li><strong>Urutan:</strong> N, LOKASI, PROD., RACK, NO RAC, CUSTOMER, STATUS, PROD., VIN CO, QPC, MIN1D</li>
+                                <li><strong>LOKASI RACK:</strong> Nama Rak (misal V3, TANGO)</li>
+                                <li><strong>VIN:</strong> Kode Unik Barang (Wajib Unik)</li>
+                                <li><strong>STATUS:</strong> 'Reguler' / 'PMSP FM' / 'PMSP SM' / 'After Market' / 'No Order' (PMSP lama tetap valid)</li>
+                            </ul>
+                        </div>
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Pilih File Excel</label>
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                            <div class="form-text">Format file: .xlsx atau .xls</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Upload & Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+

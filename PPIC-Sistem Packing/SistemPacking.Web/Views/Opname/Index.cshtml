@@ -1,0 +1,300 @@
+@{
+    ViewData["Title"] = "Stock Take Opname (STO)";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Management</li>
+    <li class="breadcrumb-item active">Opname</li>
+}
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h2 class="page-title m-0"><i class="bi bi-clipboard-check text-primary me-2"></i> Stock Take Opname (STO)</h2>
+        <small class="text-muted">Kelola penghitungan stok aktual fisik dan sinkronisasi data dari Dashboard Stock</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-primary shadow-sm" id="btnTarikData">
+            <i class="bi bi-cloud-arrow-down me-1"></i> Tarik Data (Dashboard Stock)
+        </button>
+        <button class="btn btn-success shadow-sm" id="btnSaveBulk">
+            <i class="bi bi-check2-all me-1"></i> Simpan Opname
+        </button>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-7 fw-semibold" id="badgeTotalItems">
+                <i class="bi bi-box-seam me-1"></i> Total: <span id="totalItemsText">0</span> Item Stock
+            </span>
+            <span class="text-muted small ms-2 d-none d-md-inline" id="statusHint">
+                <i class="bi bi-info-circle me-1"></i> Klik tombol <strong>"Tarik Data (Dashboard Stock)"</strong> untuk memuat data stok.
+            </span>
+        </div>
+        <div class="text-muted small">
+            <i class="bi bi-keyboard me-1"></i> Tekan <strong>Enter</strong> pada ACT QTY untuk pindah ke baris berikutnya
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0" id="opnameTable" style="width: 100%;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-center" style="width: 40px;">
+                            <div class="form-check d-flex justify-content-center">
+                                <input class="form-check-input" type="checkbox" id="checkAll">
+                            </div>
+                        </th>
+                        <th style="width: 50px;">NO</th>
+                        <th>LOKASI RACK</th>
+                        <th>PROD. PLANT</th>
+                        <th>RACK</th>
+                        <th>NO RACK</th>
+                        <th>DOCK</th>
+                        <th>VIN</th>
+                        <th>PART NO</th>
+                        <th>PART NAME</th>
+                        <th class="text-end">QTY (PCS)</th>
+                        <th class="text-center" style="width: 110px;">ACT QTY</th>
+                        <th class="text-end">MIN 0,5</th>
+                        <th class="text-end">ROP 1D</th>
+                        <th class="text-end">MAX 2D</th>
+                        <th class="text-center" style="width: 90px;">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let opnameDataTable = null;
+
+    $(document).ready(function () {
+        // Inisialisasi DataTable default (hanya menampilkan header kolom)
+        opnameDataTable = $('#opnameTable').DataTable({
+            language: {
+                search: "Search:",
+                lengthMenu: "Show _MENU_ entries",
+                info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ item STO",
+                emptyTable: "Tidak ada data. Silakan klik tombol 'Tarik Data (Dashboard Stock)' di atas untuk memuat data.",
+                zeroRecords: "Tidak ada data yang cocok dengan pencarian",
+                paginate: {
+                    first: "«",
+                    previous: "‹",
+                    next: "›",
+                    last: "»"
+                }
+            },
+            pageLength: 20,
+            columnDefs: [
+                { targets: 0, className: 'text-center', orderable: false, width: '40px' },
+                { targets: 1, width: '50px' },
+                { targets: [9, 11, 12, 13], className: 'text-end' },
+                { targets: 10, className: 'text-center', orderable: false, width: '110px' },
+                { targets: 14, className: 'text-center', orderable: false, width: '90px' }
+            ]
+        });
+
+        // Check All checkbox
+        $('#checkAll').change(function () {
+            const isChecked = $(this).prop('checked');
+            opnameDataTable.$('.chk-item').prop('checked', isChecked);
+        });
+
+        function formatVal(v) {
+            if (!v || parseFloat(v) === 0) return '-';
+            let num = parseFloat(v);
+            return num % 1 === 0 ? num.toString() : num.toFixed(2).replace(/\.?0+$/, '');
+        }
+
+        // Tombol Tarik Data dari Dashboard Stock
+        $('#btnTarikData').click(function () {
+            const btn = $(this);
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status"></span> Menarik Data...');
+
+            $.ajax({
+                url: '/Opname/GetStockData',
+                type: 'GET',
+                success: function (res) {
+                    if (res.success && res.data) {
+                        // Kosongkan dan isi data menggunakan API native DataTable
+                        opnameDataTable.clear();
+
+                        res.data.forEach(function (item, index) {
+                            let actInputVal = (item.actQty && parseFloat(item.actQty) !== 0) ? item.actQty : 0;
+                            opnameDataTable.row.add([
+                                `<div class="form-check d-flex justify-content-center"><input class="form-check-input chk-item" type="checkbox" value="${item.id}"></div>`,
+                                index + 1,
+                                escapeHtml(item.lokasiRack),
+                                escapeHtml(item.prodPlant),
+                                escapeHtml(item.rack),
+                                escapeHtml(item.noRack),
+                                escapeHtml(item.dock),
+                                escapeHtml(item.vin),
+                                `<span class="fw-semibold text-primary">${escapeHtml(item.itemCode)}</span>`,
+                                escapeHtml(item.itemName),
+                                formatVal(item.qtyPcs),
+                                `<input type="number" class="form-control form-control-sm text-end act-qty-input shadow-none" data-id="${item.id}" value="${actInputVal}" step="0.01" style="width: 95px; display: inline-block;">`,
+                                formatVal(item.min),
+                                formatVal(item.rop),
+                                formatVal(item.max),
+                                `<button class="btn btn-xs btn-success btn-save-act px-2 py-1" data-id="${item.id}"><i class="bi bi-save me-1"></i> Save</button>`
+                            ]);
+                        });
+
+                        opnameDataTable.draw();
+
+                        $('#totalItemsText').text(res.data.length);
+                        $('#statusHint').html('<i class="bi bi-check-circle-fill text-success me-1"></i> Data Dashboard Stock berhasil dimuat. Silakan input ACT QTY lalu klik <strong>"Simpan Opname"</strong>.');
+
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: `Berhasil menarik ${res.data.length} data dari Dashboard Stock!`,
+                            showConfirmButton: false,
+                            timer: 2000
+                        });
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menarik data stock.', 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Gagal terhubung ke server saat menarik data.', 'error');
+                },
+                complete: function () {
+                    btn.prop('disabled', false).html('<i class="bi bi-cloud-arrow-down me-1"></i> Tarik Data (Dashboard Stock)');
+                }
+            });
+        });
+
+        // Enter key di input ACT QTY untuk pindah ke baris berikutnya
+        $(document).on('keydown', '.act-qty-input', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const inputs = $('.act-qty-input');
+                const currentIndex = inputs.index(this);
+                if (currentIndex + 1 < inputs.length) {
+                    inputs.eq(currentIndex + 1).focus().select();
+                } else {
+                    $(this).blur();
+                }
+            }
+        });
+
+        // Save Single Item (Tombol Save per baris)
+        $(document).on('click', '.btn-save-act', function () {
+            const id = $(this).data('id');
+            const input = $('.act-qty-input[data-id="' + id + '"]');
+            const actQty = parseFloat(input.val()) || 0;
+            const btn = $(this);
+
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status"></span>');
+
+            $.ajax({
+                url: '/Opname/SaveActual',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ Id: id, ActQty: actQty }),
+                headers: {
+                    'RequestVerificationToken': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Stock aktual berhasil disimpan',
+                            showConfirmButton: false,
+                            timer: 1500
+                        });
+                        input.addClass('is-valid');
+                        setTimeout(() => input.removeClass('is-valid'), 2000);
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Gagal menghubungi server', 'error');
+                },
+                complete: function () {
+                    btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Save');
+                }
+            });
+        });
+
+        // Simpan Opname (Bulk Save seluruh data)
+        $('#btnSaveBulk').click(function () {
+            let itemsToSave = [];
+            // Ambil semua input act-qty dari baris tabel (termasuk yang di halaman/page lain bila DataTable aktif)
+            opnameDataTable.$('.act-qty-input').each(function () {
+                const id = parseInt($(this).data('id'));
+                const val = parseFloat($(this).val()) || 0;
+                if (!isNaN(id)) {
+                    itemsToSave.push({ Id: id, ActQty: val });
+                }
+            });
+
+            if (itemsToSave.length === 0) {
+                Swal.fire('Info', 'Tidak ada data stock untuk disimpan. Silakan klik tombol "Tarik Data" terlebih dahulu.', 'info');
+                return;
+            }
+
+            const btn = $(this);
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Opname/SaveActualBulk',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ Items: itemsToSave }),
+                headers: {
+                    'RequestVerificationToken': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Opname Berhasil Disimpan!',
+                            text: res.message || 'Semua stock aktual opname berhasil disimpan dan langsung diperbarui ke Dashboard Stock.',
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="bi bi-box-seam me-1"></i> Lihat di Dashboard Stock',
+                            cancelButtonText: 'Tetap di Halaman STO',
+                            confirmButtonColor: '#0d6efd',
+                            cancelButtonColor: '#6c757d'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.href = '/Dashboard/Stock';
+                            }
+                        });
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Gagal menghubungi server', 'error');
+                },
+                complete: function () {
+                    btn.prop('disabled', false).html('<i class="bi bi-check2-all me-1"></i> Simpan Opname');
+                }
+            });
+        });
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined || String(text).trim() === '') return '-';
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    });
+</script>
+}

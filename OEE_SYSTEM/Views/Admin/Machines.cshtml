@@ -1,0 +1,101 @@
+@model List<Machine>
+@{
+    ViewData["Title"] = "Machines";
+}
+
+<div class="row mb-3 align-items-center">
+    <div class="col-md-6">
+        <h2 class="mb-0"><i class="fa-solid fa-industry me-2"></i>Machines</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <a asp-action="CreateMachine" class="btn btn-primary">
+            <i class="fa-solid fa-plus me-2"></i>Add New Machine
+        </a>
+    </div>
+</div>
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fa-solid fa-triangle-exclamation me-2"></i>@TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-dark table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Line ID</th>
+                        <th>PLANT</th>
+                        <th>Status</th>
+                        <th>Tahun Mesin</th>
+                        <th>Tahun Instalasi</th>
+                        <th>Image</th>
+                        <th>Keterangan</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var machine in Model)
+                    {
+                        <tr>
+                            <td>@machine.Id</td>
+                            <td>@machine.Name</td>
+                            <td>@machine.LineId</td>
+                            <td>@(machine.Plant?.Code ?? "")</td>
+                            <td>
+                                <span class="badge @(
+                                        machine.Status == MachineStatus.Aktif ? "bg-success" :
+                                        "bg-danger")">
+                                    @(machine.Status == MachineStatus.Aktif ? "Aktif" : "Tidak Aktif")
+                                </span>
+                            </td>
+                            <td>@(machine.ManufacturingYear?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <td>@(machine.InstallationYear?.ToString("yyyy-MM-dd") ?? "-")</td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(machine.ImageUrl))
+                                {
+                                    @* ✅ Ambil langsung dari ImageUrl di database *@
+                                    <img src="@machine.ImageUrl" 
+                                         alt="@machine.Name" 
+                                         style="max-width: 60px; max-height: 60px; object-fit: cover; border-radius: 4px;" 
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';" />
+                                    <span class="text-secondary" style="display: none;">
+                                        <i class="fa-solid fa-image"></i> Image not found
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-secondary">
+                                        <i class="fa-solid fa-image"></i> No image
+                                    </span>
+                                }
+                            </td>
+                            <td>@(machine.Description ?? "-")</td>
+                            <td>
+                                <a asp-action="EditMachine" asp-route-id="@machine.Id" class="btn btn-sm btn-outline-warning me-1">
+                                    <i class="fa-solid fa-edit"></i>
+                                </a>
+                                <a asp-action="DeleteMachine" asp-route-id="@machine.Id" class="btn btn-sm btn-outline-danger">
+                                    <i class="fa-solid fa-trash"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a asp-action="Index" class="btn btn-secondary">
+        <i class="fa-solid fa-arrow-left me-2"></i>Back to Admin Panel
+    </a>
+</div>
+

@@ -1,0 +1,93 @@
+@model IEnumerable<DeliveryControl.Models.DeliveryItem>
+
+@if (!Model.Any())
+{
+    <tr>
+        <td colspan="10" class="text-center py-5 text-muted">
+            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+            Tidak ada antrean preparation untuk saat ini.
+        </td>
+    </tr>
+}
+
+@foreach (var item in Model)
+{
+    var schedule = item.DeliverySchedule;
+    if (schedule == null) continue;
+
+    <tr>
+        <td class="fw-bold text-info">
+            <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">MANIFEST</div>
+            @schedule.ScheduleNumber
+        </td>
+        <td>
+            <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">DOCK</div>
+            <span class="badge bg-secondary">
+                @(schedule.Customer?.CustomerName ?? "-")
+            </span>
+        </td>
+        <td>
+            <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">CUSTOMER</div>
+            <span class="fw-bold">@(schedule.Customer?.CustomerCode ?? "-")</span>
+        </td>
+        <td>
+            <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">ROUTE</div>
+            @(schedule.Route ?? "-")
+        </td>
+        <td>
+            <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">CYCLE</div>
+            @(schedule.Cycle ?? "-")
+        </td>
+        
+        <td style="background: rgba(13, 110, 253, 0.05); border-left: 2px solid #0d6efd;">
+            <div class="d-flex flex-column">
+                @if (!string.IsNullOrEmpty(item.Item?.CustomerPartNumber))
+                {
+                    <div class="d-flex align-items-center flex-wrap">
+                        <span class="text-white fw-bold fs-6">@(item.Item?.CustomerPartNumber ?? "-")</span>
+                        @if (!string.IsNullOrEmpty(item.Item?.VIN) && item.Item.VIN != item.Item.CustomerPartNumber)
+                        {
+                            <span class="text-success fw-bold ms-1" style="font-size: 0.8rem;">/ @item.Item.VIN</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <span class="text-white fw-bold">@(item.Item?.VIN ?? "-")</span>
+                }
+            </div>
+        </td>
+        <td class="text-center">
+            <div class="small text-muted mb-1" style="font-size: 0.65rem;">QPC</div>
+            <span class="badge bg-dark border">@item.Item?.QtyLot</span>
+        </td>
+        <td class="text-center">
+            <span class="badge bg-secondary">
+                @item.Quantity.ToString("N0") Pcs
+            </span>
+        </td>
+        <td class="text-center fw-bold">
+            <span class="badge bg-info text-dark" style="font-size: 1.1rem; padding: 0.5rem 0.8rem;">
+                <div class="fw-bold">@item.CalculatedKanbanActual / @item.CalculatedKanbanTarget</div>
+            </span>
+        </td>
+        <td class="text-center">
+            @{
+                string statusBadgeClass = "bg-secondary";
+                string statusText = "Waiting";
+
+                if (item.ActualQuantity >= item.Quantity)
+                {
+                    statusBadgeClass = "bg-success";
+                    statusText = "Completed";
+                }
+                else if (item.ActualQuantity > 0)
+                {
+                    statusBadgeClass = "bg-warning text-dark";
+                    statusText = "Preparing";
+                }
+            }
+            <span class="badge @statusBadgeClass status-badge">@statusText</span>
+        </td>
+    </tr>
+}

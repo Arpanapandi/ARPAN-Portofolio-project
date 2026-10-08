@@ -1,0 +1,894 @@
+@model DeliveryControl.Models.DeliverySchedule
+
+<style>
+    .modal-cyber {
+        background-color: #1e293b;
+        color: #fff;
+    }
+    .modal-cyber .modal-header { border-bottom: 1px solid #334155; }
+    .modal-cyber .modal-footer { border-top: 1px solid #334155; }
+    .modal-cyber .table { color: #e2e8f0; }
+
+    /* ── ITEM DELIVERY TABLE — DARK THEME ── */
+    #delivery-items-table {
+        background-color: #0f172a;
+        color: #e2e8f0;
+    }
+    #delivery-items-table td {
+        color: #e2e8f0;
+        border-color: #1e293b;
+        vertical-align: middle;
+    }
+    #delivery-items-table strong { color: #f1f5f9; }
+    #delivery-items-table small  { color: #94a3b8; }
+
+    /* Row base */
+    .row-base {
+        background-color: #1e293b !important;
+    }
+    .row-base:hover {
+        background-color: #263244 !important;
+    }
+
+    /* Row MINUS / Pending — merah gelap */
+    .row-minus {
+        background-color: #2d1217 !important;
+        border-left: 4px solid #ef4444 !important;
+        animation: pulse-danger 2.5s ease-in-out infinite;
+    }
+    .row-minus:hover {
+        background-color: #3d1a21 !important;
+    }
+    .row-minus td { color: #fca5a5 !important; }
+    .row-minus strong { color: #fecaca !important; }
+    .row-minus small  { color: #f87171 !important; }
+
+    /* Row PARTIAL — amber gelap */
+    .row-partial {
+        background-color: #292009 !important;
+        border-left: 4px solid #f59e0b !important;
+    }
+    .row-partial:hover {
+        background-color: #362b0d !important;
+    }
+    .row-partial td     { color: #fde68a !important; }
+    .row-partial strong { color: #fef3c7 !important; }
+    .row-partial small  { color: #fcd34d !important; }
+
+    /* Row COMPLETED — hijau gelap, redup */
+    .row-completed {
+        background-color: #0d1f14 !important;
+        border-left: 4px solid #22c55e !important;
+        opacity: 0.75;
+    }
+    .row-completed:hover { opacity: 0.9; background-color: #132a1b !important; }
+    .row-completed td     { color: #86efac !important; }
+    .row-completed strong { color: #bbf7d0 !important; }
+    .row-completed small  { color: #4ade80 !important; }
+
+    /* Keyframes */
+    @@keyframes pulse-danger {
+        0%, 100% { background-color: #2d1217; }
+        50%       { background-color: #3a1520; }
+    }
+    @@keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+
+    /* Kanban progress */
+    .kanban-progress-bar {
+        height: 28px; border-radius: 6px;
+        background: #1e293b; overflow: hidden;
+    }
+    .kanban-progress-fill {
+        height: 100%; transition: width 0.6s ease;
+        display: flex; align-items: center;
+        justify-content: flex-end; padding-right: 8px;
+        font-weight: 700; font-size: 0.8rem; color: white; white-space: nowrap;
+    }
+    .kanban-counter { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+    .kanban-label   { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.75; }
+
+    /* Stock badge */
+    .stock-badge-minus {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white; padding: 3px 8px; border-radius: 12px;
+        font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+    }
+
+    /* Section divider */
+    .section-divider {
+        background: linear-gradient(to right, #ffffff11, #ffffff22, #ffffff11) !important;
+        color: #64748b !important;
+        font-size: 0.78rem; font-weight: 600;
+        letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .section-divider td { color: #64748b !important; border: none !important; }
+
+    /* Item icon bounce */
+    .minus-icon { animation: bounce 1s infinite alternate; display: inline-block; }
+
+    /* Table header */
+    #delivery-items-table th {
+        font-size: 0.78rem; text-transform: uppercase;
+        letter-spacing: 0.05em; border-color: #334155;
+    }
+
+    /* Hover clickable fallback */
+    .item-row-clickable:hover { cursor: pointer; }
+</style>
+
+
+@{
+    ViewData["Title"] = "Detail Jadwal Delivery";
+    var statusClass = Model.Status switch
+    {
+        "Scheduled" => "badge bg-secondary",
+        "In Progress" => "badge bg-warning text-dark",
+        "Completed" => "badge bg-success",
+        "Cancelled" => "badge bg-danger",
+        "Delayed" => "badge bg-danger",
+        _ => "badge bg-secondary"
+    };
+}
+
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h2><i class="bi bi-calendar-check"></i> Detail Jadwal Delivery</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        @if (Context.Session.GetString("Role") == "Admin")
+        {
+            if (Model.Status == "Scheduled")
+            {
+                <a asp-action="Edit" asp-route-id="@Model.ScheduleId" class="btn btn-warning">
+                    <i class="bi bi-pencil"></i> Edit
+                </a>
+                <a asp-action="StartDelivery" asp-route-id="@Model.ScheduleId" class="btn btn-success"
+                   onclick="return confirm('Mulai delivery sekarang?')">
+                    <i class="bi bi-play-fill"></i> Mulai Delivery
+                </a>
+            }
+            if (Model.Status == "In Progress")
+            {
+                <a asp-action="CompleteDelivery" asp-route-id="@Model.ScheduleId" class="btn btn-primary"
+                   onclick="return confirm('Tandai delivery sebagai selesai?')">
+                    <i class="bi bi-check-circle"></i> Selesaikan Delivery
+                </a>
+            }
+        }
+        <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Kembali
+        </a>
+    </div>
+</div>
+
+<!-- Schedule Information -->
+<div class="row mb-3">
+    <div class="col-md-8">
+        <div class="card border-0 shadow" style="background-color: #1e293b; border-radius: 12px; overflow: hidden;">
+            <div class="card-header border-bottom border-secondary border-opacity-25 py-3" style="background: linear-gradient(135deg, #0f172a, #1e3a5f);">
+                <h5 class="mb-0 text-white fw-bold"><i class="bi bi-info-circle me-2 text-primary"></i>Informasi Schedule</h5>
+            </div>
+            <div class="card-body text-light">
+                @{
+                    double totalKbnTarget = 0;
+                    double totalKbnActual = 0;
+                    
+                    // Create a list of all schedules in this trip group
+                    var allSchedules = new List<DeliveryControl.Models.DeliverySchedule> { Model };
+                    if (ViewBag.GroupSchedules != null) {
+                        allSchedules.AddRange((List<DeliveryControl.Models.DeliverySchedule>)ViewBag.GroupSchedules);
+                    }
+
+                    foreach (var s in allSchedules)
+                    {
+                        if (s.DeliveryItems != null)
+                        {
+                            foreach (var di in s.DeliveryItems)
+                            {
+                                var qpc = di.Item?.QtyLot ?? 1;
+                                if (qpc > 0)
+                                {
+                                    var diKbnTgt2 = Math.Ceiling((double)di.Quantity / qpc);
+                                    totalKbnTarget += diKbnTgt2;
+                                    totalKbnActual += (di.ActualQuantity ?? 0) >= di.Quantity
+                                        ? diKbnTgt2
+                                        : Math.Ceiling((double)(di.ActualQuantity ?? 0) / qpc);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                <!-- 1. Kanban Progress (Group) -->
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, #0f172a, #1e3a5f); border: 1px solid #2563eb33;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-white-50" style="font-size:0.78rem;text-transform:uppercase;letter-spacing:.06em;">Kanban Progress (Group)</span>
+                                @{
+                                    var kbnPct2 = totalKbnTarget > 0 ? (int)Math.Min(100, (totalKbnActual * 100) / totalKbnTarget) : 0;
+                                    var kbnLeft = (int)(totalKbnTarget - totalKbnActual);
+                                    var kbnBarColor = kbnPct2 >= 100 ? "#22c55e" : (kbnPct2 >= 50 ? "#f59e0b" : "#ef4444");
+                                    var kbnBarColorDark = kbnPct2 >= 100 ? "#16a34a" : (kbnPct2 >= 50 ? "#d97706" : "#dc2626");
+                                    var kbnBarGradient = $"linear-gradient(90deg, {kbnBarColor}, {kbnBarColorDark})";
+                                }
+                                @if (kbnLeft > 0)
+                                {
+                                    <span style="background:#ef444422;color:#f87171;padding:2px 10px;border-radius:20px;font-size:0.8rem;font-weight:700;border:1px solid #ef444488;">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i>Sisa @kbnLeft KBN
+                                    </span>
+                                }
+                                else if (totalKbnTarget > 0)
+                                {
+                                    <span style="background:#22c55e22;color:#4ade80;padding:2px 10px;border-radius:20px;font-size:0.8rem;font-weight:700;border:1px solid #22c55e88;">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Lengkap!
+                                    </span>
+                                }
+                            </div>
+                            <div class="kanban-progress-bar mb-2">
+                                <div class="kanban-progress-fill" style="width:@(kbnPct2)%; background:@kbnBarGradient;">
+                                    @if (kbnPct2 > 15) { <span>@kbnPct2%</span> }
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between">
+                                <div class="text-center">
+                                    <div class="kanban-counter" style="color:@kbnBarColor;">@((int)totalKbnActual)</div>
+                                    <div class="kanban-label text-white-50">Actual</div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="kanban-counter text-white">@((int)totalKbnTarget)</div>
+                                    <div class="kanban-label text-white-50">Target</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Status & Waktu Actual -->
+                <div class="row mb-3 pb-3 border-bottom border-secondary border-opacity-25" style="align-items: center;">
+                    <div class="col-md-6 border-end border-secondary border-opacity-25">
+                        <div class="text-muted" style="font-size: 0.85rem; text-transform: uppercase;">Status Delivery</div>
+                        <div class="mt-1 fs-5"><span class="@statusClass">@Model.Status</span></div>
+                    </div>
+                    <div class="col-md-6 ps-md-4" id="time-actual-row">
+                        <div class="text-muted" style="font-size: 0.85rem; text-transform: uppercase;">Waktu Actual</div>
+                        <div class="mt-1 fs-6">
+                            @if (Model.ActualStartTime.HasValue)
+                            {
+                                <span>@Model.ActualStartTime.Value.ToString("HH:mm")</span>
+                                @if (Model.ActualEndTime.HasValue)
+                                {
+                                    <span> - @Model.ActualEndTime.Value.ToString("HH:mm")</span>
+                                }
+                                @if (Model.DelayStatus == "Late" && Model.DelayDuration.HasValue)
+                                {
+                                    <span class="badge bg-danger ms-2">
+                                        <i class="bi bi-exclamation-triangle"></i> Terlambat @Model.DelayDuration.Value.TotalMinutes.ToString("0") menit
+                                    </span>
+                                }
+                                else if (Model.DelayStatus == "On Time")
+                                {
+                                    <span class="badge bg-success ms-2"><i class="bi bi-check-circle"></i> On Time</span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-muted">Belum dimulai</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Compacted Info Details -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless text-light mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted" style="width: 40%">No. Schedule</td>
+                                    <td>
+                                        <strong>@Model.ScheduleNumber</strong>
+                                        @{
+                                            var extraSchedules = ViewBag.GroupSchedules as List<DeliveryControl.Models.DeliverySchedule>;
+                                            if (extraSchedules != null && extraSchedules.Any())
+                                            {
+                                                <div class="small mt-1">
+                                                    <span class="text-muted" style="font-size:0.7rem;">Grup:</span>
+                                                    @foreach (var s in extraSchedules)
+                                                    {
+                                                        <span class="badge bg-secondary border border-secondary bg-opacity-25 text-light me-1" style="font-size:0.7rem;">@s.ScheduleNumber</span>
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                    </td>
+                                </tr>
+                                <tr><td class="text-muted">Customer</td><td>@(Model.Customer?.CustomerCode ?? "-")</td></tr>
+                                <tr>
+                                    <td class="text-muted">Tanggal Delivery</td>
+                                    <td>
+                                        @Model.ScheduledDate.ToString("dd MMMM yyyy")
+                                        <div class="small mt-1">
+                                            <span class="text-muted" style="font-size:0.75rem;">Dibuat: @Model.CreatedDate.ToString("dd/MM/yyyy HH:mm") oleh @(Model.CreatedBy ?? "System")</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr><td class="text-muted">Route / Cycle</td><td>@(Model.Route ?? "-") / @(Model.Cycle ?? "-")</td></tr>
+                                <tr><td class="text-muted">Area / SKID</td><td>@(Model.Area ?? "-") / @(Model.SKID?.ToString() ?? "-")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless text-light mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted" style="width: 40%">Pickup (Std/Act)</td>
+                                    <td>
+                                        @(Model.PickupTime.HasValue ? Model.PickupTime.Value.ToString("HH:mm") : "-") / 
+                                        @if (Model.ActualPickupTime.HasValue)
+                                        {
+                                            <span class="text-success fw-bold">@Model.ActualPickupTime.Value.ToString("HH:mm")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr><td class="text-muted">ETD</td><td>@(Model.ETD.HasValue ? Model.ETD.Value.ToString("HH:mm") : "-")</td></tr>
+                                <tr><td class="text-muted">Range</td><td>@(Model.Range ?? "-")</td></tr>
+                                <tr><td class="text-muted">Kendaraan</td><td>@(Model.VehicleNumber ?? "-")</td></tr>
+                                <tr>
+                                    <td class="text-muted">Driver</td>
+                                    <td>
+                                        @(Model.DriverName ?? "-")
+                                        @if (!string.IsNullOrEmpty(Model.DriverPhone))
+                                        {
+                                            <span class="text-muted small ms-1">(@Model.DriverPhone)</span>
+                                        }
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @if (!string.IsNullOrEmpty(Model.Notes))
+                {
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <table class="table table-sm table-borderless text-light mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td class="text-muted" style="width: 20%">Catatan</td>
+                                        <td>@Model.Notes</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+
+        </div>
+    </div>
+    <div class="col-md-4">
+        @if (Model.Customer != null && (Model.Customer.CustomerName?.ToUpper().Contains("ADM") == true || Model.Customer.CustomerCode?.ToUpper().Contains("ADM") == true || Model.Customer.CustomerName?.ToUpper().Contains("TMMIN") == true || Model.Customer.CustomerCode?.ToUpper().Contains("TMMIN") == true))
+        {
+            <div class="card border-0 shadow" style="background-color: #1e293b; border-radius: 12px; overflow: hidden;">
+                <div class="card-header border-bottom border-secondary border-opacity-25 py-3" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+                    <h5 class="mb-0 text-white fw-bold"><i class="bi bi-printer me-2 text-info"></i>Print Data Item Delivery</h5>
+                </div>
+                <div class="card-body text-light">
+                    <form action="@Url.Action("PrintManifest", "DeliverySchedules")" target="_blank" method="get">
+                        <input type="hidden" name="id" value="@Model.ScheduleId" />
+                        <div class="mb-3">
+                            <label class="form-label text-muted text-uppercase fw-bold" style="font-size: 0.85rem;">Pilih Manifest</label>
+                            <select name="manifestId" class="form-select text-light border-secondary" style="background-color: #0f172a;">
+                                <option value="">Semua Manifest</option>
+                                @foreach (var s in allSchedules)
+                                {
+                                    if (s.ScheduleId == Model.ScheduleId)
+                                    {
+                                        <option value="@s.ScheduleId" selected>@s.ScheduleNumber (Current)</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@s.ScheduleId">@s.ScheduleNumber</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="previewCheck" name="preview" value="true">
+                            <label class="form-check-label text-light" for="previewCheck" style="font-size: 0.9rem;">
+                                Tampilkan Preview Kertas
+                            </label>
+                        </div>
+                        <div class="d-grid mt-2">
+                            @{
+                                bool isKanbanComplete = (totalKbnTarget > 0 && totalKbnActual >= totalKbnTarget) || Model.Status == "Closed";
+                            }
+                            @if (!isKanbanComplete)
+                            {
+                                <button type="button" class="btn btn-secondary fw-bold" style="background: #475569; border: none; cursor: not-allowed;" title="Kanban belum lengkap. Print dikunci.">
+                                    <i class="bi bi-printer-fill me-1"></i> Print Manifest (Dikunci)
+                                </button>
+                                <div class="text-center mt-2 text-warning" style="font-size: 0.75rem;">
+                                    <i class="bi bi-info-circle me-1"></i> Selesaikan Kanban terlebih dahulu untuk mencetak Manifest.
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="submit" class="btn btn-primary fw-bold" style="background: linear-gradient(135deg, #0284c7, #0369a1); border: none;">
+                                    <i class="bi bi-printer-fill me-1"></i> Print Manifest
+                                </button>
+                            }
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Delivery Items -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-box"></i> Item Delivery (Total Trip)</h5>
+                <div class="d-flex align-items-center gap-2">
+                    @if (Context.Session.GetString("Role") == "Super Admin" || Context.Session.GetString("Role") == "Admin")
+                    {
+                        <form asp-controller="DeliverySchedules" asp-action="ConfirmAllKanban" asp-route-id="@Model.ScheduleId" method="post" style="display:inline;" onsubmit="return confirm('Apakah Anda yakin ingin mengonfirmasi semua kanban pada grup manifes ini secara manual?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn btn-warning btn-sm fw-bold text-dark">
+                                <i class="bi bi-check-all"></i> Confirm All Kanban
+                            </button>
+                        </form>
+                    }
+                    @if (Context.Session.GetString("Role") == "Super Admin" || Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "PPIC")
+                    {
+                        <a asp-controller="DeliverySchedules" asp-action="ExportKanbanDetailExcel" asp-route-id="@Model.ScheduleId" class="btn btn-light btn-sm fw-bold text-success">
+                            <i class="bi bi-file-earmark-excel-fill text-success me-1"></i> Export Excel
+                        </a>
+                    }
+                    <span class="badge bg-light text-dark">Grouped: @allSchedules.Count Manifests</span>
+                    <select id="manifestFilter" class="form-select form-select-sm" style="width: auto; display: inline-block;">
+                        <option value="all">Semua Manifest</option>
+                        @foreach(var s in allSchedules.OrderBy(x => x.ScheduleNumber))
+                        {
+                            <option value="@s.ScheduleNumber">@s.ScheduleNumber</option>
+                        }
+                    </select>
+                    @if (Context.Session.GetString("Role") == "Admin")
+                    {
+                        <a asp-controller="DeliveryItems" asp-action="Create" asp-route-scheduleId="@Model.ScheduleId" class="btn btn-light btn-sm">
+                            <i class="bi bi-plus-circle"></i> Tambah Item
+                        </a>
+                    }
+                </div>
+            </div>
+            <div class="card-body">
+@{
+                    var stockSnapshotsDict = ViewBag.StockSnapshots as Dictionary<string, int> ?? new Dictionary<string, int>();
+
+                    var combinedItems = allSchedules
+                        .SelectMany(s => s.DeliveryItems.Select(di => new { 
+                            ScheduleNumber = s.ScheduleNumber, 
+                            ScheduleId = s.ScheduleId,
+                            Item = di.Item, 
+                             di.Quantity, 
+                             di.ActualQuantity, 
+                             di.PrepScanTime,
+                             di.IsCompleted, 
+                             di.DeliveryItemId,
+                             di.ExternalPartNo
+                        }))
+                        .ToList();
+
+                    // Compute per-item status for sorting
+                    var itemsWithStatus = combinedItems.Select(gi => {
+                        var qpc0 = gi.Item?.QtyLot ?? 1; if (qpc0 <= 0) qpc0 = 1;
+                        var plan0 = Math.Ceiling((double)gi.Quantity / qpc0);
+                        var act0  = Math.Ceiling((double)(gi.ActualQuantity ?? 0) / qpc0);
+                        var var0  = act0 - plan0;
+                        // 0=minus/pending, 1=partial, 2=completed
+                        int sortOrder = (act0 >= plan0 && plan0 > 0) ? 2 : (act0 > 0 ? 1 : 0);
+                        return new { gi.ScheduleNumber, gi.ScheduleId, gi.Item, gi.Quantity, gi.ActualQuantity, gi.PrepScanTime, gi.IsCompleted, gi.DeliveryItemId, gi.ExternalPartNo,
+                            KbnPlan = plan0, KbnActual = act0, KbnVariance = var0, SortOrder = sortOrder };
+                    })
+                    .OrderBy(x => x.SortOrder)
+                    .ThenBy(x => x.ScheduleNumber)
+                    .ThenBy(x => x.Item?.Plant ?? x.Item?.ItemName)
+                    .ToList();
+
+                    int minusCount    = itemsWithStatus.Count(x => x.KbnVariance < 0 && x.SortOrder < 2);
+                    int partialCount  = itemsWithStatus.Count(x => x.SortOrder == 1);
+                    int pendingCount  = itemsWithStatus.Count(x => x.KbnActual == 0 && x.SortOrder == 0);
+                    int doneCount     = itemsWithStatus.Count(x => x.SortOrder == 2);
+                    bool shownCompletedHeader = false;
+                }
+
+                @if (itemsWithStatus.Any())
+                {
+                    // Summary alert for minus items
+                    if (minusCount > 0 || pendingCount > 0)
+                    {
+                        <div class="alert d-flex align-items-center gap-3 mb-3" 
+                             style="background:linear-gradient(135deg,#dc354515,#dc354505);border:1.5px solid #dc354555;border-radius:10px;padding:12px 16px;">
+                            <span style="font-size:1.8rem;">⚠️</span>
+                            <div>
+                                <div style="font-weight:700;color:#dc3545;font-size:0.95rem;">
+                                    @(minusCount + pendingCount) item belum terpenuhi
+                                </div>
+                                <div style="color:#6c757d;font-size:0.82rem;">
+                                    @minusCount item minus/kurang &bull; @pendingCount item belum ada scan &bull; @doneCount item selesai
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="table-responsive" style="background:#0f172a;border-radius:0 0 8px 8px;">
+                        <table id="delivery-items-table" class="table table-hover align-middle mb-0" style="background:#0f172a;color:#e2e8f0;">
+                            <thead style="background:linear-gradient(135deg,#1e293b,#0f172a);color:#94a3b8;">
+                                <tr>
+                                    <th style="width:120px;">Manifest</th>
+                                    <th>Item</th>
+                                    <th>Part No</th>
+                                    <th>Label</th>
+                                    <th>Kanban</th>
+                                    <th style="width:140px;">Waktu Scan</th>
+                                    <th class="text-center" style="width:110px;">Target (KBN)</th>
+                                    <th class="text-center" style="width:110px;">Actual (KBN)</th>
+                                    <th class="text-center" style="width:90px;">Selisih</th>
+                                    <th style="width:130px;">Status</th>
+                                    <th style="width:100px;">Operator</th>
+                                    <th style="width:60px;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody style="background:#0f172a;">
+
+                                @foreach (var gi in itemsWithStatus)
+                                {
+                                    if (gi.SortOrder == 2 && !shownCompletedHeader)
+                                    {
+                                        shownCompletedHeader = true;
+                                        <tr class="section-divider">
+                                            <td colspan="12" class="py-2 text-center">
+                                                <i class="bi bi-check-circle me-1"></i> Item Completed (@doneCount)
+                                            </td>
+                                        </tr>
+                                    }
+
+                                    var rowClass = gi.SortOrder == 2 ? "row-completed" :
+                                                   gi.SortOrder == 1 ? "row-partial" :
+                                                   "row-minus";
+
+                                    var displayName2 = gi.Item?.Plant;
+                                    if (string.IsNullOrEmpty(displayName2))
+                                    {
+                                        displayName2 = gi.Item?.ItemName ?? "";
+                                        if (displayName2.StartsWith("SmartImport"))
+                                            displayName2 = gi.Item?.ItemCode ?? displayName2;
+                                    }
+
+                                    // Fetch pre-loaded scan details from ViewBag
+                                    var scanDetailsDict = ViewBag.ScanDetailsMap as Dictionary<int, object>;
+                                    var scanLogsList = new List<dynamic>();
+                                    if (scanDetailsDict != null && scanDetailsDict.TryGetValue(gi.DeliveryItemId, out var sObj))
+                                    {
+                                        scanLogsList = (sObj as IEnumerable<dynamic>)?.ToList() ?? new List<dynamic>();
+                                    }
+
+                                    string firstLabel = "-";
+                                    string firstWaktu = "-";
+                                    string firstKanban = "-";
+                                    string firstOperator = "-";
+
+                                    if (scanLogsList.Count > 0)
+                                    {
+                                        firstLabel = string.IsNullOrEmpty((string)scanLogsList[0].label) ? "-" : (string)scanLogsList[0].label;
+                                        firstKanban = string.IsNullOrEmpty((string)scanLogsList[0].kanban) ? "-" : (string)scanLogsList[0].kanban;
+                                        firstWaktu = (string)scanLogsList[0].waktuScan;
+                                        firstOperator = string.IsNullOrEmpty((string)scanLogsList[0].createdBy) ? "-" : (string)scanLogsList[0].createdBy;
+                                    }
+                                    else if (gi.KbnActual > 0 || gi.SortOrder == 2)
+                                    {
+                                        firstLabel = "-";
+                                        firstKanban = "-";
+                                        firstWaktu = gi.PrepScanTime.HasValue ? gi.PrepScanTime.Value.ToString("dd/MM/yyyy HH:mm:ss") : "-";
+                                        firstOperator = gi.PrepScanTime.HasValue ? "Admin" : "-";
+                                    }
+
+                                    var actColor2 = gi.KbnActual >= gi.KbnPlan && gi.KbnPlan > 0 ? "#22c55e" :
+                                                    gi.KbnActual > 0 ? "#f59e0b" : "#ef4444";
+                                    <tr id="item-@gi.DeliveryItemId" class="@rowClass" data-manifest="@gi.ScheduleNumber">
+
+                                        <td>
+                                            <div class="d-flex align-items-center gap-1">
+                                                @if (scanLogsList.Count > 1)
+                                                {
+                                                    <button type="button" class="btn btn-sm btn-outline-info p-0 px-1" onclick="toggleScanChildRows('@gi.DeliveryItemId', this)" title="Klik untuk lihat @scanLogsList.Count detail scan" style="font-size: 0.75rem; border-radius: 4px;">
+                                                        <i class="bi bi-chevron-down toggle-icon-@gi.DeliveryItemId"></i>
+                                                    </button>
+                                                }
+                                                <span class="badge bg-secondary">@gi.ScheduleNumber</span>
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            <div class="d-flex align-items-start gap-2">
+                                                @if (gi.SortOrder < 2)
+                                                {
+                                                    <span class="minus-icon" style="font-size:1rem;">🔴</span>
+                                                }
+                                                <div>
+                                                    <strong style="font-size:0.9rem;">@displayName2</strong><br />
+                                                    <small class="text-muted">@gi.Item?.ItemCode</small>
+                                                    @if (!string.IsNullOrEmpty(gi.Item?.VIN))
+                                                    {
+                                                        <br /><small class="text-muted" style="font-size:0.72rem;">VIN: @gi.Item.VIN</small>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </td>
+
+                                        <td>
+                                            <span style="font-size:0.85rem;">@(string.IsNullOrWhiteSpace(gi.Item?.CustomerPartNumber) ? (string.IsNullOrWhiteSpace(gi.ExternalPartNo) ? "-" : gi.ExternalPartNo) : gi.Item.CustomerPartNumber)</span>
+                                        </td>
+
+                                        <td>
+                                            <span style="font-size:0.85rem;">@firstLabel</span>
+                                        </td>
+
+                                        <td>
+                                            <span style="font-size:0.85rem;">@firstKanban</span>
+                                            @if(scanLogsList.Count > 1)
+                                            {
+                                                <a href="javascript:void(0)" onclick="toggleScanChildRows('@gi.DeliveryItemId');" class="text-decoration-none ms-1 text-warning" title="Lihat scan lainnya">
+                                                    <i class="bi bi-caret-down-fill"></i> (+@(scanLogsList.Count - 1))
+                                                </a>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            <span style="font-size:0.85rem;">@firstWaktu</span>
+                                        </td>
+
+                                        <td class="text-center fw-bold" style="font-size:1.05rem;">@((int)gi.KbnPlan)</td>
+
+                                        <td class="text-center">
+                                            <span style="font-size:1.2rem;font-weight:800;color:@actColor2;">@((int)gi.KbnActual)</span>
+                                        </td>
+
+                                        <td class="text-center">
+                                            @if (gi.KbnVariance < 0)
+                                            {
+                                                <span class="stock-badge-minus">
+                                                    <i class="bi bi-arrow-down me-1"></i>@((int)gi.KbnVariance)
+                                                </span>
+                                            }
+                                            else if (gi.KbnVariance > 0)
+                                            {
+                                                <span class="badge" style="background:#22c55e;font-size:0.85rem;">+@((int)gi.KbnVariance)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-success"><i class="bi bi-check-lg"></i></span>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            @if (gi.SortOrder == 2)
+                                            {
+                                                <span class="badge bg-success py-2"><i class="bi bi-check-circle me-1"></i>Completed</span>
+                                            }
+                                            else if (gi.SortOrder == 1)
+                                            {
+                                                <span class="badge bg-warning text-dark py-2">
+                                                    <i class="bi bi-hourglass-split me-1"></i>Partial<br/>
+                                                    <small>@((int)gi.KbnActual) / @((int)gi.KbnPlan)</small>
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger py-2"><i class="bi bi-x-circle me-1"></i>Pending</span>
+                                            }
+                                        </td>
+
+                                        <td>
+                                            <span style="font-size:0.85rem;" class="text-info fw-semibold"><i class="bi bi-person me-1"></i>@firstOperator</span>
+                                        </td>
+
+                                        <td onclick="event.stopPropagation();">
+                                            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                                            {
+                                                <a asp-controller="DeliveryItems" asp-action="Edit" asp-route-id="@gi.DeliveryItemId" 
+                                                   class="btn btn-sm btn-warning" title="Edit">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                            }
+                                        </td>
+                                    </tr>
+
+                                     @if (scanLogsList.Count > 1)
+                                     {
+                                         for (int i = 1; i < scanLogsList.Count; i++)
+                                         {
+                                             var childLabel = string.IsNullOrEmpty((string)scanLogsList[i].label) ? "-" : (string)scanLogsList[i].label;
+                                             var childKanban = string.IsNullOrEmpty((string)scanLogsList[i].kanban) ? "-" : (string)scanLogsList[i].kanban;
+                                             var childWaktu = (string)scanLogsList[i].waktuScan;
+                                             var childOperator = string.IsNullOrEmpty((string)scanLogsList[i].createdBy) ? "-" : (string)scanLogsList[i].createdBy;
+
+                                             <tr class="child-@gi.DeliveryItemId" style="display:none; background-color: rgba(15, 23, 42, 0.6); border-left: 3px solid #0284c7;">
+                                                 <td class="text-muted"><span class="badge bg-secondary opacity-50">@gi.ScheduleNumber</span></td>
+                                                 <td><span class="badge bg-info bg-opacity-25 text-info ms-2"><i class="bi bi-arrow-return-right me-1"></i>Scan #@(i + 1)</span></td>
+                                                 <td><span class="text-muted" style="font-size:0.85rem;">@(string.IsNullOrWhiteSpace(gi.Item?.CustomerPartNumber) ? (string.IsNullOrWhiteSpace(gi.ExternalPartNo) ? "-" : gi.ExternalPartNo) : gi.Item.CustomerPartNumber)</span></td>
+                                                 <td><span style="font-size:0.85rem;">@childLabel</span></td>
+                                                 <td><span style="font-size:0.85rem;">@childKanban</span></td>
+                                                 <td><span style="font-size:0.85rem;" class="text-muted">@childWaktu</span></td>
+                                                 <td class="text-center text-muted">-</td>
+                                                 <td class="text-center text-muted">-</td>
+                                                 <td class="text-center text-muted">-</td>
+                                                 <td><span class="badge bg-success bg-opacity-50 py-1" style="font-size:0.75rem;"><i class="bi bi-check me-1"></i>Scanned</span></td>
+                                                 <td><span style="font-size:0.85rem;" class="text-info"><i class="bi bi-person me-1"></i>@childOperator</span></td>
+                                                 <td></td>
+                                             </tr>
+                                         }
+                                     }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Belum ada item delivery yang ditambahkan.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+@section Scripts {
+    <script>
+
+        function toggleScanChildRows(itemId, btn) {
+            var $rows = $('.child-' + itemId);
+            var $icon = $('.toggle-icon-' + itemId);
+            if ($rows.is(':visible')) {
+                $rows.hide();
+                $icon.removeClass('bi-chevron-up').addClass('bi-chevron-down');
+            } else {
+                $rows.show();
+                $icon.removeClass('bi-chevron-down').addClass('bi-chevron-up');
+            }
+        }
+
+        // Manifest Filter
+        $(document).ready(function() {
+            $('#manifestFilter').change(function() {
+                var selected = $(this).val();
+                if (selected === 'all') {
+                    $('#delivery-items-table tbody tr').show();
+                } else {
+                    $('#delivery-items-table tbody tr').hide();
+                    $('#delivery-items-table tbody tr[data-manifest="' + selected + '"]').show();
+                }
+            });
+        });
+
+        // Scroll & highlight item yang baru diedit (via URL fragment #item-xxx)
+        document.addEventListener('DOMContentLoaded', function () {
+            var hash = window.location.hash;
+            if (hash && hash.startsWith('#item-')) {
+                // Delay agar script inisialisasi lain selesai dulu, baru kita scroll
+                setTimeout(function () {
+                    var row = document.querySelector(hash);
+                    if (row) {
+                        // Scroll ke baris, lalu geser ke atas sedikit agar tidak ketutup navbar
+                        row.scrollIntoView({ behavior: 'instant', block: 'start' });
+                        window.scrollBy(0, -90);
+                        // Highlight lebih mencolok agar mudah ditemukan
+                        row.style.outline = '2px solid #ffc107';
+                        row.style.backgroundColor = 'rgba(255, 193, 7, 0.35)';
+                        setTimeout(function () {
+                            row.style.outline = '';
+                            row.style.backgroundColor = '';
+                        }, 3000);
+                    }
+                }, 200);
+            }
+        });
+
+        // ── SIGNALR REAL-TIME UPDATE ────────────────────────────────────────────
+        (function () {
+            var _refreshTimer = null;
+            var _scheduleId   = @Model.ScheduleId;
+
+            function scheduleRefreshItems() {
+                clearTimeout(_refreshTimer);
+                _refreshTimer = setTimeout(refreshDeliveryItems, 1500);
+            }
+
+            async function refreshDeliveryItems() {
+                try {
+                    var res = await fetch('@Url.Action("GetDeliveryItemsJson", "DeliverySchedules")?scheduleId=' + _scheduleId);
+                    if (!res.ok) return;
+                    var items = await res.json();
+                    items.forEach(function (item) {
+                        var row = document.getElementById('item-' + item.deliveryItemId);
+                        if (!row) return;
+                        var cells  = row.querySelectorAll('td');
+                        if (cells.length < 7) return;
+
+                        var qpc      = item.qtyLot > 0 ? item.qtyLot : 1;
+                        var kbnPlan  = Math.ceil(item.quantity / qpc);
+                        var kbnAct   = Math.ceil(item.actualQuantity / qpc);
+                        var variance = kbnAct - kbnPlan;
+
+                        // cells[6] = Target
+                        cells[6].innerHTML = kbnPlan;
+
+                        // cells[7] = Actual
+                        var actColor = kbnAct >= kbnPlan && kbnPlan > 0 ? '#22c55e' : kbnAct > 0 ? '#f59e0b' : '#ef4444';
+                        cells[7].innerHTML = '<span style="font-size:1.2rem;font-weight:800;color:' + actColor + ';">' + kbnAct + '</span>';
+
+                        // cells[8] = Variance
+                        var varHtml;
+                        if (variance < 0) {
+                            varHtml = '<span class="stock-badge-minus"><i class="bi bi-arrow-down me-1"></i>' + variance + '</span>';
+                        } else if (variance > 0) {
+                            varHtml = '<span class="badge" style="background:#22c55e;font-size:0.85rem;">+' + variance + '</span>';
+                        } else {
+                            varHtml = '<span class="badge bg-success"><i class="bi bi-check-lg"></i></span>';
+                        }
+                        cells[8].innerHTML = varHtml;
+
+                        // cells[9] = Status badge
+                        var kbnDone    = kbnAct >= kbnPlan && kbnPlan > 0;
+                        var kbnPartial = kbnAct > 0 && !kbnDone;
+                        var statusHtml;
+                        if (kbnDone) {
+                            statusHtml = '<span class="badge bg-success py-2"><i class="bi bi-check-circle me-1"></i>Completed</span>';
+                        } else if (kbnPartial) {
+                            statusHtml = '<span class="badge bg-warning text-dark py-2"><i class="bi bi-hourglass-split me-1"></i>Partial<br/><small>' + kbnAct + '/' + kbnPlan + '</small></span>';
+                        } else {
+                            statusHtml = '<span class="badge bg-danger py-2"><i class="bi bi-x-circle me-1"></i>Pending</span>';
+                        }
+                        cells[9].innerHTML = statusHtml;
+
+                        // Update row class based on new status
+                        row.classList.remove('row-completed','row-partial','row-minus');
+                        if (kbnDone) row.classList.add('row-completed');
+                        else if (kbnPartial) row.classList.add('row-partial');
+                        else row.classList.add('row-minus');
+                    });
+                } catch (e) {
+                    console.warn('[SignalR refresh] gagal:', e);
+                }
+            }
+
+            var connection = new signalR.HubConnectionBuilder()
+                .withUrl('/deliveryHub')
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on('deliveryUpdated', function () {
+                scheduleRefreshItems();
+            });
+
+            connection.start().catch(function (err) {
+                console.warn('[SignalR] koneksi gagal:', err);
+            });
+        })();
+        // ── END SIGNALR ─────────────────────────────────────────────────────────
+    </script>
+}
+

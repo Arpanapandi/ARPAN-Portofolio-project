@@ -1,0 +1,2597 @@
+@model DeliveryControl.Models.StockDashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard FG";
+}
+
+<div class="header-container mb-3">
+    <div class="header-main-row">
+        <!-- Title Section -->
+        <div class="header-title-section">
+            <i class="bi bi-columns-gap fs-4 text-primary"></i>
+
+            <h1 class="h5 fw-bold mb-0 text-white text-nowrap">Dashboard Finished Goods</h1>
+        </div>
+
+        <!-- Filter Bar Section -->
+        <div class="custom-filter-bar">
+            <!-- Search Box -->
+            <div class="search-box-wrapper">
+                <i class="bi bi-search search-icon"></i>
+                <input type="text" id="tagLabelSearch" class="custom-search-input" placeholder="Cari Tag atau Kanban...">
+            </div>
+
+            <!-- Plant Filter -->
+            <div class="filter-group">
+                <span class="filter-label">Plant:</span>
+                <select id="plantFilter" class="custom-select-input">
+                    <option value="Overall" selected="@(Model.PlantName == "Overall")">Overall</option>
+                    @foreach (var p in Model.AvailablePlants)
+                    {
+                        <option value="@p" selected="@(Model.PlantName == p)">@p</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Customer Filter -->
+            <div class="filter-group">
+                <span class="filter-label">Cust:</span>
+                <select id="customerFilter" class="custom-select-input">
+                    <option value="All" selected="@(Model.SelectedCustomer == "All")">All</option>
+                    @foreach (var c in Model.AvailableCustomers)
+                    {
+                        <option value="@c" selected="@(Model.SelectedCustomer == c)">@c</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="filter-group">
+                <span class="filter-label">Status:</span>
+                <select id="itemStatusFilter" class="custom-select-input">
+                    <option value="All" selected="@(Model.SelectedItemStatus == "All")">All</option>
+                    @foreach (var s in Model.AvailableStatuses)
+                    {
+                        <option value="@s" selected="@(Model.SelectedItemStatus == s)">@s</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Category (PROD) Filter -->
+            <div class="filter-group">
+                <span class="filter-label">PROD:</span>
+                <select id="categoryFilter" class="custom-select-input">
+                    <option value="All" selected="@(Model.SelectedCategory == "All")">All</option>
+                    @foreach (var cat in Model.AvailableCategories)
+                    {
+                        <option value="@cat" selected="@(Model.SelectedCategory == cat)">@cat</option>
+                    }
+                </select>
+            </div>
+
+            <!-- Date Filter -->
+            <div class="filter-group">
+                <span class="filter-label">Tanggal:</span>
+                <input type="date" id="dateFilter" class="custom-date-input" value="@(Model.SearchDate?.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))">
+            </div>
+
+            <!-- Period Filter -->
+            <div class="filter-group">
+                <span class="filter-label">Periode:</span>
+                <select id="periodFilter" class="custom-select-input">
+                    <option value="Day" selected="@(Model.Period == "Day")">Day</option>
+                    <option value="Week" selected="@(Model.Period == "Week")">Week</option>
+                    <option value="Month" selected="@(Model.Period == "Month")">Month</option>
+                    <option value="Year" selected="@(Model.Period == "Year")">Year</option>
+                </select>
+            </div>
+
+            <!-- Reset Button -->
+            <button style="background:transparent;color:#f43f5e;border:1px solid #f43f5e;padding:4px 10px;border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;height:30px;margin-left:5px;transition:all 0.2s;" 
+                    onmouseover="this.style.background='#f43f5e';this.style.color='#fff';" 
+                    onmouseout="this.style.background='transparent';this.style.color='#f43f5e';" 
+                    onclick="resetAllDashboardFilters()" title="Reset Filters">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset
+            </button>
+            <script>
+                function resetAllDashboardFilters() {
+                    if (document.getElementById('plantFilter')) document.getElementById('plantFilter').value = 'Overall';
+                    if (document.getElementById('customerFilter')) document.getElementById('customerFilter').value = 'All';
+                    if (document.getElementById('itemStatusFilter')) document.getElementById('itemStatusFilter').value = 'All';
+                    if (document.getElementById('categoryFilter')) document.getElementById('categoryFilter').value = 'All';
+                    if (document.getElementById('periodFilter')) document.getElementById('periodFilter').value = 'Day';
+                    if (document.getElementById('dateFilter')) {
+                        const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+                        document.getElementById('dateFilter').value = new Date(Date.now() - tzoffset).toISOString().split('T')[0];
+                    }
+                    if (document.getElementById('tagLabelSearch')) document.getElementById('tagLabelSearch').value = '';
+                    if (typeof window.refreshDashboard === 'function') {
+                        window.currentStatusFilter = 'All';
+                        window.refreshDashboard(1);
+                    }
+                }
+            </script>
+        </div>
+    </div>
+
+    <!-- Dashboard Sub-Menu Navigation -->
+    <div class="dashboard-nav-wrapper" style="display: flex; justify-content: space-between; align-items: center; padding-right: 15px;">
+        <partial name="_DashboardNav" />
+        
+        <div class="action-buttons-container" style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+            @if (!string.IsNullOrEmpty(Context.Session.GetString("Role")))
+            {
+                <button id="btnExportDashboard" class="btn-custom-excel" style="background:#047857;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                    <i class="bi bi-file-earmark-arrow-down"></i>
+                    <span>Export Excel</span>
+                </button>
+                <button id="btnImportExcel" class="btn-custom-excel" style="background:#047857;color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;" onclick="document.getElementById('importExcelFile').click()">
+                    <i class="bi bi-file-earmark-arrow-up"></i>
+                    <span>Import Excel</span>
+                </button>
+                <input type="file" id="importExcelFile" style="display:none;" accept=".xlsx, .xls" />
+                <button id="btnDownloadExcel" class="btn-custom-excel" style="background:transparent;color:#10b981;border:1px solid #10b981;padding:6px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                    <i class="bi bi-file-earmark-excel"></i>
+                    <span>Template Excel</span>
+                </button>
+
+            }
+
+            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin" || Context.Session.GetString("Role") == "STO")
+            {
+                <button id="btnAdjustStock" class="btn-custom-orange" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                    <i class="bi bi-sliders"></i>
+                    <span>Adjust Stock</span>
+                </button>
+            }
+            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+            {
+                <button id="btnRepairPlant" onclick="repairPlantData()" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;" title="Perbaiki Plant pada data historis Pulling & Preparation yang Plant-nya kosong/salah">
+                    <i class="bi bi-wrench-adjustable-circle"></i>
+                    <span>Repair Plant</span>
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+<div id="dashboardContent">
+    <!-- CHART DATA CARRIER UNTUK AJAX -->
+    <div id="chartDataContainer" style="display:none;" data-trend='@Html.Raw(Model.TrendHistoryJson)' data-dates='@Html.Raw(Model.FullDatesJson)'></div>
+    <!-- FILTER DATA CARRIER UNTUK AJAX -->
+    <script id="filterDataScript" type="application/json">
+        {
+            "plants": @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailablePlants)),
+            "customers": @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableCustomers)),
+            "categories": @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableCategories)),
+            "statuses": @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableStatuses))
+        }
+    </script>
+    <div class="row">
+        <!-- Status Indicator Cards -->
+        <div class="col-md-3 mb-4">
+            <div class="cyber-card p-3 text-center border-danger indicator-card clickable position-relative" data-filter="Shortage" style="cursor: pointer;">
+                <small class="text-muted d-block text-uppercase">Shortage</small>
+                <h2 class="fw-bold mb-0 text-danger">@Model.ShortageCount</h2>
+                <small class="text-white-50 d-block mb-1">Low Stock Items</small>
+                <span class="badge rounded-pill position-absolute" style="bottom: 12px; right: 12px; background-color:rgba(220,53,69,0.15); color:#f87171; border: 1px solid rgba(220,53,69,0.3); font-size:0.7rem;">&lt; 1 Day</span>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="cyber-card p-3 text-center indicator-card clickable position-relative" data-filter="Normal" style="cursor: pointer; border-color: #f59e0b !important; border: 1px solid #f59e0b;">
+                <small class="text-muted d-block text-uppercase">Normal</small>
+                <h2 class="fw-bold mb-0" style="color:#f59e0b;">@Model.NormalCount</h2>
+                <small class="text-white-50 d-block mb-1">Safe Stock Items</small>
+                <span class="badge rounded-pill position-absolute" style="bottom: 12px; right: 12px; background-color:rgba(245,158,11,0.15); color:#fbbf24; border: 1px solid rgba(245,158,11,0.3); font-size:0.7rem;">1 - 2 Day</span>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="cyber-card p-3 text-center border-info indicator-card clickable position-relative" data-filter="Over" style="cursor: pointer;">
+                <small class="text-muted d-block text-uppercase">Over</small>
+                <h2 class="fw-bold mb-0 text-info">@Model.OverCount</h2>
+                <small class="text-white-50 d-block mb-1">Excessive Stock</small>
+                <span class="badge rounded-pill position-absolute" style="bottom: 12px; right: 12px; background-color:rgba(13,202,240,0.15); color:#38bdf8; border: 1px solid rgba(13,202,240,0.3); font-size:0.7rem;">&gt; 2 Day</span>
+            </div>
+        </div>
+        <div class="col-md-3 mb-4">
+            <div class="cyber-card p-3 text-center indicator-card clickable" data-filter="All" style="cursor: pointer;">
+                <div class="status-indicator-live active"></div>
+                <small class="text-muted d-block text-uppercase">Total item</small>
+                <h2 class="fw-bold mb-0 text-white fs-4">@Model.TotalItemCount</h2>
+                <small class="text-white-50">IN STORAGE</small>
+                @if (Model.ShowNoOrder && Model.NoOrderCount > 0)
+                {
+                    <small class="d-block mt-2 text-warning" style="font-size: 0.75rem;" title="Item lama ini tampil di tabel tapi tidak dihitung di indikator Total Item">
+                        <i class="bi bi-info-circle me-1"></i>+ @Model.NoOrderCount item lama (tidak dihitung)
+                    </small>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Trend Status Stock Graph -->
+        <div class="col-12 mb-4" id="trendChartContainer">
+            <div class="cyber-card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                    <h1 class="text-white mb-0 fw-bold" style="font-size: 1.35rem; display:flex; align-items:center; gap:8px;">
+                        <i class="bi bi-graph-up-arrow text-primary"></i>
+                        Trend Status Stock (Keseluruhan)
+                    </h1>
+                </div>
+
+                <div class="row gx-4">
+                    <!-- Column Chart -->
+                    <div class="col-md-8 mb-3 mb-md-0">
+                        <div style="height: 350px; position: relative;">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Column Summary & Table -->
+                    <div class="col-md-4">
+                        <div style="background:rgba(15,23,42,0.6);border:1px solid rgba(13,202,240,0.18);border-radius:12px;padding:20px;height:350px;display:flex;flex-direction:column;">
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <i class="bi bi-table text-primary" style="font-size: 1rem;"></i>
+                                <span class="text-white fw-semibold" style="font-size: 1.2rem;">Informasi Status Item</span>
+                            </div>
+                            <div class="table-responsive" style="flex-grow: 1; display: flex; align-items: stretch;">
+                                <table class="table table-sm mb-0 text-center" style="width:100%; height:100%;">
+                                    <colgroup>
+                                        <col style="width:30%;">
+                                        <col style="width:20%;">
+                                        <col style="width:20%;">
+                                        <col style="width:30%;">
+                                    </colgroup>
+                                    <thead>
+                                        <tr style="border-bottom:3px solid rgba(255,255,255,0.1);">
+                                            <th rowspan="2" style="color:#ffffff;background:rgba(0,0,0,0.3);vertical-align:middle;font-size:1rem;border-radius:6px 0 0 0;">Status</th>
+                                            <th colspan="2" style="color:#ffffff;background:rgba(0,0,0,0.3);font-size:1rem;border-left:1px solid rgba(255,255,255,0.06);">Qty Item</th>
+                                            <th rowspan="2" style="color:#ffffff;background:rgba(0,0,0,0.3);vertical-align:middle;font-size:1rem;border-left:1px solid rgba(255,255,255,0.06);border-radius:0 6px 0 0;">Trend</th>
+                                        </tr>
+                                        <tr style="border-bottom:1.5px solid rgba(255,255,255,0.12);">
+                                            <th style="color:#eeeff1;background:rgba(0,0,0,0.2);font-size:1rem;border-left:1px solid rgba(255,255,255,0.06);">Kemarin</th>
+                                            <th style="color:#e2e8f0;background:rgba(0,0,0,0.2);font-size:1rem;border-left:1px solid rgba(255,255,255,0.06);">Hari Ini</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="statusSummaryBody">
+                                        <tr>
+                                            <td style="color:#dc3545;font-weight:bold;font-size:1rem;">Shortage</td>
+                                            <td style="color:#e2e8f0;font-size:1rem;">@Model.YesterdaySummary.Shortage</td>
+                                            <td style="color:#e2e8f0;font-size:1rem;font-weight:bold;">@Model.TodaySummary.Shortage</td>
+                                            <td style="font-size:1rem;">
+                                                @if(Model.TodaySummary.Shortage > Model.YesterdaySummary.Shortage) { <span class="text-danger"><i class="bi bi-arrow-up-right"></i> +@(Model.TodaySummary.Shortage - Model.YesterdaySummary.Shortage)</span> }
+                                                else if(Model.TodaySummary.Shortage < Model.YesterdaySummary.Shortage) { <span class="text-success"><i class="bi bi-arrow-down-right"></i> -@(Model.YesterdaySummary.Shortage - Model.TodaySummary.Shortage)</span> }
+                                                else { <span class="text-secondary">-</span> }
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="color:#ffc107;font-weight:bold;font-size:1rem;">Normal</td>
+                                            <td style="color:#e2e8f0;font-size:1rem;">@Model.YesterdaySummary.Normal</td>
+                                            <td style="color:#e2e8f0;font-size:1rem;font-weight:bold;">@Model.TodaySummary.Normal</td>
+                                            <td style="font-size:1rem;">
+                                                @if(Model.TodaySummary.Normal > Model.YesterdaySummary.Normal) { <span class="text-danger"><i class="bi bi-arrow-up-right"></i> +@(Model.TodaySummary.Normal - Model.YesterdaySummary.Normal)</span> }
+                                                else if(Model.TodaySummary.Normal < Model.YesterdaySummary.Normal) { <span class="text-success"><i class="bi bi-arrow-down-right"></i> -@(Model.YesterdaySummary.Normal - Model.TodaySummary.Normal)</span> }
+                                                else { <span class="text-secondary">-</span> }
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td style="color:#0dcaf0;font-weight:bold;font-size:1rem;">Over</td>
+                                            <td style="color:#e2e8f0;font-size:1rem;">@Model.YesterdaySummary.Over</td>
+                                            <td style="color:#e2e8f0;font-size:1rem;font-weight:bold;">@Model.TodaySummary.Over</td>
+                                            <td style="font-size:1rem;">
+                                                @if(Model.TodaySummary.Over > Model.YesterdaySummary.Over) { <span class="text-danger"><i class="bi bi-arrow-up-right"></i> +@(Model.TodaySummary.Over - Model.YesterdaySummary.Over)</span> }
+                                                else if(Model.TodaySummary.Over < Model.YesterdaySummary.Over) { <span class="text-success"><i class="bi bi-arrow-down-right"></i> -@(Model.YesterdaySummary.Over - Model.TodaySummary.Over)</span> }
+                                                else { <span class="text-secondary">-</span> }
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- History Table (Full Width) -->
+                <div class="mt-4 pt-4" style="border-top: 1px solid rgba(255,255,255,0.08);">
+                    <h1 class="text-white mb-3 fw-semibold" style="font-size: 1.2rem;">
+                        <i class="bi bi-clock-history me-2 text-primary"></i>
+                        History Status Stock
+                    </h1>
+                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0 text-center" style="border-collapse: separate; border-spacing: 0;">
+                            <thead>
+                                <tr>
+                                    <th style="position:sticky;top:0;background:#1e293b;color:#94a3b8;border-bottom:2px solid #334155;z-index:3;text-align:left;min-width:120px;padding-left:15px;left:0;">Status</th>
+                                    @foreach(var day in Model.DailyHistory) {
+                                        <th style="position:sticky;top:0;background:#1e293b;color:#94a3b8;border-bottom:2px solid #334155;z-index:1;min-width:60px;">@day.DateLabel</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="background:rgba(220,53,69,0.15);border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(220,53,69,0.15), rgba(220,53,69,0.15)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#dc3545;margin-right:6px;"></span>Shortage
+                                    </td>
+                                    @foreach(var day in Model.DailyHistory) {
+                                        <td style="color:#e2e8f0;font-weight:500;">@day.Shortage</td>
+                                    }
+                                </tr>
+                                <tr style="background:rgba(255,193,7,0.15);border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(255,193,7,0.15), rgba(255,193,7,0.15)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#ffc107;margin-right:6px;"></span>Normal
+                                    </td>
+                                    @foreach(var day in Model.DailyHistory) {
+                                        <td style="color:#e2e8f0;font-weight:500;">@day.Normal</td>
+                                    }
+                                </tr>
+                                <tr style="background:rgba(13,202,240,0.15);border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(13,202,240,0.15), rgba(13,202,240,0.15)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#0dcaf0;margin-right:6px;"></span>Over
+                                    </td>
+                                    @foreach(var day in Model.DailyHistory) {
+                                        <td style="color:#e2e8f0;font-weight:500;">@day.Over</td>
+                                    }
+                                </tr>
+                                <tr style="background:rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e2e8f0;margin-right:6px;"></span>Total
+                                    </td>
+                                    @foreach(var day in Model.DailyHistory) {
+                                        <td style="color:#e2e8f0;font-weight:bold;">@(day.Shortage + day.Normal + day.Over)</td>
+                                    }
+                                </tr>
+                                <tr style="background:rgba(255,255,255,0.02);border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(255,255,255,0.02), rgba(255,255,255,0.02)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+                                        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#94a3b8;margin-right:6px;"></span>Target
+                                        <i class="bi bi-pencil-square ms-2 text-warning" style="cursor:pointer; font-size:0.8rem;" title="Edit Target" onclick="openEditTargetModal()"></i>
+                                        <i class="bi bi-trash text-danger ms-1" style="cursor:pointer; font-size:0.8rem;" title="Hapus Target" onclick="openDeleteTargetModal()"></i>
+                                    </td>
+                                    @foreach(var day in Model.DailyHistory) {
+                                        <td style="color:#94a3b8;font-weight:500;" id="target-cell-@day.DateLabel.Replace("/", "-")">0</td>
+                                    }
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+            </div>
+        </div>
+
+        <!-- Detailed Data Table -->
+        <div class="col-12 mb-4">
+            <div class="cyber-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span id="tableTitle" class="fw-bold text-primary"><i class="bi bi-list-ul me-2"></i> Detail Data Barang (@Model.PlantName)</span>
+                    
+                    <div class="d-flex align-items-center gap-2">
+                         <span id="autoScrollStatus" class="small text-muted fw-bold me-1" style="font-size: 0.75rem;">Auto Scroll: OFF</span>
+                         <button id="btnToggleAutoScroll" class="btn btn-outline-secondary btn-xs d-flex align-items-center gap-1">
+                             <i class="bi bi-play-circle"></i> Toggle
+                         </button>
+                         @if (Context.Session.GetString("Role") == "Super Admin")
+                        {
+                            <div class="dash-v-divider" style="height:20px;width:1px;background:rgba(255,255,255,0.15);"></div>
+                            <!-- Toggle item tidak aktif -->
+                            <button id="btnToggleInactive" class="btn btn-xs @(Model.ShowNoOrder ? "btn-outline-warning" : "btn-outline-secondary") d-flex align-items-center gap-1"
+                                    onclick="toggleInactiveItems()" title="Sembunyikan/tampilkan item No Order">
+                                <i class="@(Model.ShowNoOrder ? "bi bi-eye" : "bi bi-eye-slash")" id="iconToggleInactive"></i>
+                                <span id="labelToggleInactive" style="font-size:0.72rem;">@(Model.ShowNoOrder ? "Sembunyikan No Order" : "Tampilkan No Order")</span>
+                            </button>
+                        }
+                         <div class="dash-v-divider" style="height:20px;width:1px;background:rgba(255,255,255,0.15);"></div>
+                         <!-- Filter Rak -->
+                         <select id="rackFilter" class="custom-select-input" style="min-width:110px;" title="Filter per Rak">
+                             <option value="">-- Semua Rak --</option>
+                         </select>
+                    </div>
+                </div>
+                <div id="normalTableContainer" class="table-responsive main-stock-container">
+                    <table class="table table-hover mb-0" id="stockDetailTable" style="border-collapse: separate; border-spacing: 0;">
+                        <thead>
+                            <tr style="height: 50px;">
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 50px;">NO</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 100px;">PROD. PLANT</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 120px;">RACK LOCATION</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 80px;">RACK</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 80px;">RACK NO</th>
+                                @if (Context.Session.GetString("Role") == "Super Admin")
+                                {
+                                    <th class="bg-dark-blue text-white text-center" style="min-width: 120px;">LABEL</th>
+                                }
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 100px;">CUST</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 100px;">STATUS</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 100px;">PROD</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 120px;">VIN</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 60px;">QPC</th>
+                                <th class="bg-red text-white text-center" style="min-width: 80px;">MIN 1D</th>
+                                <th class="bg-yellow text-dark text-center" style="min-width: 80px;">ROP 1.5D</th>
+                                <th class="bg-info text-white text-center" style="min-width: 80px;">MAX 2D</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 60px;">ACT</th>
+                                <th class="bg-dark-blue text-white text-center" style="min-width: 150px;">LEVEL STOCK</th>
+                                @if (Context.Session.GetString("Role") == "Super Admin")
+                                {
+                                    <th class="bg-dark-blue text-white text-center" style="min-width: 160px;">REMARK</th>
+                                }
+                                @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                                {
+                                    <th class="bg-dark-blue text-white text-center" style="min-width: 100px;">ACTION</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var record in Model.StockDetails)
+                            {
+                                <tr class="stock-row stock-row-info" 
+                                    data-item-id="@record.ItemId"
+                                    data-status="@record.Status"
+                                    data-active="@(record.IsActive ? "1" : "0")"
+                                    data-search-content="@record.ItemName @record.ItemCode @record.VIN @record.Label @record.Plant @record.Customer"
+                                    onclick='showItemDetail(@Html.Raw(Json.Serialize(record)))'
+                                    style="cursor: pointer;">
+                                    <td class="text-center">@record.No</td>
+                                    <td class="text-center"><span class="badge @(record.Plant == "Molded" ? "bg-primary" : record.Plant == "Hose" ? "bg-info text-dark" : "bg-warning text-dark") smaller" style="width: 60px; display: inline-block;">@record.Plant</span></td>
+                                    <td class="fw-bold text-primary">
+                                        <i class="bi bi-info-circle me-1" style="font-size: 0.75rem;"></i>@record.ItemName
+                                    </td>
+                                    <td class="text-center fw-bold" style="color: #cbd5e1;">@record.Rak</td>
+                                    <td class="text-center fw-bold" style="color: #cbd5e1;">@(record.NoRak?.ToString() ?? "-")</td>
+                                    @if (Context.Session.GetString("Role") == "Super Admin")
+                                    {
+                                        <td class="text-center"><span class="text-primary fw-bold" style="font-size: 0.8rem;">@DeliveryControl.Helpers.VinHelper.FormatLabel(record.Label, record.VIN)</span></td>
+                                    }
+                                    <td class="text-center">@record.Customer</td>
+                                    <td class="text-center">
+                                        @if (record.StatusItem?.Equals("Reguler", StringComparison.OrdinalIgnoreCase) == true)
+                                        {
+                                            <span class="badge bg-success opacity-75 smaller" style="width: 75px; display: inline-block;">Reguler</span>
+                                        }
+                                        else if (record.StatusItem?.Equals("PMSP FM", StringComparison.OrdinalIgnoreCase) == true)
+                                        {
+                                            <span class="badge bg-primary opacity-75 smaller" style="width: 75px; display: inline-block;">PMSP FM</span>
+                                        }
+                                        else if (record.StatusItem?.Equals("PMSP SM", StringComparison.OrdinalIgnoreCase) == true)
+                                        {
+                                            <span class="badge bg-warning text-dark opacity-75 smaller" style="width: 75px; display: inline-block;">PMSP SM</span>
+                                        }
+                                        else if (record.StatusItem?.Equals("PMSP", StringComparison.OrdinalIgnoreCase) == true)
+                                        {
+                                            <span class="badge bg-warning text-dark opacity-75 smaller" style="width: 75px; display: inline-block;">PMSP</span>
+                                        }
+                                        else if (record.StatusItem?.Equals("After Market", StringComparison.OrdinalIgnoreCase) == true)
+                                        {
+                                            <span class="badge opacity-75 smaller" style="width: 75px; display: inline-block; background-color:#64748b;">After Mkt</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger opacity-75 smaller" style="width: 75px; display: inline-block;">No Order</span>
+                                        }
+                                    </td>
+                                    <td class="text-center small">@record.Category</td>
+                                    <td class="text-center" style="font-size: 0.8rem;">@record.VIN</td>
+                                    <td class="text-center fw-bold text-info">@(record.QtyLot?.ToString() ?? "-")</td>
+                                    <td class="text-center fw-bold text-danger">@(record.Min?.ToString() ?? "-")</td>
+                                    <td class="text-center fw-bold text-warning">@(record.Rop?.ToString() ?? "-")</td>
+                                    <td class="text-center fw-bold text-success">@(record.Max?.ToString() ?? "-")</td>
+                                    <td class="text-center">
+                                        <div class="d-flex flex-column align-items-center">
+                                            <span class="fw-bold text-info act-fg" style="font-size: 1.1rem;">@record.CurrentStock.ToString("G29")</span>
+                                            <small class="text-muted" style="font-size: 0.6rem;">BOX</small>
+                                        </div>
+                                    </td>
+                                    <td class="text-center td-stock-level">
+                                         @if (record.LevelStock < 1.0m)
+                                         {
+                                             <span class="stock-badge stock-level-red px-2 py-1">
+                                                 <i class="bi bi-exclamation-triangle-fill"></i> <span class="stock-ratio">@record.LevelStock.ToString("N1", System.Globalization.CultureInfo.InvariantCulture)</span> D
+                                             </span>
+                                         }
+                                         else if (record.LevelStock >= 1.0m && record.LevelStock <= 2.0m)
+                                         {
+                                             <span class="stock-badge stock-level-yellow px-2 py-1">
+                                                 <i class="bi bi-info-circle-fill"></i> <span class="stock-ratio">@record.LevelStock.ToString("N1", System.Globalization.CultureInfo.InvariantCulture)</span> D
+                                             </span>
+                                         }
+                                         else
+                                         {
+                                             <span class="stock-badge stock-level-blue px-2 py-1">
+                                                 <i class="bi bi-star-fill"></i> <span class="stock-ratio">@record.LevelStock.ToString("N1", System.Globalization.CultureInfo.InvariantCulture)</span> D
+                                             </span>
+                                         }
+                                    </td>
+                                    @if (Context.Session.GetString("Role") == "Super Admin")
+                                    {
+                                        <td class="text-center" style="font-size:0.78rem;">
+                                            @if (record.IsManualAdjust && !string.IsNullOrEmpty(record.AdjustNote))
+                                            {
+                                                <span style="color:#f59e0b;"><i class="bi bi-pencil-square"></i> @record.AdjustNote</span>
+                                            }
+                                        </td>
+                                    }
+                                    @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                                    {
+                                        <td class="text-center" onclick="event.stopPropagation();">
+                                            <div class="d-flex justify-content-center gap-2">
+                                                <button class="btn btn-link p-0 text-info" onclick="event.stopPropagation(); editStockItem(this, @record.ItemId, '@record.ItemName', '@record.RackInfo')" title="Adjust/Relocate/Edit"
+                                                        data-vin="@record.VIN" data-plant="@record.Plant" data-cust="@record.Customer" data-status="@(record.StatusItem ?? "Reguler")" data-prod="@record.Category" data-qpc="@record.QtyLot" data-min="@record.Min" data-max="@record.Max">
+                                                    <i class="bi bi-pencil-square fs-5"></i>
+                                                </button>
+                                                <button class="btn btn-link p-0 text-danger" onclick="event.stopPropagation(); deleteStockItem(@record.ItemId, '@record.ItemName')" title="Clear Today's Pulling">
+                                                    <i class="bi bi-trash3 fs-5"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                            @if (!Model.StockDetails.Any())
+                            {
+                                <tr><td colspan="@(Context.Session.GetString("Role") == "Super Admin" ? 16 : (Context.Session.GetString("Role") == "Admin" ? 15 : 14))" class="text-center py-5 text-muted small">Tidak ada data barang dalam stok.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Rack Table Container (shown when rack selected) -->
+                <div id="rackTableContainer" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 px-3 py-2" style="border-bottom:1px solid rgba(13,202,240,0.2);">
+                        <span id="rakStatShortage" class="badge bg-danger">Shortage: 0</span>
+                        <span id="rakStatNormal" class="badge bg-warning text-dark">Normal: 0</span>
+                        <span id="rakStatOver" class="badge bg-info text-dark">Over: 0</span>
+                        <span id="rakStatTotal" class="badge bg-secondary">Total: 0</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="rakDetailTable" style="border-collapse:separate;border-spacing:0;">
+                            <thead>
+                                <tr style="height:44px;background:#1e293b;">
+                                    <th class="text-center text-white px-2" style="min-width:40px;">NO</th>
+                                    <th class="text-white px-2" style="min-width:130px;">LOKASI</th>
+                                    <th class="text-white px-2" style="min-width:100px;">VIN</th>
+                                    <th class="text-white px-2" style="min-width:130px;">PART NO</th>
+                                    <th class="text-center text-white px-2" style="min-width:55px;">QPC</th>
+                                    <th class="text-center text-danger px-2" style="min-width:60px;">MIN</th>
+                                    <th class="text-center px-2" style="min-width:60px;color:#f59e0b;">ROP</th>
+                                    <th class="text-center text-success px-2" style="min-width:60px;">MAX</th>
+                                    <th class="text-center text-info px-2" style="min-width:55px;">ACT</th>
+                                    <th class="text-center text-white px-2" style="min-width:55px;">LEVEL</th>
+                                    <th class="text-center text-white px-2" style="min-width:90px;">STATUS</th>
+                                    @if (Context.Session.GetString("Role") == "Super Admin")
+                                    {
+                                        <th class="text-white px-2" style="min-width:110px;">REMARK</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody id="rakDetailBody">
+                                <tr><td colspan="@(Context.Session.GetString("Role") == "Super Admin" ? 12 : 11)" class="text-center py-4 text-muted">Memuat data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Rack Pager -->
+                    <div id="rakPagerContainer" class="px-3 py-2" style="display:none; border-top:1px solid rgba(13,202,240,0.15);">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <small id="rakPagerInfo" class="text-muted"></small>
+                            <nav>
+                                <ul id="rakPagerList" class="pagination pagination-sm mb-0"></ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="pagerContainer" class="px-3 pb-3">
+                    <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+        <!-- Modal Edit Target -->
+        <div class="modal fade" id="editTargetModal" tabindex="-1">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content bg-dark text-white" style="border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <h5 class="modal-title fs-6">Edit Target</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Tanggal</label>
+                            <select id="editTargetDate" class="form-select bg-dark text-white border-secondary">
+                                @foreach(var day in Model.DailyHistory) {
+                                    <option value="@day.DateLabel">@day.DateLabel</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Qty Target</label>
+                            <input type="number" id="editTargetQty" class="form-control bg-dark text-white border-secondary" value="0" min="0">
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1);">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="saveTarget()">Simpan</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Delete Target -->
+        <div class="modal fade" id="deleteTargetModal" tabindex="-1">
+            <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content bg-dark text-white" style="border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <h5 class="modal-title fs-6 text-danger">Hapus Target</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label text-muted small">Pilih Tanggal</label>
+                            <select id="deleteTargetDate" class="form-select bg-dark text-white border-secondary">
+                                <option value="ALL">-- Semua Tanggal --</option>
+                                @foreach(var day in Model.DailyHistory) {
+                                    <option value="@day.DateLabel">@day.DateLabel</option>
+                                }
+                            </select>
+                        </div>
+                        <p class="text-warning small mb-0">Target pada tanggal yang dipilih akan di-reset menjadi 0.</p>
+                    </div>
+                    <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1);">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="deleteTarget()">Hapus</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+@section Scripts {
+<script src="~/lib/chart.js/chart.umd.min.js"></script>
+<script>
+    window.initTrendChart = function() {
+        const container = document.getElementById('chartDataContainer');
+        if (!container) return;
+
+        let trendData = [];
+        let fullDates = [];
+        try {
+            trendData = JSON.parse(container.getAttribute('data-trend') || "[]");
+            fullDates = JSON.parse(container.getAttribute('data-dates') || "[]");
+        } catch(e) {
+            console.error("Error parsing chart data", e);
+        }
+
+        const canvas = document.getElementById('trendChart');
+        if (!canvas) return;
+
+        if (window.trendChartInstance) {
+            window.trendChartInstance.destroy();
+        }
+
+        const ctx = canvas.getContext('2d');
+        const shortColor = '#dc3545';
+        const normColor = '#ffc107';
+        const overColor = '#0dcaf0';
+
+        const hexRgba = (hex, alpha) => {
+            let c;
+            if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
+                c = hex.substring(1).split('');
+                if (c.length == 3) {
+                    c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+                }
+                c = '0x' + c.join('');
+                return 'rgba(' + [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',') + ',' + alpha + ')';
+            }
+            return hex;
+        };
+
+        const createGradient = (ctx, color) => {
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, hexRgba(color, 0.35));
+            gradient.addColorStop(1, hexRgba(color, 0.01));
+            return gradient;
+        };
+
+        const statusFilter = typeof window.currentStatusFilter !== 'undefined' ? window.currentStatusFilter : 'All';
+        const showShortage = statusFilter === 'All' || statusFilter === 'Shortage';
+        const showNormal = statusFilter === 'All' || statusFilter === 'Normal';
+        const showOver = statusFilter === 'All' || statusFilter === 'Over';
+
+        const verticalLinePlugin = {
+            id: 'verticalLine',
+            afterDraw: chart => {
+                if (chart.tooltip?._active?.length) {
+                    const x = chart.tooltip._active[0].element.x;
+                    const yAxis = chart.scales.y;
+                    const ctx = chart.ctx;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(x, yAxis.top);
+                    ctx.lineTo(x, yAxis.bottom);
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        };
+
+        window.trendChartInstance = new Chart(ctx, {
+            type: 'line',
+            plugins: [verticalLinePlugin],
+            data: {
+                labels: fullDates.map(d => {
+                    const dt = new Date(d);
+                    return String(dt.getDate()).padStart(2, '0') + '/' + String(dt.getMonth() + 1).padStart(2, '0');
+                }),
+                datasets: [
+                    {
+                        label: 'Shortage',
+                        data: trendData.find(x => x.name === 'Shortage')?.data || [],
+                        borderColor: shortColor,
+                        backgroundColor: createGradient(ctx, shortColor),
+                        tension: 0.4, fill: true, pointRadius: 3, pointBackgroundColor: shortColor, pointHoverRadius: 6, borderWidth: 3,
+                        hidden: !showShortage
+                    },
+                    {
+                        label: 'Normal',
+                        data: trendData.find(x => x.name === 'Normal')?.data || [],
+                        borderColor: normColor, backgroundColor: createGradient(ctx, normColor), tension: 0.4, fill: true, pointRadius: 3, pointBackgroundColor: normColor, pointHoverRadius: 6, borderWidth: 3,
+                        hidden: !showNormal
+                    },
+                    {
+                        label: 'Over',
+                        data: trendData.find(x => x.name === 'Over')?.data || [],
+                        borderColor: overColor, backgroundColor: createGradient(ctx, overColor), tension: 0.4, fill: true, pointRadius: 3, pointBackgroundColor: overColor, pointHoverRadius: 6, borderWidth: 3,
+                        hidden: !showOver
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { color: '#94a3b8', usePointStyle: true, boxWidth: 8, padding: 20 }
+                    },
+                    tooltip: {
+                        backgroundColor: '#0a1628',
+                        titleColor: '#94a3b8',
+                        titleFont: { size: 13, weight: '600' },
+                        bodyFont: { size: 14, weight: 'bold' },
+                        padding: 12,
+                        cornerRadius: 8,
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        borderWidth: 1,
+                        displayColors: true,
+                        boxPadding: 6,
+                        callbacks: {
+                            title: (ctx) => 'Tanggal ' + ctx[0].label,
+                            label: (ctx) => ' ' + ctx.dataset.label + ': ' + ctx.raw + ' items'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#64748b', font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+                        ticks: { color: '#cbd5e1', font: { size: 11, weight: 'bold' }, display: true },
+                        title: { display: true, text: 'Jumlah Item', color: '#cbd5e1', font: { size: 12, weight: 'bold' } },
+                        border: { display: false }
+                    }
+                }
+            }
+        });
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        window.initTrendChart();
+    });
+</script>
+    <script>
+        $(document).ready(function () {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/stockHub")
+                .withAutomaticReconnect()
+                .build();
+
+            // Import Excel Handler
+            $('#importExcelFile').on('change', function (e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const btn = $('#btnImportExcel');
+                const originalHtml = btn.html();
+                btn.html('<i class="bi bi-hourglass-split"></i> <span>Uploading...</span>');
+                btn.prop('disabled', true);
+
+                const formData = new FormData();
+                formData.append('importExcelFile', file);
+                
+                // Optional: append anti-forgery token if needed, using generic approach
+                const token = $('input[name="__RequestVerificationToken"]').val();
+                if (token) {
+                    formData.append('__RequestVerificationToken', token);
+                }
+
+                $.ajax({
+                    url: '/Stock/ImportStockExcel',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (res) {
+                        if (res.success) {
+                            alert(res.message);
+                            location.reload();
+                        } else {
+                            alert(res.message);
+                        }
+                    },
+                    error: function (xhr) {
+                        alert('Error importing Excel: ' + (xhr.responseJSON?.message || xhr.statusText));
+                    },
+                    complete: function () {
+                        btn.html(originalHtml);
+                        btn.prop('disabled', false);
+                        $('#importExcelFile').val('');
+                    }
+                });
+            });
+
+            connection.on("updateStock", function () {
+                if (window.showUpdateNotification) {
+                    window.showUpdateNotification('Data stock baru masuk — memperbarui dashboard...', 'pulling', 4000);
+                }
+                window.quickUpdateDashboard();
+            });
+
+            connection.start().catch(err => console.error(err.toString()));
+
+            window.quickUpdateDashboard = function() {
+                const plant = $('#plantFilter').val() || 'Overall';
+                const search = $('#tagLabelSearch').val() || '';
+                const timestamp = new Date().getTime();
+                const url = `@Url.Action("GetStockQuickJson", "Stock")?plant=${plant}&search=${encodeURIComponent(search)}&_t=${timestamp}`;
+
+                $.ajax({
+                    url: url,
+                    type: 'GET',
+                    success: function (res) {
+                        if (res && res.success && res.data) {
+                            // Update summary counters
+                            if (res.summary) {
+                                $('#totalAct').text(res.summary.totalAct);
+                                $('#totalSafe').text(res.summary.totalItemSafe);
+                                $('#totalOver').text(res.summary.totalItemOver);
+                                $('#totalShortage').text(res.summary.totalItemShortage);
+                            }
+
+                            // Update rows dynamically without replacing full HTML
+                            res.data.forEach(function(item) {
+                                const row = $(`tr[data-item-id="${item.itemId}"]`);
+                                if (row.length > 0) {
+                                    row.find('.act-fg').text(item.act);
+                                    
+                                    const tdLevel = row.find('.td-stock-level');
+                                    let badgeHtml = '';
+                                    if (item.ratio < 1) {
+                                        badgeHtml = `<span class="stock-badge stock-level-red px-2 py-1"><i class="bi bi-exclamation-triangle-fill"></i> <span class="stock-ratio">${item.ratio.toFixed(1)}</span> D</span>`;
+                                    } else if (item.ratio <= 2) {
+                                        badgeHtml = `<span class="stock-badge stock-level-yellow px-2 py-1"><i class="bi bi-info-circle-fill"></i> <span class="stock-ratio">${item.ratio.toFixed(1)}</span> D</span>`;
+                                    } else {
+                                        badgeHtml = `<span class="stock-badge stock-level-blue px-2 py-1"><i class="bi bi-star-fill"></i> <span class="stock-ratio">${item.ratio.toFixed(1)}</span> D</span>`;
+                                    }
+                                    
+                                    tdLevel.html(badgeHtml);
+                                }
+                            });
+                            console.log("Quick dashboard update completed.");
+                        }
+                    },
+                    error: function(err) {
+                        console.error("Failed to quick update dashboard:", err);
+                        // Fallback to full refresh
+                        window.refreshDashboard();
+                    }
+                });
+            };
+
+            window.refreshDashboard = function(resetPage) {
+                const plant = $('#plantFilter').val() || 'Overall';
+                const date = $('#dateFilter').val() || '';
+                const period = $('#periodFilter').val() || 'Day';
+                const customer = $('#customerFilter').val() || 'All';
+                const category = $('#categoryFilter').val() || 'All';
+                const itemStatus = $('#itemStatusFilter').val() || 'All';
+                const statusParam = window.currentStatusFilter || 'All';
+                
+                const search = $('#tagLabelSearch').val() || '';
+                
+                // Fix: Sering terjadi ReferenceError karena pageNumber tidak didefinisikan
+                const pageNumber = resetPage || parseInt($('.pagination .page-item.active .page-link').text()) || 1;
+                
+                // Fix: Tambahkan Timestamp agar browser tidak melakukan caching (Cache-Buster)
+                const timestamp = new Date().getTime();
+                const url = `/Stock/Index?plant=${plant}&date=${date}&period=${period}&customer=${encodeURIComponent(customer)}&category=${encodeURIComponent(category)}&itemStatus=${encodeURIComponent(itemStatus)}&pageNumber=${pageNumber}&status=${statusParam}&search=${encodeURIComponent(search)}&_t=${timestamp}`;
+
+                $.ajax({
+                    url: url,
+                    type: 'GET',
+                    success: function (html) {
+                        const newContent = $(html).find('#dashboardContent').html();
+                        $('#dashboardContent').html(newContent);
+                        
+                        // UPDATE DROPDOWNS DYNAMICALLY
+                        const filterScript = $('#dashboardContent').find('#filterDataScript');
+                        if (filterScript.length) {
+                            try {
+                                const filterData = JSON.parse(filterScript.html());
+                                function updateSelect(id, list, selected, isPlant) {
+                                    const sel = $(id);
+                                    sel.empty();
+                                    if (isPlant) sel.append('<option value="Overall">Overall</option>');
+                                    else sel.append('<option value="All">All</option>');
+                                    
+                                    list.forEach(item => {
+                                        sel.append('<option value="' + item + '">' + item + '</option>');
+                                    });
+                                    sel.val(selected);
+                                    if (!sel.val()) sel.val(isPlant ? 'Overall' : 'All');
+                                }
+                                
+                                updateSelect('#plantFilter', filterData.plants, plant, true);
+                                updateSelect('#customerFilter', filterData.customers, customer, false);
+                                updateSelect('#categoryFilter', filterData.categories, category, false);
+                                updateSelect('#itemStatusFilter', filterData.statuses, itemStatus, false);
+                            } catch(e) { console.error("Error updating filters", e); }
+                        }
+
+                        bindFilterEvents();
+                        applyAllFilters(); // Re-apply local filters (Search & Status UI)
+                        
+                        // Re-initialize chart because the canvas was replaced
+                        if (window.initTrendChart) {
+                            window.initTrendChart();
+                        }
+                        
+                        // Re-apply auto scroll state if it was active
+                        if (isAutoScrollActive) {
+                            syncAutoScrollUI();
+                            startScrolling();
+                        }
+                    }
+                });
+            }
+
+            window.currentStatusFilter = '@(ViewBag.CurrentStatus ?? "All")';
+
+            // ── Toggle show/hide inactive items ──────────────────────────────────────────
+            window.toggleInactiveItems = function() {
+                $.ajax({
+                    url: '@Url.Action("ToggleNoOrderVisibility", "Stock")',
+                    type: 'POST',
+                    success: function(res) {
+                        if (res.success) {
+                            window.location.reload();
+                        }
+                    }
+                });
+            };
+
+            function applyInactiveFilter() {
+                // Not used anymore since filtering is done in the backend
+            }
+
+            // Terapkan filter inactive saat DOM selesai load dan setelah setiap AJAX refresh
+            function applyAllFilters() {
+                syncFilterCardUI();
+                applySearchFilter();
+                applyInactiveFilter();
+            }
+            let searchTimer;
+
+            function bindFilterEvents() {
+                $('.indicator-card.clickable').off('click').on('click', function() {
+                    const clickedFilter = $(this).data('filter');
+                    if (clickedFilter === 'All') {
+                        // Total card: selalu reset ke All
+                        window.currentStatusFilter = 'All';
+                    } else {
+                        // Toggle: klik yang sama → kembali ke All
+                        window.currentStatusFilter = (window.currentStatusFilter === clickedFilter) ? 'All' : clickedFilter;
+                    }
+                    window.refreshDashboard(1); // Server-side filter, reset ke page 1
+                });
+
+                $('#plantFilter, #dateFilter, #periodFilter, #customerFilter, #categoryFilter, #itemStatusFilter').off('change').on('change', function() {
+                    window.currentStatusFilter = 'All'; // reset status filter saat filter utama berubah
+                    window.refreshDashboard(1);
+                });
+
+                $('#tagLabelSearch').off('input').on('input', function() {
+                    const searchBox = $(this);
+                    applySearchFilter(); // Filter lokal instan untuk baris yang kelihatan
+                    
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(() => {
+                        // Jika panjang karakter > 2 atau kosong, lakukan pencarian global ke server
+                        const val = searchBox.val().trim();
+                        if (val.length >= 2 || val.length === 0) {
+                            window.refreshDashboard(1);
+                        }
+                    }, 600);
+                });
+
+                $('#tagLabelSearch').off('keypress').on('keypress', function(e) {
+                    if (e.which == 13) {
+                        window.refreshDashboard(1);
+                    }
+                });
+
+                $('#btnToggleAutoScroll').off('click').on('click', toggleAutoScroll);
+                
+                $('#btnExportDashboard').off('click').on('click', function() {
+                    const plant = $('#plantFilter').val() || 'Overall';
+                    const date = $('#dateFilter').val() || '';
+                    const period = $('#periodFilter').val() || 'Day';
+                    const customer = $('#customerFilter').val() || 'All';
+                    const category = $('#categoryFilter').val() || 'All';
+                    const itemStatus = $('#itemStatusFilter').val() || 'All';
+                    window.location.href = `/Stock/ExportToExcel?plant=${plant}&date=${date}&period=${period}&customer=${encodeURIComponent(customer)}&category=${encodeURIComponent(category)}&itemStatus=${encodeURIComponent(itemStatus)}`;
+                });
+
+                $('#btnDownloadExcel').off('click').on('click', function() {
+                    // Logic for template download if different from export
+                    window.location.href = '/Stock/ExportToExcel?template=true'; 
+                });
+
+                // ── Rack filter (re-bind setiap kali DOM di-refresh)
+                $('#rackFilter').off('change.rack').on('change.rack', function() {
+                    const rack  = $(this).val();
+                    const plant = $('#plantFilter').val() || 'Overall';
+                    if (!rack) {
+                        $('#normalTableContainer').show();
+                        $('#pagerContainer').show();
+                        $('#rackTableContainer').hide();
+                        $('#tableTitle').html(defaultTableTitle);
+                    } else {
+                        loadRackTable(plant, rack);
+                    }
+                });
+                // Populate daftar rak sesuai plant aktif
+                loadRackList();
+
+                // Highlight active filter card on load
+                syncFilterCardUI();
+            }
+
+            function syncFilterCardUI() {
+                $('.indicator-card').css('opacity', '1').removeClass('active-filter');
+                if (window.currentStatusFilter !== 'All') {
+                    $('.indicator-card').css('opacity', '0.5');
+                    $(`.indicator-card[data-filter="${window.currentStatusFilter}"]`).addClass('active-filter').css('opacity', '1');
+                    // Total (All) card stays visible
+                    $(`.indicator-card[data-filter="All"]`).css('opacity', '0.7');
+                    let badgeClass = 'bg-secondary';
+                    if (window.currentStatusFilter === 'Shortage') badgeClass = 'bg-danger';
+                    if (window.currentStatusFilter === 'Normal') badgeClass = 'bg-warning text-dark';
+                    if (window.currentStatusFilter === 'Over') badgeClass = 'bg-info text-dark';
+                    $('#activeFilterLabel').text('Status: ' + window.currentStatusFilter).removeClass().addClass('badge ' + badgeClass);
+                } else {
+                    $(`.indicator-card[data-filter="All"]`).addClass('active-filter');
+                    $('#activeFilterLabel').text('All Items').removeClass().addClass('badge bg-primary');
+                }
+            }
+
+            function applySearchFilter() {
+                const searchText = $('#tagLabelSearch').val().toLowerCase();
+                // Ambil NO dari row pertama yg di-render server (selalu benar setelah AJAX)
+                const firstRowNo = parseInt($('.stock-row:first td:first-child').text()) || 1;
+                let visibleCounter = firstRowNo;
+
+                $('.stock-row').each(function() {
+                    const searchContent = $(this).attr('data-search-content');
+                    const normalizedContent = searchContent ? searchContent.toLowerCase() : '';
+                    
+                    const matchesSearch = (!searchText || normalizedContent.includes(searchText));
+                    
+                    if (matchesSearch) {
+                        $(this).show();
+                        $(this).find('td:first-child').text(visibleCounter++);
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            }
+
+            // Auto Scroll Logic
+            let isAutoScrollActive = localStorage.getItem('autoScrollActive') === 'true';
+            let scrollInterval;
+            let scrollDirection = 1; // 1: Down, -1: Up
+            const scrollSpeed = 1; 
+            const scrollDelay = 40; // ms
+
+            function toggleAutoScroll() {
+                isAutoScrollActive = !isAutoScrollActive;
+                localStorage.setItem('autoScrollActive', isAutoScrollActive);
+                syncAutoScrollUI();
+                
+                if (isAutoScrollActive) {
+                    scrollDirection = 1;
+                    startScrolling();
+                } else {
+                    stopScrolling();
+                }
+            }
+
+            function syncAutoScrollUI() {
+                const btn = $('#btnToggleAutoScroll');
+                const indicator = $('#autoScrollStatus');
+                const icon = btn.find('i');
+
+                if (isAutoScrollActive) {
+                    btn.removeClass('btn-outline-secondary').addClass('btn-success active');
+                    indicator.text('Auto Scroll: ON').removeClass('text-muted').addClass('text-success');
+                    icon.removeClass('bi-play-circle').addClass('bi-pause-circle');
+                } else {
+                    btn.removeClass('btn-success active').addClass('btn-outline-secondary');
+                    indicator.text('Auto Scroll: OFF').removeClass('text-success').addClass('text-muted');
+                    icon.removeClass('bi-pause-circle').addClass('bi-play-circle');
+                }
+            }
+
+            function startScrolling() {
+                const container = $('.main-stock-container');
+                if (container.length === 0) return;
+                const el = container[0];
+                
+                if (scrollInterval) clearInterval(scrollInterval);
+                
+                scrollInterval = setInterval(function() {
+                    if (!isAutoScrollActive) return;
+
+                    const prevPos = el.scrollTop;
+                    el.scrollTop += (scrollDirection * scrollSpeed);
+                    
+                    // If position didn't change, we hit a boundary
+                    if (el.scrollTop === prevPos && el.scrollHeight > el.clientHeight) {
+                        clearInterval(scrollInterval);
+                        setTimeout(function() {
+                            if (isAutoScrollActive) {
+                                scrollDirection *= -1;
+                                startScrolling();
+                            }
+                        }, 2000); // Wait 2 seconds at edges
+                    }
+                }, scrollDelay);
+            }
+
+            function stopScrolling() {
+                clearInterval(scrollInterval);
+                scrollDirection = 1;
+            }
+
+            // ── FILTER RAK ───────────────────────────────────────────────
+            const defaultTableTitle = $('#tableTitle').html();
+
+            function loadRackList() {
+                const plant = $('#plantFilter').val() || 'Overall';
+                $('#rackFilter').html('<option value="">-- Semua Rak --</option>');
+                $.getJSON(`/Stock/GetRackList?plant=${plant}`, function(racks) {
+                    racks.forEach(function(r) {
+                        $('#rackFilter').append(`<option value="${r}">Rak ${r}</option>`);
+                    });
+                });
+            }
+
+            const RAK_PAGE_SIZE = 20;
+            let rakAllItems = [];
+            let rakCurrentPage = 1;
+
+            function buildRakRow(d) {
+                const statusBadge = d.status === 'Shortage'
+                    ? '<span class="badge bg-danger">Shortage</span>'
+                    : d.status === 'Over'
+                    ? '<span class="badge bg-info text-dark">Over</span>'
+                    : '<span class="badge bg-warning text-dark">Normal</span>';
+
+                const levelBadge = d.level < 1
+                    ? `<span class="stock-badge stock-level-red px-2 py-1"><i class="bi bi-exclamation-triangle-fill"></i> ${d.level}D</span>`
+                    : d.level <= 2
+                    ? `<span class="stock-badge stock-level-yellow px-2 py-1"><i class="bi bi-info-circle-fill"></i> ${d.level}D</span>`
+                    : `<span class="stock-badge stock-level-blue px-2 py-1"><i class="bi bi-star-fill"></i> ${d.level}D</span>`;
+
+                const partNosHtml = d.partNos && d.partNos.length > 0
+                    ? d.partNos.map(p => `<span class="badge bg-secondary me-1" style="font-size:0.7rem;">${p}</span>`).join('')
+                    : '<span class="text-muted">-</span>';
+
+                const actColor = d.act <= 0 ? 'color:#dc3545;' : d.act < d.min ? 'color:#f59e0b;' : 'color:#10b981;';
+
+                return `<tr>
+                    <td class="text-center" style="font-size:0.82rem;">${d.no}</td>
+                    <td style="font-size:0.8rem;"><div class="fw-bold text-primary">${d.itemName}</div><small class="text-muted">${d.lokasi}</small></td>
+                    <td style="font-size:0.8rem; color:#67e8f9;">${d.vin}</td>
+                    <td style="font-size:0.78rem;">${partNosHtml}</td>
+                    <td class="text-center fw-bold text-info">${d.qpc}</td>
+                    <td class="text-center fw-bold text-danger">${d.min}</td>
+                    <td class="text-center fw-bold text-warning">${d.rop}</td>
+                    <td class="text-center fw-bold text-success">${d.max}</td>
+                    <td class="text-center fw-bold" style="${actColor} font-size:1rem;">${d.act}</td>
+                    <td class="text-center">${levelBadge}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    @if (Context.Session.GetString("Role") == "Super Admin")
+                    {
+                        <text><td style="font-size:0.78rem; color:#a78bfa;">${d.remark || '-'}</td></text>
+                    }
+                </tr>`;
+            }
+
+            function renderRakPage(page) {
+                rakCurrentPage = page;
+                const total = rakAllItems.length;
+                const totalPages = Math.ceil(total / RAK_PAGE_SIZE);
+                const start = (page - 1) * RAK_PAGE_SIZE;
+                const pageItems = rakAllItems.slice(start, start + RAK_PAGE_SIZE);
+
+                let rows = pageItems.map(buildRakRow).join('');
+                $('#rakDetailBody').html(rows);
+
+                // Info text
+                const from = start + 1;
+                const to = Math.min(start + RAK_PAGE_SIZE, total);
+                $('#rakPagerInfo').text(`Halaman ${page} dari ${totalPages} (Total ${total} Data)`);
+
+                // Build page buttons
+                let pagHtml = '';
+                pagHtml += `<li class="page-item ${page === 1 ? 'disabled' : ''}"><a class="page-link" href="#" data-p="${page - 1}">&laquo;</a></li>`;
+
+                // Sliding window: max 5 page buttons
+                let startP = Math.max(1, page - 2);
+                let endP   = Math.min(totalPages, startP + 4);
+                if (endP - startP < 4) startP = Math.max(1, endP - 4);
+
+                for (let p = startP; p <= endP; p++) {
+                    pagHtml += `<li class="page-item ${p === page ? 'active' : ''}"><a class="page-link" href="#" data-p="${p}">${p}</a></li>`;
+                }
+
+                pagHtml += `<li class="page-item ${page === totalPages ? 'disabled' : ''}"><a class="page-link" href="#" data-p="${page + 1}">&raquo;</a></li>`;
+                $('#rakPagerList').html(pagHtml);
+
+                if (totalPages > 1) {
+                    $('#rakPagerContainer').show();
+                } else {
+                    $('#rakPagerContainer').hide();
+                }
+            }
+
+            // Delegated click for rack pager
+            $(document).on('click', '#rakPagerList a.page-link', function(e) {
+                e.preventDefault();
+                const p = parseInt($(this).data('p'));
+                const totalPages = Math.ceil(rakAllItems.length / RAK_PAGE_SIZE);
+                if (isNaN(p) || p < 1 || p > totalPages) return;
+                renderRakPage(p);
+            });
+
+            function loadRackTable(plant, rack) {
+                const title = plant === 'Overall' ? `Rak ${rack}` : `${plant} / Rak ${rack}`;
+                $('#tableTitle').html(`<i class="bi bi-grid-3x3-gap-fill me-2"></i> Detail Rak — ${title}`);
+                $('#rakDetailBody').html('<tr><td colspan="12" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>');
+                $('#rakPagerContainer').hide();
+                $('#rakStatShortage').text('Shortage: -');
+                $('#rakStatNormal').text('Normal: -');
+                $('#rakStatOver').text('Over: -');
+                $('#rakStatTotal').text('Total: -');
+                $('#normalTableContainer').hide();
+                $('#pagerContainer').hide();
+                $('#rackTableContainer').show();
+
+                $.getJSON(`/Stock/GetRackItems?plant=${encodeURIComponent(plant)}&rack=${encodeURIComponent(rack)}`, function(items) {
+                    if (!items || items.length === 0) {
+                        rakAllItems = [];
+                        $('#rakDetailBody').html('<tr><td colspan="12" class="text-center py-4 text-muted">Tidak ada item di rak ini.</td></tr>');
+                        $('#rakStatShortage').text('Shortage: 0');
+                        $('#rakStatNormal').text('Normal: 0');
+                        $('#rakStatOver').text('Over: 0');
+                        $('#rakStatTotal').text('Total: 0');
+                        return;
+                    }
+
+                    let shortage = 0, normal = 0, over = 0;
+                    items.forEach(function(d) {
+                        if (d.status === 'Shortage') shortage++;
+                        else if (d.status === 'Over') over++;
+                        else normal++;
+                    });
+
+                    rakAllItems = items;
+                    renderRakPage(1);
+
+                    $('#rakStatShortage').text(`Shortage: ${shortage}`);
+                    $('#rakStatNormal').text(`Normal: ${normal}`);
+                    $('#rakStatOver').text(`Over: ${over}`);
+                    $('#rakStatTotal').text(`Total: ${items.length}`);
+                }).fail(function() {
+                    $('#rakDetailBody').html('<tr><td colspan="12" class="text-center py-4 text-danger">Gagal memuat data rak.</td></tr>');
+                });
+            }
+
+            bindFilterEvents();
+            applyAllFilters(); // Apply inactive filter on initial load
+            
+            // Initial load check
+            if (isAutoScrollActive) {
+                syncAutoScrollUI();
+                startScrolling();
+            }
+        });
+    </script>
+}
+
+<style>
+    /* ========================================
+       COMPACT HEADER & FILTER BAR STYLING
+       ======================================== */
+    .dashboard-nav-wrapper {
+        border-bottom: 2px solid rgba(59, 130, 246, 0.2);
+        margin-top: 5px;
+        padding-bottom: 0;
+    }
+
+    .nav-links-container {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+    }
+
+    .nav-link-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #94a3b8;
+        text-decoration: none;
+        padding: 10px 0px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        position: relative;
+        border-bottom: 2px solid transparent;
+    }
+
+    .nav-link-item i {
+        font-size: 1rem;
+    }
+
+    .nav-link-item:hover {
+        color: #fff;
+    }
+
+    .nav-link-item.active {
+        color: #0dcaf0;
+        border-bottom-color: #0dcaf0;
+    }
+
+    .nav-link-item.active i {
+        color: #0dcaf0;
+    }
+
+    .smaller { font-size: 0.75rem; }
+    .btn-xs { padding: 0.1rem 0.3rem; font-size: 0.7rem; }
+    
+    .bg-dark-blue { background: #0f172a !important; }
+    .bg-red { background: #dc3545 !important; } /* Bootstrap Danger Red */
+    .bg-yellow { background: #ffc107 !important; } /* Bootstrap Warning Yellow */
+    
+    .status-indicator-live {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #94a3b8;
+        display: inline-block;
+        margin-bottom: 5px;
+    }
+    .indicator-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-width: 2px !important;
+    }
+    .indicator-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .indicator-card.active-filter {
+        transform: scale(1.05);
+        box-shadow: 0 0 15px rgba(255,255,255,0.1);
+        border-width: 3px !important;
+    }
+    .status-indicator-live.active {
+        background: #10b981;
+        box-shadow: 0 0 10px #10b981;
+        animation: pulse-live 2s infinite;
+    }
+
+    .main-stock-container {
+        max-height: 50vh;
+        overflow-y: auto;
+        position: relative;
+        scrollbar-width: thin;
+        scrollbar-color: #0dcaf0 #0f172a;
+    }
+    .main-stock-container::-webkit-scrollbar {
+        width: 6px;
+    }
+    .main-stock-container::-webkit-scrollbar-track {
+        background: #0f172a;
+    }
+    .main-stock-container::-webkit-scrollbar-thumb {
+        background: #0dcaf0;
+        border-radius: 10px;
+    }
+    /* Sticky Header for Table */
+    #stockDetailTable thead th {
+        position: sticky;
+        top: 0;
+        background-color: #0f172a; /* Sesuaikan dengan background dark card */
+        z-index: 10;
+        border-bottom: 2px solid #1e293b;
+    }
+
+    @@keyframes pulse-live {
+        0% { opacity: 1; }
+        50% { opacity: 0.4; }
+        100% { opacity: 1; }
+    }
+
+    .stock-row-info:hover { background: rgba(59, 130, 246, 0.1) !important; }
+    
+    /* Breakdown Modal Specifics */
+    #detailRackTable tr { border-bottom: 1px solid rgba(255,255,255,0.05); }
+    #detailRackTable tr:last-child { border-bottom: none; }
+    .badge-outline-primary { border: 1px solid #0dcaf0; color: #0dcaf0; background: transparent; }
+</style>
+
+<!-- ===== ITEM DETAIL BREAKDOWN MODAL ===== -->
+<div id="modalItemDetail" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;backdrop-filter: blur(4px);">
+    <div class="cyber-card p-0" style="width:100%;max-width:600px;border-radius:15px;overflow:hidden;background:#1e293b;box-shadow: 0 20px 50px rgba(0,0,0,0.6);">
+        <div class="modal-header p-3 d-flex justify-content-between align-items-center" style="background:rgba(59, 130, 246, 0.1);border-bottom:1px solid rgba(255,255,255,0.1);">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-box-seam text-primary fs-4"></i>
+                <h5 class="mb-0 text-white fw-bold" id="detailItemName">Item Name</h5>
+            </div>
+            <button type="button" class="btn-close btn-close-white" onclick="closeItemDetail()"></button>
+        </div>
+        <div class="modal-body p-4">
+            <div class="row g-3 mb-4">
+                <div class="col-6">
+                    <div class="p-3 bg-dark-blue rounded-3 border border-secondary border-opacity-25 shadow-sm">
+                        <small class="text-muted text-uppercase d-block mb-1" style="font-size:0.7rem;letter-spacing:1px;">VIN</small>
+                        <span id="detailVin" class="text-info fw-bold fs-5">-</span>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 bg-dark-blue rounded-3 border border-secondary border-opacity-25 shadow-sm">
+                        <small class="text-muted text-uppercase d-block mb-1" style="font-size:0.7rem;letter-spacing:1px;">Plant / Customer</small>
+                        <span id="detailPlantCust" class="text-white fw-medium">-</span>
+                    </div>
+                </div>
+                <div class="col-4">
+                    <div class="p-3 text-center bg-dark-blue rounded-3 border border-secondary border-opacity-25 shadow-sm h-100">
+                        <small class="text-muted d-block mb-1" style="font-size:0.7rem;letter-spacing:1px;">Total Stock</small>
+                        <span id="detailTotalStock" class="text-white fs-4 fw-bold">0</span>
+                        <small class="text-muted d-block" style="font-size:0.6rem;">BOX</small>
+                    </div>
+                </div>
+                <div class="col-8">
+                     <div class="d-flex gap-2 h-100">
+                         <div id="detailMinBox" class="flex-fill p-2 text-center rounded-3 border border-danger border-opacity-50" style="background:rgba(239, 68, 68, 0.05);">
+                             <small class="d-block text-danger" style="font-size:0.65rem;font-weight:700;">MIN (1D)</small>
+                             <span id="detailMin" class="text-danger fw-bold fs-6">0</span>
+                         </div>
+                         <div id="detailRopBox" class="flex-fill p-2 text-center rounded-3 border border-warning border-opacity-50" style="background:rgba(245, 158, 11, 0.05);">
+                             <small class="d-block text-warning" style="font-size:0.65rem;font-weight:700;">ROP (2D)</small>
+                             <span id="detailRop" class="text-warning fw-bold fs-6">0</span>
+                         </div>
+                         <div id="detailMaxBox" class="flex-fill p-2 text-center rounded-3 border border-info border-opacity-50" style="background:rgba(59, 130, 246, 0.05);">
+                             <small class="d-block text-info" style="font-size:0.65rem;font-weight:700;">MAX (3D)</small>
+                             <span id="detailMax" class="text-info fw-bold fs-6">0</span>
+                         </div>
+                     </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                    <small class="text-muted fw-bold"><i class="bi bi-geo-alt me-1 text-primary"></i> BREAKDOWN PER LOKASI RACK</small>
+                    <span id="detailLevelStock" class="badge rounded-pill stock-level-red">0.0 D</span>
+                </div>
+                <div class="table-responsive rounded-3 border border-secondary border-opacity-25" style="max-height: 250px;">
+                    <table class="table table-sm table-hover text-white mb-0" style="font-size: 0.85rem;">
+                        <thead class="bg-dark-blue text-muted border-bottom border-secondary border-opacity-25">
+                            <tr>
+                                <th class="ps-3 py-2">LOKASI</th>
+                                <th class="text-center py-2">STOCK (BOX)</th>
+                                <th class="text-center py-2">LAST ACTIVITY</th>
+                                <th class="text-center py-2">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detailRackTable">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="text-end mt-4">
+                <button class="btn btn-outline-info btn-sm px-4 rounded-pill" onclick="closeItemDetail()">
+                    <i class="bi bi-check2"></i> Selesai
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MANUAL ADJUST STOCK MODAL ===== -->
+<div id="modalAdjustStock" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;padding:20px;">
+    <div style="background:#1e293b;border-radius:12px;padding:28px 32px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);color:#e2e8f0;position:relative;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;border-bottom:1px solid #334155;padding-bottom:15px;">
+            <i id="adjModalIcon" class="bi bi-sliders" style="font-size:1.3rem;color:#f59e0b;"></i>
+            <h5 id="adjModalTitle" style="margin:0;font-weight:700;color:#f1f5f9;">Manual Adjust Stock</h5>
+            <button id="btnCloseAdjust" style="margin-left:auto;background:none;border:none;color:#94a3b8;font-size:1.4rem;cursor:pointer;line-height:1;">&times;</button>
+        </div>
+
+        <div style="margin-bottom:16px;">
+            <label style="font-size:0.82rem;color:#94a3b8;margin-bottom:6px;display:block;">Item <span style="color:#dc3545;">*</span></label>
+            <input type="text" id="adjItemSearch" placeholder="Ketik kode / nama item..." autocomplete="off"
+                   style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.88rem;">
+            <div id="adjItemDropdown" style="display:none;position:absolute;z-index:10000;background:#1e293b;border:1px solid #334155;border-radius:8px;max-height:200px;overflow-y:auto;width:416px;margin-top:2px;"></div>
+            <input type="hidden" id="adjItemId">
+            <div id="adjItemSelected" style="display:none;margin-top:0;padding:12px;background:rgba(125, 211, 252, 0.05);border-radius:10px;border:1px solid rgba(125, 211, 252, 0.2);color:#7dd3fc;">
+                <div style="font-size:0.65rem;text-transform:uppercase;font-weight:700;margin-bottom:4px;color:#38bdf8;">Item Terpilih</div>
+                <div id="adjItemDetailText" style="font-size:0.95rem;font-weight:700;"></div>
+            </div>
+        </div>
+
+        <!-- Modal Mode Toggle -->
+        <div id="adjModeToggle" style="display:flex;gap:10px;margin-bottom:20px;background:rgba(0,0,0,0.2);padding:4px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);">
+            <button type="button" id="btnModeAdjust" onclick="setAdjMode('adjust')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;background:#0dcaf0;color:#fff;transition:all 0.2s;">
+                <i class="bi bi-plus-slash-minus me-1"></i>ADJUST QTY
+            </button>
+            <button type="button" id="btnModeRelocate" onclick="setAdjMode('relocate')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;background:transparent;color:#94a3b8;transition:all 0.2s;">
+                <i class="bi bi-arrow-left-right me-1"></i>PINDAH RACK
+            </button>
+            <button type="button" id="btnModeMaster" onclick="setAdjMode('master')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;background:transparent;color:#94a3b8;transition:all 0.2s;">
+                <i class="bi bi-pencil-square me-1"></i>EDIT MASTER
+            </button>
+        </div>
+
+        <!-- MASTER DATA FORM -->
+        <div id="adjMasterSection" style="display:none;margin-bottom:16px;padding:15px;background:#0f172a;border-radius:12px;border:1px solid #334155;">
+            <div class="row g-2">
+                <div class="col-4">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">VIN / Item Code</label>
+                    <input type="text" id="editMasVin" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+                <div class="col-4">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Plant</label>
+                    <input type="text" id="editMasPlant" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+                <div class="col-4">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Nama Item</label>
+                    <input type="text" id="editMasLokasiRak" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+                <div class="col-6">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Customer</label>
+                    <input type="text" id="editMasCust" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+                <div class="col-6">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Status</label>
+                    <select id="editMasStatus" class="form-select form-select-sm" style="background:#1e293b;color:#fff;border-color:#334155;">
+                        <option value="Reguler">Reguler</option>
+                        <option value="PMSP FM">PMSP FM (Fast Moving)</option>
+                        <option value="PMSP SM">PMSP SM (Slow Moving)</option>
+                        <option value="After Market">After Market</option>
+                        <option value="PMSP">PMSP (Legacy)</option>
+                        <option value="No Order">No Order</option>
+                    </select>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">PROD Kategori</label>
+                    <select id="editMasProd" class="form-select form-select-sm" style="background:#1e293b;color:#fff;border-color:#334155;">
+                        <option value="Internal">Internal</option>
+                        <option value="Subcon">Subcon</option>
+                    </select>
+                </div>
+                <div class="col-4">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">QPC</label>
+                    <input type="number" id="editMasQpc" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+                <div class="col-4">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Min ROP</label>
+                    <input type="number" id="editMasMin" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+                <div class="col-4">
+                    <label class="form-label" style="font-size:0.75rem;color:#94a3b8;margin-bottom:4px;">Max</label>
+                    <input type="number" id="editMasMax" class="form-control form-control-sm" style="background:#1e293b;color:#fff;border-color:#334155;" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Lokasi RAK (Dropdown) -->
+        <div id="adjRackSection" style="display:none;margin-bottom:16px;padding:15px;background:#0f172a;border-radius:12px;border:1px solid #334155;">
+            <label style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;display:block;font-weight:600;">
+                <i class="bi bi-geo-alt-fill text-primary"></i> LOKASI RACK
+            </label>
+            <div style="display:flex;gap:15px;align-items:center;">
+                <div style="flex:1;">
+                    <select id="adjRackDropdown" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #1e293b;background:#1e293b;color:#e2e8f0;font-size:0.95rem;cursor:pointer;outline:none;transition:border-color 0.2s;">
+                        <option value="">-- Pilih Rack --</option>
+                    </select>
+                    <div style="font-size:0.7rem;color:#64748b;margin-top:5px;"><i class="bi bi-info-circle"></i> Pilih rak yang ada atau "Tambah Rak Baru"</div>
+                </div>
+                <div id="rackStockIndicator" style="background:rgba(59, 130, 246, 0.08);padding:8px 15px;border-radius:12px;border:1px solid rgba(59, 130, 246, 0.15);min-width:110px;text-align:center;box-shadow:inset 0 0 10px rgba(0,0,0,0.2);">
+                    <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:0.5px;margin-bottom:2px;">Stok Saat Ini</div>
+                    <div id="currentRackStockText" style="font-size:1.4rem;font-weight:800;color:#0dcaf0;line-height:1;">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Rak Baru (Manual) -->
+        <div id="newRackSection" style="display:none;margin-bottom:16px;padding:15px;background:rgba(59, 130, 246, 0.05);border-radius:12px;border:1px dashed #0dcaf0;">
+             <label style="font-size:0.82rem;color:#0dcaf0;margin-bottom:10px;display:block;font-weight:700;">
+                <i class="bi bi-plus-circle-fill"></i> INPUT RACK BARU
+             </label>
+             <div id="dynamicRackContainer">
+                 <div class="d-flex gap-2 align-items-center mb-2 rack-input-row">
+                    <div style="flex:1;">
+                        <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">Rack</span>
+                        <input type="text" class="newRackCode" maxlength="10" placeholder="Contoh: A, L, M" 
+                               style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.95rem;text-transform:uppercase;">
+                    </div>
+                    <div style="flex:1;">
+                        <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">No Rack</span>
+                        <input type="number" class="newNoRack" min="0" max="999" placeholder="0-99" 
+                               style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.95rem;">
+                    </div>
+                    <div style="width: 32px; padding-top: 18px;" class="text-end rack-del-btn-container">
+                        <!-- Space for delete button for additional rows -->
+                    </div>
+                 </div>
+             </div>
+             @if (Context.Session.GetString("Role") == "Super Admin")
+             {
+                 <button type="button" id="btnAddRackRow" class="btn btn-sm btn-outline-info mt-1" style="font-size:0.75rem; border-radius:6px; background: rgba(13, 202, 240, 0.1);">
+                    <i class="bi bi-plus"></i> Tambah Baris Rak
+                 </button>
+                 <div style="font-size:0.7rem;color:#64748b;margin-top:8px;"><i class="bi bi-info-circle"></i> Masukkan beberapa lokasi fisik rak sekaligus</div>
+             }
+             else
+             {
+                 <div style="font-size:0.7rem;color:#64748b;margin-top:8px;"><i class="bi bi-info-circle"></i> Masukkan lokasi fisik rak untuk mendaftarkan stok di lokasi baru</div>
+             }
+        </div>
+
+        <div id="adjQtySection" style="margin-bottom:16px;">
+            <label id="adjQtyLabel" style="font-size:0.82rem;color:#94a3b8;margin-bottom:6px;display:block;">Stok Baru di Rak Terpilih <span style="color:#dc3545;">*</span></label>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <div style="flex:1;position:relative;">
+                    <input type="number" id="adjQty" placeholder="Berapa qty total baru?" step="1"
+                           style="width:100%;padding:12px;border-radius:10px;border:2px solid #334155;background:#0f172a;color:#fff;font-size:1.1rem;font-weight:700;outline:none;transition:border-color 0.2s;">
+                    <div id="adjQtyDeltaBadge" style="display:none;position:absolute;right:45px;top:50%;transform:translateY(-50%);padding:4px 10px;border-radius:20px;font-size:0.75rem;font-weight:800;"></div>
+                </div>
+            </div>
+            <div id="adjQtyWarning" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(245, 158, 11, 0.08);border:1px solid rgba(245, 158, 11, 0.2);border-radius:10px;font-size:0.78rem;">
+                <div id="adjQtyWarningText" style="line-height:1.4;"></div>
+            </div>
+        </div>
+
+        <!-- Relocation Target Section -->
+        <div id="relocateSection" style="display:none;margin-bottom:16px;padding:12px;background:rgba(59, 130, 246, 0.05);border-radius:10px;border:1px dashed #0dcaf0;">
+             <label style="font-size:0.82rem;color:#0dcaf0;margin-bottom:8px;display:block;font-weight:700;"><i class="bi bi-arrow-right-circle-fill"></i> Lokasi TUJUAN (RELOKASI)</label>
+             <div style="display:flex;gap:10px;align-items:center;">
+                <div style="flex:1;">
+                    <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">Target Rack</span>
+                    <input type="text" id="targetRack" maxlength="5" placeholder="A-K" 
+                           style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;text-transform:uppercase;">
+                </div>
+                <div style="flex:1;">
+                    <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">Target No. Rak</span>
+                    <input type="number" id="targetNoRack" min="1" max="99" placeholder="1-20" 
+                           style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;">
+                </div>
+             </div>
+             <div style="margin-top:12px;">
+                  <label style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;display:block;">Qty yang akan dipindahkan</label>
+                  <input type="number" id="relocateQty" placeholder="Berapa qty?" 
+                         style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#7dd3fc;font-size:0.9rem;font-weight:600;">
+                  <span style="font-size:0.75rem;color:#64748b;">(Kosongkan untuk pindah semua qty di rak ini)</span>
+             </div>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <label style="font-size:0.82rem;color:#94a3b8;margin-bottom:6px;display:block;">Catatan / Alasan <span style="color:#94a3b8;font-size:0.75rem;">(opsional)</span></label>
+            <textarea id="adjNote" rows="3" placeholder="Manual Stock Adjustment"
+                      style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.88rem;resize:vertical;"></textarea>
+        </div>
+
+        <div id="adjResultMsg" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:0.85rem;"></div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button id="btnCancelAdjust" style="padding:8px 18px;border-radius:8px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:0.85rem;">Batal</button>
+            <button id="btnSubmitAdjust" style="padding:8px 18px;border-radius:8px;border:none;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem;">
+                <i class="bi bi-check2-circle"></i> Simpan
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global functions for breakdown modal
+    window.showItemDetail = function(record) {
+        $('#detailItemName').text(record.itemName);
+        $('#detailVin').text(record.vin);
+        $('#detailPlantCust').text(record.plant + ' / ' + record.customer);
+        $('#detailTotalStock').text(record.currentStock);
+        $('#detailMin').text(record.min);
+        $('#detailRop').text(record.rop);
+        $('#detailMax').text(record.max);
+        
+        // Level Stock badge
+        const badge = $('#detailLevelStock');
+        badge.text(record.levelStock.toFixed(1) + ' D');
+        badge.removeClass('stock-level-red stock-level-yellow stock-level-green stock-level-blue');
+        if (record.levelStock < 1.0) badge.addClass('stock-level-red');
+        else if (record.levelStock <= 2.0) badge.addClass('stock-level-yellow');
+        else badge.addClass('stock-level-blue');
+
+        // Rack Breakdown
+        const tbody = $('#detailRackTable');
+        tbody.empty();
+        selectedItemId = record.itemId; // Simpan untuk aksi di modal rincian
+        
+        if (record.rackBreakdown && record.rackBreakdown.length > 0) {
+            record.rackBreakdown.forEach(rb => {
+                tbody.append(`
+                    <tr>
+                        <td class="ps-3 py-2">
+                             <div class="d-flex align-items-center">
+                                <i class="bi bi-geo-alt-fill text-primary opacity-50 me-2" style="font-size: 0.8rem;"></i>
+                                <span class="fw-bold text-light">${rb.rack}.${rb.column}</span>
+                             </div>
+                        </td>
+                        <td class="text-center py-2">
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-2" style="font-size: 0.85rem; min-width: 40px;">
+                                ${rb.stock}
+                            </span>
+                        </td>
+                        <td class="text-center py-2 text-muted" style="font-size: 0.8rem;">${rb.lastActivity}</td>
+                        <td class="text-center py-1">
+                            <button class="btn btn-sm btn-link text-danger p-0" 
+                                    onclick="removeRack('${rb.rack}', ${rb.column})" 
+                                    title="Hapus riwayat rak ini">
+                                <i class="bi bi-trash3" style="font-size: 0.9rem;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `);
+            });
+        } else {
+            tbody.append('<tr><td colspan="4" class="text-center py-3 text-muted italic">Tidak ada rincian lokasi</td></tr>');
+        }
+        
+        $('#modalItemDetail').css('display', 'flex');
+    };
+
+    window.removeRack = function(rack, noRack) {
+        if (!confirm(`Hapus riwayat rak ${rack}.${noRack}?\n(Tindakan ini menyembunyikan lokasi dari rincian tanpa menghapus data transaksi asli)`)) return;
+        
+        const url = `/Pulling/HideRack?itemId=${selectedItemId}&rack=${encodeURIComponent(rack)}&noRack=${noRack}`;
+        fetch(url, { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    location.reload(); // Refresh page to update all counts
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Gagal menghubungi server.');
+            });
+    };
+
+    window.closeItemDetail = function() {
+        $('#modalItemDetail').hide();
+    };
+
+    // Global action functions
+    window.editStockItem = function(btn, itemId, itemName, currentRack) {
+        if (window.openAdjustmentModal) {
+            window.openAdjustmentModal(btn, itemId, itemName, currentRack);
+        }
+    };
+
+    window.deleteStockItem = function(itemId, itemName) {
+        if (confirm(`Hapus semua data pulling hari ini untuk item "${itemName}"? Tindakan ini tidak dapat dibatalkan.`)) {
+            fetch('/Stock/BulkDeletePulling', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify([itemId])
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    if (window.showUpdateNotification) window.showUpdateNotification(data.message, 'pulling', 3000);
+                    // refresh via signalR or manual
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    alert(data.message);
+                }
+            });
+        }
+    };
+
+    // Adjustment Modal Logic (Exposed to Global)
+    (function () {
+        var allItems = [];
+        var selectedItemId = 0;
+        var currentMode = 'adjust'; // adjust or relocate
+
+        window.openAdjustmentModal = function(btn, prefillId, prefillName, prefillRack) {
+            document.getElementById('modalAdjustStock').style.display = 'flex';
+            resetForm();
+            if (allItems.length === 0) loadAllItems();
+            
+            if (prefillId) {
+                selectedItemId = prefillId;
+                document.getElementById('adjItemId').value = prefillId;
+                let vinTitle = btn && btn.getAttribute ? btn.getAttribute('data-vin') : '';
+                document.getElementById('adjModalTitle').textContent = 'Edit Item: ' + (vinTitle ? vinTitle + ' - ' : '') + (prefillName || '');
+                document.getElementById('adjModalIcon').className = 'bi bi-pencil-square';
+                document.getElementById('adjModalIcon').style.color = '#0dcaf0';
+
+                // PREFILL MASTER DATA
+                if (btn && btn.getAttribute) {
+                    document.getElementById('editMasVin').value = btn.getAttribute('data-vin') || '';
+                    document.getElementById('editMasPlant').value = btn.getAttribute('data-plant') || '';
+                    document.getElementById('editMasLokasiRak').value = prefillName || '';
+                    document.getElementById('editMasCust').value = btn.getAttribute('data-cust') || '';
+                    document.getElementById('editMasStatus').value = btn.getAttribute('data-status') || '';
+                    document.getElementById('editMasProd').value = btn.getAttribute('data-prod') || '';
+                    document.getElementById('editMasQpc').value = btn.getAttribute('data-qpc') || '';
+                    document.getElementById('editMasMin').value = btn.getAttribute('data-min') || '';
+                    document.getElementById('editMasMax').value = btn.getAttribute('data-max') || '';
+                }
+                
+                // HIDE Search box, show result directly
+                const searchGroup = document.getElementById('adjItemSearch').parentElement;
+                if (searchGroup) searchGroup.style.display = 'none';
+
+                // Gunakan GetRackDetail agar perhitungan stok sesuai dengan FIFO (sama dengan dashboard)
+                fetch(`/Stock/GetRackDetail?itemId=${prefillId}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            var selArea = document.getElementById('adjItemSelected');
+                            document.getElementById('adjItemDetailText').textContent = data.itemName + ' - ' + data.vin;
+                            selArea.style.display = 'block';
+
+                            var breakdown = (data.breakdown || []).map(r => ({
+                                rack:   r.rack,
+                                column: r.column,
+                                stock:  r.stock
+                            }));
+                            renderRackOptions(breakdown, prefillRack);
+                        }
+                    });
+            }
+        };
+
+        function populateRackDropdown(itemId, prefillRack) {
+            // Loading state
+            const dropdown = document.getElementById('adjRackDropdown');
+            dropdown.innerHTML = '<option value="">-- Meload data rak... --</option>';
+            document.getElementById('adjRackSection').style.display = 'block';
+
+            const filterDate = document.getElementById('filterDate')?.value || '';
+            fetch(`/Stock/GetRackDetail?itemId=${itemId}&date=${filterDate}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.breakdown) {
+                        renderRackOptions(data.breakdown, prefillRack);
+                    } else {
+                        dropdown.innerHTML = '<option value="">Gagal memuat rak</option>';
+                    }
+                });
+        }
+
+        function renderRackOptions(breakdown, prefillRack) {
+            const dropdown = document.getElementById('adjRackDropdown');
+            const indicator = document.getElementById('currentRackStockText');
+            const qtyInput = document.getElementById('adjQty');
+            
+            document.getElementById('adjRackSection').style.display = 'block';
+
+            // Sinkronkan dengan UI Tabel FG (fallback lookup)
+            // Jika prefillRack ada di tabel, pastikan masuk ke pilihan dropdown
+            if (prefillRack && prefillRack !== '-' && !prefillRack.includes('lok.')) {
+                var parts = prefillRack.split('.');
+                var rName = parts[0].trim().toUpperCase();
+                var rCol = parts.length > 1 ? parts[1].trim() : '';
+                
+                if (!breakdown) breakdown = [];
+                var exists = breakdown.find(b => (b.rack || '').toString().trim().toUpperCase() === rName && (b.column || '').toString().trim() === rCol);
+                
+                if (!exists) {
+                    breakdown.push({ rack: rName, column: rCol, stock: 0 });
+                }
+            }
+
+            let optionsHtml = '';
+            
+            if (!breakdown || breakdown.length === 0) {
+                optionsHtml = '<option value="">-- Tidak ada riwayat rak --</option>';
+            } else {
+                optionsHtml = breakdown.map(b => {
+                    let r = (b.rack || '').toString().trim().toUpperCase();
+                    let c = (b.column || '').toString().trim();
+                    let display = c ? `${r}.${c}` : r;
+                    return `<option value="${r}|${c}" data-stock="${b.stock}">${display} (Stok: ${b.stock})</option>`;
+                }).join('');
+            }
+            
+            // Selalu tambahkan opsi Tambah Rak Baru
+            optionsHtml += '<option value="NEW_RACK" style="color:#10b981;font-weight:700;">+ TAMBAH RACK BARU</option>';
+            dropdown.innerHTML = optionsHtml;
+            
+            // Reset indicator
+            indicator.textContent = '0';
+            qtyInput.value = '';
+            qtyInput.dataset.baseStock = 0;
+            document.getElementById('newRackSection').style.display = 'none';
+
+            // Jika ada prefill rack (format: "H.5"), coba select
+            if (prefillRack && prefillRack !== '-' && !prefillRack.includes('lok.')) {
+                const parts = prefillRack.split('.');
+                const rName = parts[0].trim().toUpperCase();
+                const rCol = parts.length > 1 ? parts[1].trim() : '';
+                const val = `${rName}|${rCol}`;
+                const exists = Array.from(dropdown.options).some(o => o.value === val);
+                if (exists) dropdown.value = val;
+            }
+            
+            dropdown.dispatchEvent(new Event('change'));
+        }
+
+        window.setAdjMode = function(mode) {
+            currentMode = mode;
+            const b1 = document.getElementById('btnModeAdjust');
+            const b2 = document.getElementById('btnModeRelocate');
+            const b3 = document.getElementById('btnModeMaster');
+            const s1 = document.getElementById('adjQtySection');
+            const s2 = document.getElementById('relocateSection');
+            const s3 = document.getElementById('adjMasterSection');
+            const r1 = document.getElementById('adjRackSection');
+            
+            if(b1) { b1.style.background = 'transparent'; b1.style.color = '#94a3b8'; }
+            if(b2) { b2.style.background = 'transparent'; b2.style.color = '#94a3b8'; }
+            if(b3) { b3.style.background = 'transparent'; b3.style.color = '#94a3b8'; }
+            
+            if (mode === 'adjust') {
+                if(b1) { b1.style.background = '#0dcaf0'; b1.style.color = '#fff'; }
+                if(s1) s1.style.display = 'block';
+                if(s2) s2.style.display = 'none';
+                if(s3) s3.style.display = 'none';
+                if(r1) r1.style.display = 'block';
+            } else if (mode === 'relocate') {
+                if(b2) { b2.style.background = '#0dcaf0'; b2.style.color = '#fff'; }
+                if(s2) s2.style.display = 'block';
+                if(s1) s1.style.display = 'none';
+                if(s3) s3.style.display = 'none';
+                if(r1) r1.style.display = 'block';
+            } else {
+                if(b3) { b3.style.background = '#0dcaf0'; b3.style.color = '#fff'; }
+                if(s3) s3.style.display = 'block';
+                if(s1) s1.style.display = 'none';
+                if(s2) s2.style.display = 'none';
+                if(r1) r1.style.display = 'none';
+            }
+        };
+
+        function closeModal() {
+            document.getElementById('modalAdjustStock').style.display = 'none';
+        }
+
+        function resetForm() {
+            document.getElementById('adjModalTitle').textContent = 'Manual Adjust Stock';
+            document.getElementById('adjModalIcon').className = 'bi bi-sliders';
+            document.getElementById('adjModalIcon').style.color = '#f59e0b';
+            
+            const searchGroup = document.getElementById('adjItemSearch').parentElement;
+            if (searchGroup) searchGroup.style.display = 'block';
+            
+            document.getElementById('adjItemSearch').value = '';
+            document.getElementById('adjItemId').value = '';
+            document.getElementById('adjItemSelected').style.display = 'none';
+            document.getElementById('adjItemDropdown').style.display = 'none';
+            document.getElementById('adjRackSection').style.display = 'none';
+            
+            // Clear dropdown
+            const rackDropdown = document.getElementById('adjRackDropdown');
+            if (rackDropdown) {
+                rackDropdown.innerHTML = '<option value="">-- Pilih Rak --</option>';
+            }
+            document.getElementById('currentRackStockText').textContent = '0';
+
+            document.getElementById('adjQty').value = '';
+            document.getElementById('adjQtyWarning').style.display = 'none';
+            document.getElementById('adjNote').value = '';
+            document.getElementById('adjResultMsg').style.display = 'none';
+            document.getElementById('targetRack').value = '';
+            document.getElementById('targetNoRack').value = '';
+            document.getElementById('relocateQty').value = '';
+            
+            // Clear dynamic racks except the first one, and reset the first one
+            const dynamicContainer = document.getElementById('dynamicRackContainer');
+            if (dynamicContainer) {
+                const rows = dynamicContainer.querySelectorAll('.rack-input-row');
+                rows.forEach((r, idx) => {
+                    if (idx > 0) r.remove();
+                    else {
+                        r.querySelector('.newRackCode').value = '';
+                        r.querySelector('.newNoRack').value = '';
+                    }
+                });
+            }
+            document.getElementById('newRackSection').style.display = 'none';
+            
+            selectedItemId = 0;
+            setAdjMode('adjust');
+        }
+
+        function loadAllItems() {
+            $.ajax({
+                url: '/Pulling/GetAllItemsForAdjust',
+                type: 'GET',
+                success: function (data) {
+                    if (data.success) {
+                        allItems = data.items;
+                        // Jika user sudah mengetik sebelum data selesai dimuat, tampilkan dropdown-nya
+                        var currentSearch = document.getElementById('adjItemSearch').value.trim();
+                        if (currentSearch) {
+                            showDropdown(currentSearch);
+                        }
+                    }
+                }
+            });
+        }
+
+        function showDropdown(query) {
+            var dd = document.getElementById('adjItemDropdown');
+            if (!query) { dd.style.display = 'none'; return; }
+            var q = query.toLowerCase();
+            var filtered = allItems.filter(i =>
+                (i.itemCode && i.itemCode.toLowerCase().includes(q)) ||
+                (i.itemName && i.itemName.toLowerCase().includes(q)) ||
+                (i.vin && i.vin.toLowerCase().includes(q))
+            ).slice(0, 20);
+
+            if (filtered.length === 0) { dd.style.display = 'none'; return; }
+
+            dd.innerHTML = filtered.map(i =>
+                '<div data-id="' + i.itemId + '" data-code="' + (i.itemCode||'') + '" data-name="' + (i.itemName||'') + '" data-vin="' + (i.vin||'') + '" data-plant="' + (i.plant||'') + '" data-rack="' + (i.rack||'') + '" data-norack="' + (i.noRack||'') + '"' +
+                ' style="padding:9px 12px;cursor:pointer;font-size:0.83rem;border-bottom:1px solid #0f172a;" ' +
+                ' onmouseover="this.style.background=\'#334155\'" onmouseout="this.style.background=\'\'">' +
+                '<span style="color:#7dd3fc;font-weight:600;">' + (i.itemCode||'-') + '</span>' +
+                ' &mdash; ' + (i.itemName||'-') +
+                '<br><span style="color:#94a3b8;font-size:0.75rem;">' + (i.vin||'') + ' | ' + (i.plant||'') + ' | RACK: ' + (i.rack||'-') + '.' + (i.noRack||'-') + '</span>' +
+                '</div>'
+            ).join('');
+
+            dd.querySelectorAll('div[data-id]').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    selectedItemId = parseInt(el.getAttribute('data-id'));
+                    document.getElementById('adjItemId').value = selectedItemId;
+                    document.getElementById('adjItemSearch').value = el.getAttribute('data-code') + ' - ' + el.getAttribute('data-name');
+                    var selArea = document.getElementById('adjItemSelected');
+                    document.getElementById('adjItemDetailText').textContent = el.getAttribute('data-code') + ' - ' + el.getAttribute('data-name');
+                    selArea.style.display = 'block';
+                    populateRackDropdown(selectedItemId);
+                    dd.style.display = 'none';
+                });
+            });
+            dd.style.display = 'block';
+        }
+
+        var btnOpen = document.getElementById('btnAdjustStock');
+        if (btnOpen) btnOpen.addEventListener('click', () => window.openAdjustmentModal());
+
+        document.getElementById('btnCloseAdjust').addEventListener('click', closeModal);
+        document.getElementById('btnCancelAdjust').addEventListener('click', closeModal);
+
+        document.getElementById('adjItemSearch').addEventListener('input', function () {
+            showDropdown(this.value.trim());
+            selectedItemId = 0;
+            document.getElementById('adjItemId').value = '';
+            document.getElementById('adjItemSelected').style.display = 'none';
+            document.getElementById('adjRackSection').style.display = 'none';
+        });
+
+        document.getElementById('adjRackDropdown').addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            
+            // Toggle new rack section if "NEW_RACK" selected
+            const qtyInput = document.getElementById('adjQty');
+            const newRackSec = document.getElementById('newRackSection');
+            
+            if (this.value === 'NEW_RACK') {
+                newRackSec.style.display = 'block';
+                document.getElementById('currentRackStockText').textContent = '0';
+                qtyInput.value = '0';
+                qtyInput.dataset.baseStock = 0;
+                document.getElementById('adjQtyLabel').innerHTML = `Stok Terdaftar di <b>Rak Baru</b> <span style="color:#dc3545;">*</span>`;
+                qtyInput.dispatchEvent(new Event('input'));
+                return;
+            } else {
+                newRackSec.style.display = 'none';
+            }
+
+            if (opt && opt.dataset && opt.dataset.stock !== undefined) {
+                const stock = parseInt(opt.dataset.stock);
+                document.getElementById('currentRackStockText').textContent = stock;
+                
+                qtyInput.value = stock;
+                qtyInput.dataset.baseStock = stock;
+                
+                // Update label to show selected rack
+                document.getElementById('adjQtyLabel').innerHTML = `Stok Baru di Rak <b>${opt.text.split(' ')[0]}</b> <span style="color:#dc3545;">*</span>`;
+                
+                // Trigger input event to update badges/warnings
+                qtyInput.dispatchEvent(new Event('input'));
+            }
+        });
+
+        document.getElementById('adjQty').addEventListener('input', function () {
+            const newVal = parseInt(this.value);
+            const baseVal = parseInt(this.dataset.baseStock || 0);
+            
+            var warningEl = document.getElementById('adjQtyWarning');
+            var warningText = document.getElementById('adjQtyWarningText');
+            var deltaBadge = document.getElementById('adjQtyDeltaBadge');
+            
+            if (isNaN(newVal)) {
+                warningEl.style.display = 'none';
+                deltaBadge.style.display = 'none';
+                return;
+            }
+
+            const delta = newVal - baseVal;
+            
+            if (newVal === 0) {
+                 warningText.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> <b>STO (Stock To Zero)</b><br>Seluruh stok di rak ini akan dihapus dari sistem.';
+                 warningEl.style.display = 'block'; warningEl.style.background = 'rgba(239, 68, 68, 0.1)'; warningEl.style.color = '#dc3545'; warningEl.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                 deltaBadge.innerHTML = 'STO'; deltaBadge.style.display = 'block'; deltaBadge.style.background = '#dc3545'; deltaBadge.style.color = '#fff';
+            } else if (delta < 0) {
+                 warningText.innerHTML = `Stok di rak ini akan <b>berkurang ${Math.abs(delta)} pcs</b> (menjadi ${newVal})`;
+                 warningEl.style.display = 'block'; warningEl.style.background = 'rgba(245, 158, 11, 0.1)'; warningEl.style.color = '#f59e0b'; warningEl.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+                 deltaBadge.innerHTML = `${delta}`; deltaBadge.style.display = 'block'; deltaBadge.style.background = '#f59e0b'; deltaBadge.style.color = '#1e293b';
+            } else if (delta > 0) {
+                 warningText.innerHTML = `Stok di rak ini akan <b>bertambah +${delta} pcs</b> (menjadi ${newVal})`;
+                 warningEl.style.display = 'block'; warningEl.style.background = 'rgba(16, 185, 129, 0.1)'; warningEl.style.color = '#10b981'; warningEl.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                 deltaBadge.innerHTML = `+${delta}`; deltaBadge.style.display = 'block'; deltaBadge.style.background = '#10b981'; deltaBadge.style.color = '#1e293b';
+            } else {
+                 warningEl.style.display = 'none';
+                 deltaBadge.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            var dd = document.getElementById('adjItemDropdown');
+            if (dd && !dd.contains(e.target) && e.target.id !== 'adjItemSearch') dd.style.display = 'none';
+            if (e.target.id === 'modalAdjustStock') closeModal();
+            if (e.target.id === 'modalItemDetail') closeItemDetail();
+        });
+
+        document.getElementById('btnSubmitAdjust').addEventListener('click', function () {
+            var itemId = parseInt(document.getElementById('adjItemId').value) || 0;
+            var note = document.getElementById('adjNote').value.trim();
+            var msgEl = document.getElementById('adjResultMsg');
+
+            if (itemId <= 0) { showMsg(msgEl, 'error', 'Pilih item terlebih dahulu.'); return; }
+
+            var btn = document.getElementById('btnSubmitAdjust');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memproses...';
+
+            // Get selected rack from dropdown
+            const rackSelect = document.getElementById('adjRackDropdown');
+            let rack = '';
+            let noRack = 0;
+            let rackList = [];
+            
+            if (currentMode === 'adjust' || currentMode === 'relocate') {
+                if (rackSelect.value === 'NEW_RACK') {
+                    const rows = document.querySelectorAll('.rack-input-row');
+                    rows.forEach(r => {
+                        const rc = r.querySelector('.newRackCode').value.trim().toUpperCase();
+                        const rn = parseInt(r.querySelector('.newNoRack').value) || 0;
+                        if (rc) rackList.push({ rack: rc, noRack: rn });
+                    });
+                    
+                    if (rackList.length === 0) { showMsg(msgEl, 'error', 'Setidaknya satu Rack Baru harus diisi.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+                    
+                    rack = rackList[0].rack;
+                    noRack = rackList[0].noRack;
+                } else {
+                    [rack, noRack] = rackSelect.value.split('|');
+                    rackList.push({ rack, noRack });
+                }
+            }
+
+            let endpoint = '/Pulling/ManualAdjust';
+            let payload = { 
+                itemId: selectedItemId, 
+                targetQty: parseInt(document.getElementById('adjQty').value), 
+                rack: rack, 
+                noRack: noRack, 
+                note: note,
+                plant: $('#plantFilter').val() || 'Overall'
+            };
+
+            if (currentMode === 'adjust') {
+                const newQty = parseInt(document.getElementById('adjQty').value);
+                if (isNaN(newQty)) { showMsg(msgEl, 'error', 'Qty harus valid.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+                
+                payload.targetQty = newQty;
+                
+                // MULTIPLE RACK LOGIC (if added more than 1 new rack)
+                if (rackSelect.value === 'NEW_RACK' && rackList.length > 1) {
+                    let promises = rackList.map(r => {
+                        let p = Object.assign({}, payload);
+                        p.rack = r.rack;
+                        p.noRack = r.noRack;
+                        return $.ajax({
+                            url: endpoint,
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify(p)
+                        });
+                    });
+                    
+                    Promise.all(promises).then(results => {
+                        const failed = results.filter(r => !r.success);
+                        if (failed.length > 0) {
+                            showMsg(msgEl, 'error', `Ada ${failed.length} rak gagal disimpan.`);
+                        } else {
+                            showMsg(msgEl, 'success', `Berhasil menyimpan ${rackList.length} rak baru.`);
+                            
+                            // Instant DOM Update
+                            let totalDiff = payload.targetQty * rackList.length;
+                            const row = document.querySelector(`tr.stock-row[data-item-id="${selectedItemId}"]`);
+                            if (row) {
+                                const tdAct = row.querySelector('td.text-center.fw-bold.fs-5');
+                                if (tdAct) {
+                                    const currentTotal = parseInt(tdAct.textContent) || 0;
+                                    tdAct.textContent = currentTotal + totalDiff;
+                                    tdAct.style.transition = "background-color 0.5s ease";
+                                    tdAct.style.backgroundColor = "rgba(16, 185, 129, 0.3)";
+                                    setTimeout(() => tdAct.style.backgroundColor = "", 1500);
+                                }
+                            }
+                            
+                            resetForm();
+                            window.refreshDashboard(); 
+                            if (selectedItemId) populateRackDropdown(selectedItemId);
+                        }
+                    }).catch(err => {
+                        showMsg(msgEl, 'error', 'Terjadi kesalahan sistem.');
+                    }).finally(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-check2-circle"></i> Simpan';
+                    });
+                    return; // Stop the standard single ajax
+                }
+            } else if (currentMode === 'relocate') {
+                endpoint = '/Pulling/RelocateStock';
+                payload.sourceRack = rack;
+                payload.sourceNoRack = parseInt(noRack);
+                payload.targetRack = document.getElementById('targetRack').value.trim().toUpperCase();
+                payload.targetNoRack = parseInt(document.getElementById('targetNoRack').value) || 0;
+                var moveQty = parseInt(document.getElementById('relocateQty').value);
+                if (!isNaN(moveQty) && moveQty > 0) payload.qty = moveQty;
+                
+                if (!payload.targetRack) { showMsg(msgEl, 'error', 'Pilih lokasi tujuan.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+            } else if (currentMode === 'master') {
+                endpoint = '/Items/EditMasterAjax';
+                payload = {
+                    itemId: selectedItemId,
+                    plant: document.getElementById('editMasPlant').value || null,
+                    customer: document.getElementById('editMasCust').value || null,
+                    statusItem: document.getElementById('editMasStatus').value || null,
+                    category: document.getElementById('editMasProd').value || null,
+                    vin: document.getElementById('editMasVin').value || null,
+                    itemName: document.getElementById('editMasLokasiRak').value || null,
+                    qtyLot: parseInt(document.getElementById('editMasQpc').value) || null,
+                    rackMin: parseInt(document.getElementById('editMasMin').value) || null,
+                    rackMax: parseInt(document.getElementById('editMasMax').value) || null
+                };
+            }
+
+            // Revert back to $.ajax for better Antiforgery Token handling
+            $.ajax({
+                url: endpoint,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (data) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check2-circle"></i> Simpan';
+                    if (data.success) {
+                        showMsg(msgEl, 'success', data.message);
+                        
+                        if (currentMode === 'master') {
+                            // --- INSTANT DOM UPDATE: langsung ubah cell di tabel tanpa reload ---
+                            const row = document.querySelector(`tr.stock-row[data-item-id="${selectedItemId}"]`);
+                            if (row) {
+                                // Plant badge (selalu kolom ke-3)
+                                if (payload.plant) {
+                                    const plantBadge = row.querySelector('td:nth-child(3) .badge');
+                                    if (plantBadge) {
+                                        const p = payload.plant;
+                                        plantBadge.textContent = p;
+                                        plantBadge.className = 'badge smaller ' + (p === 'Molded' ? 'bg-primary' : p === 'Hose' ? 'bg-info text-dark' : 'bg-warning text-dark');
+                                    }
+                                }
+                                // Status badge (cari td dengan badge bg-success/warning/danger opacity-75)
+                                if (payload.statusItem) {
+                                    const allTds = row.querySelectorAll('td');
+                                    for (const td of allTds) {
+                                        const b = td.querySelector('.badge.opacity-75');
+                                        if (b) {
+                                            const s = payload.statusItem;
+                                            let cls, label = s;
+                                            if (s === 'Reguler') {
+                                                cls = 'badge bg-success opacity-75 smaller';
+                                            } else if (s === 'PMSP FM') {
+                                                cls = 'badge bg-primary opacity-75 smaller';
+                                            } else if (s === 'PMSP SM') {
+                                                cls = 'badge bg-warning text-dark opacity-75 smaller';
+                                            } else if (s === 'PMSP') {
+                                                cls = 'badge bg-warning text-dark opacity-75 smaller';
+                                            } else if (s === 'After Market') {
+                                                cls = 'badge opacity-75 smaller'; label = 'After Mkt';
+                                            } else {
+                                                cls = 'badge bg-danger opacity-75 smaller';
+                                            }
+                                            td.innerHTML = `<span class="${cls}" style="width: 75px; display: inline-block;">${label}</span>`;
+                                            break;
+                                        }
+                                    }
+                                }
+                                // PROD/Category (td dengan class 'small')
+                                if (payload.category) {
+                                    const prodTd = row.querySelector('td.small');
+                                    if (prodTd) prodTd.textContent = payload.category;
+                                }
+                                // VIN (td dengan style font-size 0.8rem)
+                                if (payload.vin) {
+                                    const vinTd = row.querySelector('td[style*="0.8rem"]');
+                                    if (vinTd) vinTd.textContent = payload.vin;
+                                }
+                                // QPC (td.fw-bold.text-info)
+                                if (payload.qtyLot) {
+                                    const qpcTd = row.querySelector('td.fw-bold.text-info');
+                                    if (qpcTd) qpcTd.textContent = payload.qtyLot;
+                                }
+                                // MIN, ROP, MAX Instant Update (td.fw-bold.text-danger/warning/success)
+                                // isNoOrder JS: exclude No Order, PMSP SM, After Market dari indikator
+                                let isNoOrder = payload.statusItem === 'No Order' || payload.statusItem === 'NO ORDER'
+                                    || payload.statusItem === 'PMSP SM' || payload.statusItem === 'After Market';
+                                
+                                if (payload.rackMin !== undefined) {
+                                    const minTd = row.querySelector('td.fw-bold.text-danger');
+                                    if (minTd) minTd.textContent = isNoOrder ? 0 : payload.rackMin;
+                                    
+                                    const ropTd = row.querySelector('td.fw-bold.text-warning');
+                                    if (ropTd) ropTd.textContent = isNoOrder ? 0 : (payload.rop || Math.ceil(payload.rackMin * 1.5));
+                                }
+                                
+                                if (payload.rackMax !== undefined) {
+                                    const maxTd = row.querySelector('td.fw-bold.text-success');
+                                    if (maxTd) maxTd.textContent = isNoOrder ? 0 : payload.rackMax;
+                                }
+                                // Customer: posisi kolom ke-4 (Admin) atau ke-5 (Super Admin, ada kolom LABEL)
+                                if (payload.customer) {
+                                    const hasLabel = !!row.querySelector('td span.text-primary.fw-bold');
+                                    const custIdx = hasLabel ? 6 : 5; // 0-indexed after NO, PLANT, LOKASI RACK, RACK, NO RACK
+                                    const tds = row.querySelectorAll('td');
+                                    if (tds[custIdx]) tds[custIdx].textContent = payload.customer;
+                                }
+                                // Update data-* attribute tombol edit agar prefill benar saat buka lagi
+                                const editBtn = row.querySelector('button.btn-link.text-info');
+                                if (editBtn) {
+                                    if (payload.plant) editBtn.setAttribute('data-plant', payload.plant);
+                                    if (payload.customer) editBtn.setAttribute('data-cust', payload.customer);
+                                    if (payload.statusItem) editBtn.setAttribute('data-status', payload.statusItem);
+                                    if (payload.category) editBtn.setAttribute('data-prod', payload.category);
+                                    if (payload.vin) editBtn.setAttribute('data-vin', payload.vin);
+                                    if (payload.qtyLot) editBtn.setAttribute('data-qpc', payload.qtyLot);
+                                    if (payload.rackMin) editBtn.setAttribute('data-min', payload.rackMin);
+                                    if (payload.rackMax) editBtn.setAttribute('data-max', payload.rackMax);
+                                }
+                            }
+                            // Tutup modal segera
+                            resetForm();
+                            setTimeout(() => { window.refreshDashboard(); }, 100);
+                        } else {
+                            // --- INSTANT DOM UPDATE for Adjust/Relocate ---
+                            const row = document.querySelector(`tr.stock-row[data-item-id="${selectedItemId}"]`);
+                            if (row && currentMode === 'adjust') {
+                                const tdAct = row.querySelector('td.text-center.fw-bold.fs-5');
+                                if (tdAct) {
+                                    const rackSelect = document.getElementById('adjRackDropdown');
+                                    const selectedOpt = rackSelect.options[rackSelect.selectedIndex];
+                                    const oldStock = selectedOpt ? parseInt(selectedOpt.getAttribute('data-stock')) || 0 : 0;
+                                    const newStock = payload.targetQty;
+                                    const diff = newStock - oldStock;
+                                    
+                                    const currentTotal = parseInt(tdAct.textContent) || 0;
+                                    tdAct.textContent = currentTotal + diff;
+                                    
+                                    // Visual cue for instant update
+                                    tdAct.style.transition = "background-color 0.5s ease";
+                                    tdAct.style.backgroundColor = "rgba(16, 185, 129, 0.3)";
+                                    setTimeout(() => tdAct.style.backgroundColor = "", 1500);
+                                }
+                            }
+                            
+                            // Tutup modal instan (tidak perlu tunggu 2 detik)
+                            resetForm();
+                            
+                            // Refresh background (mungkin butuh waktu karena FIFO)
+                            window.refreshDashboard(); 
+                            if (selectedItemId) {
+                                populateRackDropdown(selectedItemId);
+                            }
+                        }
+                    } else {
+                        showMsg(msgEl, 'error', data.message || 'Gagal.');
+                    }
+                },
+                error: function (xhr) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Simpan';
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.message : 'Terjadi kesalahan koneksi.';
+                    showMsg(msgEl, 'error', errorMsg);
+                }
+            });
+        });
+
+        function showMsg(el, type, msg) {
+            el.style.display = 'block';
+            el.style.background = type === 'success' ? '#064e3b' : '#450a0a';
+            el.style.color = type === 'success' ? '#6ee7b7' : '#fca5a5';
+            el.style.border = '1px solid ' + (type === 'success' ? '#059669' : '#dc2626');
+            el.innerHTML = (type === 'success' ? '<i class="bi bi-check-circle"></i> ' : '<i class="bi bi-x-circle"></i> ') + msg;
+        }
+
+        // Handle Add Rack Row Button (Hanya jika tombol ada - Super Admin)
+        var btnAddRackRow = document.getElementById('btnAddRackRow');
+        if (btnAddRackRow) {
+            btnAddRackRow.addEventListener('click', function() {
+                var container = document.getElementById('dynamicRackContainer');
+                var rowHtml = `
+                     <div class="d-flex gap-2 align-items-center mb-2 rack-input-row">
+                        <div style="flex:1;">
+                            <input type="text" class="newRackCode" maxlength="10" placeholder="Contoh: A, L, M" 
+                                   style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.95rem;text-transform:uppercase;">
+                        </div>
+                        <div style="flex:1;">
+                            <input type="number" class="newNoRack" min="0" max="999" placeholder="0-99" 
+                                   style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.95rem;">
+                        </div>
+                        <div style="width: 32px; padding-top: 0;" class="text-end rack-del-btn-container">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-del-rack" style="border:none; padding:4px 8px; border-radius:6px;"><i class="bi bi-trash"></i></button>
+                        </div>
+                     </div>`;
+                container.insertAdjacentHTML('beforeend', rowHtml);
+            });
+        }
+
+        // Handle Delete Rack Row
+        document.getElementById('dynamicRackContainer').addEventListener('click', function(e) {
+            var delBtn = e.target.closest('.btn-del-rack');
+            if (delBtn) {
+                var row = delBtn.closest('.rack-input-row');
+                if (row && document.querySelectorAll('.rack-input-row').length > 1) {
+                    row.remove();
+                }
+            }
+        });
+
+        // Prefetch data in background after page loads for instant autocomplete
+        setTimeout(function() {
+            if (allItems.length === 0) loadAllItems();
+        }, 1500);
+    })();
+
+    async function repairPlantData() {
+        if (!confirm('Perbaiki Plant pada data Pulling & Preparation yang kosong/salah?\n\nProses ini akan mengisi Plant berdasarkan master item. Data yang sudah benar tidak akan berubah.')) return;
+        const btn = document.getElementById('btnRepairPlant');
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memproses...'; }
+        try {
+            const resp = await fetch('/Stock/RepairPlantData', { method: 'POST', headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '' } });
+            const data = await resp.json();
+            alert(data.message + (data.skippedPulling || data.skippedPrep ? `\n(Tidak dapat di-repair: Pulling=${data.skippedPulling}, Prep=${data.skippedPrep} — item tidak ditemukan di master)` : ''));
+            if (data.success) location.reload();
+        } catch(e) {
+            alert('Error: ' + e.message);
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-wrench-adjustable-circle"></i> Repair Plant'; }
+        }
+    }
+    
+    function openEditTargetModal() {
+        const modal = new bootstrap.Modal(document.getElementById('editTargetModal'));
+        modal.show();
+    }
+    
+    function saveTarget() {
+        const dateStr = document.getElementById('editTargetDate').value;
+        const qty = document.getElementById('editTargetQty').value;
+        if (!dateStr || qty === '') return;
+        
+        // Find the cell based on date
+        const id = 'target-cell-' + dateStr.replace(/\//g, "-");
+        const cell = document.getElementById(id);
+        if (cell) {
+            cell.innerText = qty;
+        }
+        
+        // Close modal
+        const modalEl = document.getElementById('editTargetModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) {
+            modal.hide();
+        }
+    }
+    
+    function openDeleteTargetModal() {
+        const modal = new bootstrap.Modal(document.getElementById('deleteTargetModal'));
+        modal.show();
+    }
+    
+    function deleteTarget() {
+        const dateStr = document.getElementById('deleteTargetDate').value;
+        if (!dateStr) return;
+        
+        if (dateStr === "ALL") {
+            const cells = document.querySelectorAll('[id^="target-cell-"]');
+            cells.forEach(c => c.innerText = "0");
+        } else {
+            const id = 'target-cell-' + dateStr.replace(/\//g, "-");
+            const cell = document.getElementById(id);
+            if (cell) cell.innerText = "0";
+        }
+        
+        const modalEl = document.getElementById('deleteTargetModal');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+    }
+</script>
+
+<partial name="_ClearDataModal" />
+
+
+
+
+
+
+
+
+
+

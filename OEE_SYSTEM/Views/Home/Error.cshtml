@@ -1,0 +1,50 @@
+@using OeeSystem.Models.ViewModels
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "Error";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body text-center">
+                    <h1 class="text-danger mb-4">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Error
+                    </h1>
+                    <h2 class="mb-4">Terjadi kesalahan saat memproses permintaan Anda.</h2>
+                    
+                    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+                    {
+                        <div class="alert alert-danger text-start mb-3">
+                            <strong>Error Message:</strong><br />
+                            <code>@Model.ErrorMessage</code>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(Model.StackTrace))
+                    {
+                        <details class="text-start mb-3">
+                            <summary class="text-warning cursor-pointer">Stack Trace (Klik untuk melihat detail)</summary>
+                            <pre class="bg-dark p-3 rounded mt-2" style="font-size: 0.85rem; max-height: 300px; overflow-y: auto;"><code>@Model.StackTrace</code></pre>
+                        </details>
+                    }
+                    
+                    @if (Model.ShowRequestId)
+                    {
+                        <p class="text-secondary">
+                            <strong>Request ID:</strong> <code>@Model.RequestId</code>
+                        </p>
+                    }
+                    
+                    <div class="mt-4">
+                        <a asp-action="Index" asp-controller="Home" class="btn btn-primary">
+                            <i class="fa-solid fa-home me-2"></i>Kembali ke Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

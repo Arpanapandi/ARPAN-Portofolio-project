@@ -1,0 +1,17 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+c:\DeliveryControl\DeliveryControl\Views\PreparationSchedule\Index.cshtml(186,51): error RZ1031: The tag helper 'option' must not have C# in the element's attribute declaration area. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+c:\DeliveryControl\DeliveryControl\Views\PreparationSchedule\Index.cshtml(193,69): error RZ1031: The tag helper 'option' must not have C# in the element's attribute declaration area. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+c:\DeliveryControl\DeliveryControl\Views\DeliverySchedules\GanttChart.cshtml(422,419): warning CS8629: Nullable value type may be null. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+c:\DeliveryControl\DeliveryControl\Controllers\PreparationScheduleController.cs(1682,45): warning CS8629: Nullable value type may be null. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+
+Build FAILED.
+
+c:\DeliveryControl\DeliveryControl\Views\DeliverySchedules\GanttChart.cshtml(422,419): warning CS8629: Nullable value type may be null. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+c:\DeliveryControl\DeliveryControl\Controllers\PreparationScheduleController.cs(1682,45): warning CS8629: Nullable value type may be null. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+c:\DeliveryControl\DeliveryControl\Views\PreparationSchedule\Index.cshtml(186,51): error RZ1031: The tag helper 'option' must not have C# in the element's attribute declaration area. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+c:\DeliveryControl\DeliveryControl\Views\PreparationSchedule\Index.cshtml(193,69): error RZ1031: The tag helper 'option' must not have C# in the element's attribute declaration area. [c:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+    2 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:02.99

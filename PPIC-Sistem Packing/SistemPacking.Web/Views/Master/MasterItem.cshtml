@@ -1,0 +1,482 @@
+@model IEnumerable<SistemPacking.Web.Models.Item>
+@{
+    ViewData["Title"] = "Master Item";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">Master Item</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-box"></i> Master Item</h2>
+    <div>
+        <a href="/Master/DownloadTemplateItem" class="btn btn-outline-info me-2">
+            <i class="bi bi-download me-1"></i>Template
+        </a>
+        <button class="btn btn-outline-success me-2" onclick="$('#importModal').modal('show')">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import
+        </button>
+        <a href="/Master/ExportItems" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Export
+        </a>
+        <button class="btn btn-outline-danger me-2 d-none" id="btnBulkDelete" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="showModal()">
+            <i class="bi bi-plus-circle me-1"></i>Tambah Item
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="itemTable" style="width: 100%;">
+            <thead style="position: sticky; top: 0; z-index: 10; background: #fff;">
+                <tr>
+                    <th style="width: 40px;" class="text-center">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                    </th>
+                    <th style="width: 50px;">No</th>
+                    <th>Lokasi Rack</th>
+                    <th>Prod. Plant</th>
+                    <th>Rack</th>
+                    <th>No Rack</th>
+                    <th>Dock</th>
+                    <th>Vin</th>
+                    <th>Part No</th>
+                    <th>Part Name</th>
+                    <th class="text-end">QTY (PCS)</th>
+                    <th class="text-end">Min 0,5</th>
+                    <th class="text-end">Rop 1D</th>
+                    <th class="text-end">Max 2D</th>
+                    <th class="text-center" style="width: 90px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int no = 1; }
+                @foreach (var i in Model)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input chk-item" type="checkbox" value="@i.Id">
+                        </td>
+                        <td>@(no++)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.LokasiRack) ? "-" : i.LokasiRack)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.ProdPlant) ? "-" : i.ProdPlant)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.Rack) ? "-" : i.Rack)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.NoRack) ? "-" : i.NoRack)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.Dock) ? "-" : i.Dock)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.VIN) ? "-" : i.VIN)</td>
+                        <td class="fw-semibold text-primary">@(string.IsNullOrWhiteSpace(i.ItemCode) ? "-" : i.ItemCode)</td>
+                        <td>@(string.IsNullOrWhiteSpace(i.ItemName) ? "-" : i.ItemName)</td>
+                        <td class="text-end">@(i.QtyPcs == 0 ? "-" : (i.QtyPcs % 1 == 0 ? ((long)i.QtyPcs).ToString() : i.QtyPcs.ToString("G29")))</td>
+                        <td class="text-end">@(i.Min == 0 ? "-" : (i.Min % 1 == 0 ? ((long)i.Min).ToString() : i.Min.ToString("G29")))</td>
+                        <td class="text-end">@(i.Rop == 0 ? "-" : (i.Rop % 1 == 0 ? ((long)i.Rop).ToString() : i.Rop.ToString("G29")))</td>
+                        <td class="text-end">@(i.Max == 0 ? "-" : (i.Max % 1 == 0 ? ((long)i.Max).ToString() : i.Max.ToString("G29")))</td>
+                        <td class="text-center">
+                            <button class="btn btn-xs btn-outline-primary" onclick="editItem(@i.Id, '@(i.VIN ?? "")', '@(i.ItemCode ?? "")', '@(i.ItemName?.Replace("'", "\\'") ?? "")', '@(i.Dock ?? "")', '@(i.ProdPlant ?? "")', '@(i.LokasiRack ?? "")', '@(i.Rack ?? "")', '@(i.NoRack ?? "")', @i.QtyPcs, @i.Min, @i.Rop, @i.Max, '@i.Status')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-xs btn-outline-danger" onclick="deleteItem(@i.Id, '@(i.ItemName?.Replace("'", "\\'") ?? "")')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Master Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pilih File Excel (.xlsx) <span class="text-danger">*</span></label>
+                        <input type="file" id="importFile" name="file" class="form-control" accept=".xlsx" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Upload Image SPIS (.zip) - Opsional</label>
+                        <input type="file" id="spisZip" name="spisZip" class="form-control" accept=".zip" />
+                        <small class="text-muted">Zip berisi file gambar. Nama gambar harus sesuai dengan Part No atau VIN.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Upload Image SPPS (.zip) - Opsional</label>
+                        <input type="file" id="sppsZip" name="sppsZip" class="form-control" accept=".zip" />
+                        <small class="text-muted">Zip berisi file gambar. Nama gambar harus sesuai dengan Part No atau VIN.</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnImport" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i> Upload & Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Form -->
+<div class="modal fade" id="itemModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Tambah Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="itemForm">
+                    <input type="hidden" id="Id" value="0" />
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">VIN <span class="text-danger">*</span></label>
+                            <input type="text" id="VIN" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">DOCK <span class="text-danger">*</span></label>
+                            <input type="text" id="Dock" class="form-control" required />
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Part No <span class="text-danger">*</span></label>
+                            <input type="text" id="ItemCode" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Part Name <span class="text-danger">*</span></label>
+                            <input type="text" id="ItemName" class="form-control" required />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Prod.Plant</label>
+                            <input type="text" id="ProdPlant" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Lokasi Rack</label>
+                            <input type="text" id="LokasiRack" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Rack</label>
+                            <input type="text" id="Rack" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">No Rack</label>
+                            <input type="text" id="NoRack" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">QTY (pcs)</label>
+                            <input type="number" id="QtyPcs" class="form-control" step="0.01" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Min 0,5</label>
+                            <input type="number" id="Min" class="form-control" step="0.01" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Rop 1D</label>
+                            <input type="number" id="Rop" class="form-control" step="0.01" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Max 2D</label>
+                            <input type="number" id="Max" class="form-control" step="0.01" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Status</label>
+                            <select id="Status" class="form-select">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#itemTable').DataTable({
+            pageLength: 20,
+            scrollY: 'calc(100vh - 350px)',
+            scrollCollapse: true,
+            language: { url: '/js/id.json' },
+            columnDefs: [
+                { orderable: false, targets: [0, 14] },
+                { className: 'text-center', targets: [0, 1, 14] },
+                { className: 'text-end', targets: [10, 11, 12, 13] }
+            ]
+        });
+
+        // Select All Checkbox Logic
+        $('#selectAll').change(function() {
+            var isChecked = $(this).prop('checked');
+            $('.chk-item').prop('checked', isChecked);
+            updateBulkDeleteButton();
+        });
+
+        // Individual Checkbox Logic
+        $(document).on('change', '.chk-item', function() {
+            if (!$(this).prop('checked')) {
+                $('#selectAll').prop('checked', false);
+            } else {
+                if ($('.chk-item:checked').length === $('.chk-item').length) {
+                    $('#selectAll').prop('checked', true);
+                }
+            }
+            updateBulkDeleteButton();
+        });
+
+        function updateBulkDeleteButton() {
+            var count = $('.chk-item:checked').length;
+            $('#selectedCount').text(count);
+            if (count > 0) {
+                $('#btnBulkDelete').removeClass('d-none');
+            } else {
+                $('#btnBulkDelete').addClass('d-none');
+            }
+        }
+
+        $('#saveBtn').click(function () {
+            if (!$('#ItemCode').val() || !$('#ItemName').val() || !$('#VIN').val() || !$('#Dock').val()) {
+                showToast('warning', 'VIN, Dock, Part No, dan Part Name wajib diisi!');
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('Id', $('#Id').val());
+            formData.append('VIN', $('#VIN').val());
+            formData.append('Dock', $('#Dock').val());
+            formData.append('ItemCode', $('#ItemCode').val());
+            formData.append('ItemName', $('#ItemName').val());
+            formData.append('Barcode', $('#ItemCode').val()); // Fallback barcode
+            formData.append('ProdPlant', $('#ProdPlant').val() || '');
+            formData.append('LokasiRack', $('#LokasiRack').val() || '');
+            formData.append('Rack', $('#Rack').val() || '');
+            formData.append('NoRack', $('#NoRack').val() || '');
+            formData.append('QtyPcs', $('#QtyPcs').val() || 0);
+            formData.append('Min', $('#Min').val() || 0);
+            formData.append('Rop', $('#Rop').val() || 0);
+            formData.append('Max', $('#Max').val() || 0);
+            formData.append('Category', 'Combined');
+            formData.append('UOM', 'PCS');
+            formData.append('PackingStandard', '1');
+            formData.append('Status', $('#Status').val() === 'Active' ? '1' : '0');
+            formData.append('CustomerId', '1'); // Default customer ID or actual from form
+
+            var spis = $('#SpisImage')[0].files[0];
+            if (spis) formData.append('spisImage', spis);
+
+            var spps = $('#SppsImage')[0].files[0];
+            if (spps) formData.append('sppsImage', spps);
+
+            // Need antiforgery token
+            formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Master/SaveItem',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                        $('#saveBtn').prop('disabled', false).text('Simpan');
+                    }
+                }
+            });
+        });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('itemModal'));
+
+    function showModal() {
+        $('#modalTitle').text('Tambah Item');
+        $('#itemForm')[0].reset();
+        $('#Id').val(0);
+        $('#UOM').val('PCS');
+        $('#PackingStandard').val(1);
+        $('#Status').val('Active');
+        $('#SpisExisting').addClass('d-none');
+        $('#SppsExisting').addClass('d-none');
+        modal.show();
+    }
+
+    function editItem(id, vin, code, name, dock, prodPlant, lokasiRack, rack, noRack, qtyPcs, min, rop, max, status) {
+        $('#modalTitle').text('Edit Item');
+        $('#Id').val(id);
+        $('#VIN').val(vin);
+        $('#Dock').val(dock);
+        $('#ItemCode').val(code);
+        $('#ItemName').val(name);
+        $('#ProdPlant').val(prodPlant);
+        $('#LokasiRack').val(lokasiRack);
+        $('#Rack').val(rack);
+        $('#NoRack').val(noRack);
+        $('#QtyPcs').val(qtyPcs);
+        $('#Min').val(min);
+        $('#Rop').val(rop);
+        $('#Max').val(max);
+        $('#Status').val(status == '1' ? 'Active' : 'Inactive');
+        
+        if(spis) $('#SpisExisting').removeClass('d-none');
+        else $('#SpisExisting').addClass('d-none');
+        
+        if(spps) $('#SppsExisting').removeClass('d-none');
+        else $('#SppsExisting').addClass('d-none');
+
+        modal.show();
+    }
+
+    function deleteItem(id, name) {
+        Swal.fire({
+            title: 'Hapus Item?',
+            text: `Anda yakin ingin menghapus '${name}'?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post('/Master/DeleteItem', { id: id, __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val() }, function(res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Terhapus!', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', 'Gagal menghapus', 'error');
+                    }
+                });
+            }
+        });
+    }
+
+    function doImport() {
+        var file = $('#importFile')[0].files[0];
+        if (!file) {
+            Swal.fire('Error', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', file);
+        
+        var spisZip = $('#spisZip')[0].files[0];
+        if (spisZip) formData.append('spisZip', spisZip);
+        
+        var sppsZip = $('#sppsZip')[0].files[0];
+        if (sppsZip) formData.append('sppsZip', sppsZip);
+
+        formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+        $('#btnImport').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Loading...');
+
+        $.ajax({
+            url: '/Master/ImportItems',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    if (res.errors && res.errors.length > 0) {
+                        var errorMsg = res.message + "<br><br><div style='max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;'>" + res.errors.join('<br>') + "</div>";
+                        Swal.fire({
+                            title: 'Selesai dengan Catatan', 
+                            html: errorMsg, 
+                            icon: 'warning',
+                            width: 600,
+                            customClass: { htmlContainer: 'text-start' }
+                        }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Berhasil', res.message, 'success').then(() => location.reload());
+                    }
+                } else {
+                    var errorMsg = res.message + "<br><br><div style='max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;'>" + (res.errors ? res.errors.join('<br>') : '') + "</div>";
+                    Swal.fire({
+                        title: 'Import Gagal', 
+                        html: errorMsg, 
+                        icon: 'error',
+                        width: 600,
+                        customClass: { htmlContainer: 'text-start' }
+                    });
+                }
+            },
+            error: function () {
+                Swal.fire('Error', 'Gagal menghubungi server', 'error');
+            },
+            complete: function () {
+                $('#btnImport').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload & Import');
+            }
+        });
+    }
+
+    function bulkDelete() {
+        var selectedIds = [];
+        $('.chk-item:checked').each(function() {
+            selectedIds.push(parseInt($(this).val()));
+        });
+
+        if (selectedIds.length === 0) return;
+
+        Swal.fire({
+            title: 'Hapus Item Terpilih?',
+            text: `Anda yakin ingin menghapus ${selectedIds.length} item yang dipilih?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/BulkDeleteItems',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(selectedIds),
+                    headers: {
+                        'RequestVerificationToken': $('[name="__RequestVerificationToken"]').val()
+                    },
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire({ icon: 'success', title: 'Terhapus!', text: res.message, timer: 1500, showConfirmButton: false }).then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message || 'Gagal menghapus', 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'Terjadi kesalahan sistem.', 'error');
+                    }
+                });
+            }
+        });
+    }
+</script>
+@Html.AntiForgeryToken()
+}

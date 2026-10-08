@@ -1,0 +1,1705 @@
+@model IEnumerable<DeliveryControl.Models.DeliverySchedule>
+@using System.Text.RegularExpressions
+
+@functions {
+    private int? ParseRangeToMinutes(string? rangeText)
+    {
+        if (string.IsNullOrWhiteSpace(rangeText))
+            return null;
+
+        var lower = rangeText.ToLower();
+        int totalMinutes = 0;
+        bool found = false;
+
+        var hourMatch = Regex.Match(lower, @"(\d+)\s*(?:j|jam)");
+        if (hourMatch.Success && int.TryParse(hourMatch.Groups[1].Value, out int hours))
+        {
+            totalMinutes += hours * 60;
+            found = true;
+        }
+
+        var minuteMatch = Regex.Match(lower, @"(\d+)\s*(?:m|menit)");
+        if (minuteMatch.Success && int.TryParse(minuteMatch.Groups[1].Value, out int minutes))
+        {
+            totalMinutes += minutes;
+            found = true;
+        }
+
+        if (!found)
+        {
+            var digitsMatch = Regex.Match(lower, @"\d+");
+            if (digitsMatch.Success && int.TryParse(digitsMatch.Value, out int onlyMinutes))
+            {
+                totalMinutes = onlyMinutes;
+                found = true;
+            }
+        }
+
+        return found ? totalMinutes : null;
+    }
+
+    private string FormatDelayDuration(int totalMinutes)
+    {
+        if (totalMinutes <= 0) return "0 m";
+        if (totalMinutes < 60) return $"{totalMinutes} m";
+        
+        int hours = totalMinutes / 60;
+        int mins = totalMinutes % 60;
+        
+        if (mins == 0) return $"{hours} Jam";
+        return $"{hours} Jam {mins} m";
+    }
+}
+
+@{
+    var todayCount = ViewBag.TodayScheduleCount ?? 0;
+    var tomorrowCount = ViewBag.TomorrowScheduleCount ?? 0;
+    var displayDate = ViewBag.DisplayDate ?? DateTime.Today;
+    var today = displayDate;
+    var tomorrow = today.AddDays(1);
+    var currentUserRole = Context.Session?.GetString("Role") ?? string.Empty;
+    var isAdminOrSuperAdmin = currentUserRole == "Admin" || currentUserRole == "Super Admin";
+    var isAdminOrUser = currentUserRole == "Admin" || currentUserRole == "User";
+    var totalTableColumns = isAdminOrSuperAdmin ? 12 : 11;
+    var shownH1Dates = new HashSet<DateTime>();
+    var shownTodayDates = new HashSet<DateTime>();
+    var shownCarryOverDates = new HashSet<DateTime>();
+    var forceOnTimeMode = ViewBag.ForceOnTimeMode == true;
+    var autoEnterDockActive = ViewBag.AutoEnterDockActive == true;
+}
+
+@foreach (var group in Model.GroupBy(s => new {
+    CustId = s.CustomerId,
+    Area  = (string.IsNullOrWhiteSpace(s.Area) ? (s.Customer?.Docking ?? "") : s.Area).Trim().ToUpper(),
+    Cycle = (s.Cycle ?? "").Trim().ToUpper(),
+    Route = (string.IsNullOrWhiteSpace(s.Route) ? "" : s.Route).Trim().ToUpper(),
+    Date  = s.ScheduledDate.Date
+}))
+{
+    var schedules = group.ToList();
+    var item = schedules.First();
+    
+    // UI Correction: CustomerName (property) is DOCK, CustomerCode (property) is NAME
+    // Tampilkan nama dock (CustomerName) di bawah nama customer, bukan Area
+    var dock = !string.IsNullOrEmpty(item.Customer?.CustomerName)
+        ? item.Customer!.CustomerName
+        : (!string.IsNullOrEmpty(item.Customer?.Docking) ? item.Customer!.Docking : (item.Area ?? "-"));
+    
+    var groupTotalTarget = schedules.Sum(s => s.TotalTargetQuantity);
+    var groupTotalActual = schedules.Sum(s => s.TotalActualQuantity);
+
+    // Hitung startPrepTime untuk grup ini (dari schedule atau customer)
+    var startPMinutesEarly = item.StartPrepareTime > 0 ? item.StartPrepareTime : (item.Customer?.StartPrepareTime ?? 0);
+
+    // Selisih hari target
+    var daysAhead = (item.ScheduledDate.Date - today.Date).Days;
+    var isFutureSchedule = daysAhead > 0;
+    var pickupHour = item.PickupTime.HasValue ? item.PickupTime.Value.Hour : 12;
+
+    // H-1/Weekend shift detection: jadwal besok/weekend/Senin pagi yang dipersiapkan hari ini
+    var isH1Shift = isFutureSchedule &&
+                    (daysAhead == 1 ||
+                     (today.DayOfWeek == DayOfWeek.Friday && (daysAhead == 2 || daysAhead == 3)) ||
+                     (today.DayOfWeek == DayOfWeek.Saturday && daysAhead == 2));
+
+    // isTodayH1: jadwal hari ini (ScheduledDate = hari ini) dengan pickup pagi → prepare kemarin malam
+    var isTodayH1 = !isFutureSchedule && item.ScheduledDate.Date == today.Date
+                    && item.PickupTime.HasValue && pickupHour < 12;
+
+    // isOvernightPrep: jadwal hari ini, dockIn pagi (time-of-day < startPrepTime) => prep mulai malam KEMARIN.
+    var dockInForOvernightCheck = item.EnterDockTime ?? item.ActualEnterDockTime;
+    var dockInTimeRaw = dockInForOvernightCheck.HasValue ? dockInForOvernightCheck.Value.TimeOfDay.TotalMinutes : -1.0;
+    var isOvernightPrep = !isH1Shift && !isTodayH1 && !isFutureSchedule
+                    && item.ScheduledDate.Date == today.Date
+                    && dockInTimeRaw >= 0 && startPMinutesEarly > 0
+                    && dockInTimeRaw < startPMinutesEarly;
+
+    // Ditampilkan semua jadwal masa depan berdasarkan tanggal delivery-nya
+
+    bool startPrepTimeReached = true;
+    if (startPMinutesEarly > 0)
+    {
+        // Untuk H-1/weekend shift: cek jam startPrep versi hari persiapan (shifted)
+        DateTime startPrepDT = item.ScheduledDate.Date.AddMinutes(startPMinutesEarly);
+        if (isH1Shift || isTodayH1 || isOvernightPrep) {
+            var h1ShiftDays = isH1Shift ? daysAhead : 1;
+            startPrepDT = startPrepDT.AddDays(-h1ShiftDays);
+        }
+        startPrepTimeReached = DateTime.Now >= startPrepDT;
+    }
+    
+    // Aggregate Kanban counts for the entire group
+    double totalKanbanTarget = 0;
+    double totalKanbanActual = 0;
+    foreach(var s in schedules)
+    {
+        if (s.DeliveryItems != null)
+        {
+            foreach(var di in s.DeliveryItems)
+            {
+                var qpc = di.Item?.QtyLot ?? 1;
+                if (qpc > 0)
+                {
+                    // Target kanban: bulatkan ke atas (1 kanban partial tetap = 1 kanban target)
+                    var diKbnTarget = Math.Ceiling((double)di.Quantity / qpc);
+                    totalKanbanTarget += diKbnTarget;
+                    // Aktual kanban: jika item completed (actual >= target pieces), gunakan target kanban
+                    // agar tidak under-count akibat Floor vs Ceiling pada angka ganjil.
+                    // Contoh: Qty=5, QPC=2 → Target=3, Floor(5/2)=2 padahal COMPLETED → harus 3.
+                    totalKanbanActual += (di.ActualQuantity ?? 0) >= di.Quantity
+                        ? diKbnTarget
+                        : Math.Ceiling((double)(di.ActualQuantity ?? 0) / qpc);
+                }
+            }
+        }
+    }
+
+    // Jika waktu startPrep belum tiba DAN belum ada scan sama sekali → sembunyikan actual (tampil 0)
+    // Jika sudah ada scan (totalKanbanActual > 0), tampilkan data riil meskipun waktu belum tiba
+    if (!startPrepTimeReached && totalKanbanActual == 0)
+    {
+        groupTotalActual = 0;
+    }
+
+    // Kanban prepared: seluruh grup dianggap prepared hanya jika aktual kanban >= target kanban
+    bool isKanbanFullyPrepared = totalKanbanTarget > 0 && totalKanbanActual >= totalKanbanTarget;
+
+    // Determine representative status
+    // Prioritas:
+    // 1. Completed   : semua ActualEndTime ada
+    // 2. In Progress : sudah ActualEnterDockTime (masuk dock) ATAU ActualStartTime (truk berangkat)
+    // 3. Prepared    : kanban terpenuhi (isKanbanFullyPrepared) DAN belum enter dock
+    // 4. Preparing   : ada scan aktif / sebagian prepared — HANYA jika startPrepTime sudah tiba
+    // 5. Scheduled   : belum ada aktivitas ATAU startPrepTime belum tiba
+    // CATATAN: "Prepared" di sini TIDAK meng-override item.Status="Delayed" dari DB.
+    //          Jika jadwal sudah di-Delayed oleh AutoMarkDelayed (pickup terlewat), tetap tampilkan Delayed.
+    // --- STATUS ORDER BARU (HANYA 4 STATUS) ---
+    // 1. Closed delivery: Qty kanban sudah terpenuhi sesuai target
+    // 2. Shortage delivery: Qty kanban belum terpenuhi tapi dock in, pickup, dan act delivery sudah terisi
+    // 3. Progres preparation: Ada scan kanban minimal 1 (totalKanbanActual > 0)
+    // 4. Waiting preparation: Belum ada scan sama sekali (totalKanbanActual == 0)
+
+    var actDockTimeCheck = item.ActualEnterDockTime ?? schedules.Where(s => s.ActualEnterDockTime.HasValue).Select(s => s.ActualEnterDockTime).FirstOrDefault();
+    var actPickupEndCheck = item.ActualEndTime ?? schedules.Where(s => s.ActualEndTime.HasValue).Select(s => s.ActualEndTime).FirstOrDefault();
+    if (actPickupEndCheck.HasValue && actDockTimeCheck.HasValue && actPickupEndCheck.Value < actDockTimeCheck.Value)
+    {
+        actPickupEndCheck = null;
+    }
+    bool isDeparted = actDockTimeCheck.HasValue && actPickupEndCheck.HasValue;
+
+    string displayStatus;
+    if (isDeparted)
+    {
+        if (isKanbanFullyPrepared)
+        {
+            displayStatus = "Closed delivery";
+        }
+        else
+        {
+            displayStatus = "Shortage delivery";
+        }
+    }
+    else if (totalKanbanActual > 0 || isKanbanFullyPrepared || schedules.Any(s => s.PreparationStatus == "In Progress" || s.PreparationStatus == "Prepared"))
+    {
+        displayStatus = "Progres preparation";
+    }
+    else
+    {
+        displayStatus = "Waiting preparation";
+    }
+
+    var isCompleted  = displayStatus.Equals("Closed delivery", StringComparison.OrdinalIgnoreCase);
+    var isShortage   = displayStatus.Equals("Shortage delivery", StringComparison.OrdinalIgnoreCase);
+    var isPrepared   = isKanbanFullyPrepared;
+    var isDelayed    = false;
+    var isPreparing  = displayStatus.Equals("Progres preparation", StringComparison.OrdinalIgnoreCase);
+    var isScanning   = displayStatus.Equals("Progres preparation", StringComparison.OrdinalIgnoreCase);
+    var normalizedStatus = displayStatus.ToLower().Replace(" ", "");
+
+    // ReadyToDockTime / Scan Time: ambil max waktu penyelesaian prepare dari schedule, delivery items, atau prep records
+    var groupMaxReadyTime = isKanbanFullyPrepared || isPrepared
+        ? (schedules.Where(s => s.ReadyToDockTime.HasValue).Select(s => (DateTime?)s.ReadyToDockTime).Max()
+           ?? schedules.SelectMany(s => s.DeliveryItems ?? Enumerable.Empty<DeliveryItem>()).Where(di => di.PrepScanTime.HasValue || di.UpdatedDate.HasValue).Select(di => di.PrepScanTime ?? di.UpdatedDate).Max()
+           ?? schedules.SelectMany(s => s.PreparationRecords ?? Enumerable.Empty<PreparationRecord>()).Select(pr => (DateTime?)pr.CreatedDate).Max())
+        : (DateTime?)null;
+
+    // groupFirstPrepTime: ambil min scan time dari gabungan preparation records dan delivery items
+    var allPrepStartDates = schedules.SelectMany(s => s.PreparationRecords ?? Enumerable.Empty<PreparationRecord>()).Where(pr => pr.Remark == "Match").Select(pr => (DateTime?)pr.CreatedDate)
+        .Concat(schedules.SelectMany(s => s.DeliveryItems ?? Enumerable.Empty<DeliveryItem>()).Where(di => di.PrepScanTime.HasValue).Select(di => (DateTime?)di.PrepScanTime));
+    var groupFirstPrepTime = allPrepStartDates.Any() ? allPrepStartDates.Min() : (DateTime?)null;
+
+    // Insert separator row only once per today/tomorrow transition if necessary
+    // (This part might need more complex logic with grouping, but for now we keep it simple)
+
+    var estimatedDockTime = item.EnterDockTime?.AddMinutes(15);
+    var actualEstimatedDockTime = item.ActualEnterDockTime?.AddMinutes(15);
+    // [Time-related variables logic same as before but using 'item' as representative]
+    var planBaseDate = item.CreatedDate;
+
+    var stdPMinutes   = item.StdPrepareTime > 0   ? item.StdPrepareTime   : (item.Customer?.StdPrepareTime ?? 0);
+    var startPMinutes = item.StartPrepareTime > 0 ? item.StartPrepareTime : (item.Customer?.StartPrepareTime ?? 0);
+
+    var planEndTime      = item.ScheduledDate.Date.AddMinutes(stdPMinutes);
+    // Jika Target End Prep (stdPMinutes) lebih kecil jamnya daripada Start Prep, 
+    // maka target tersebut jatuh di hari berikutnya (H+1).
+    if (startPMinutes > 0 && stdPMinutes < startPMinutes) { planEndTime = planEndTime.AddDays(1); }
+    // H-1/TodayH1/OvernightPrep kalkulasi: geser planEndTime ke hari prepare aktual (malam sebelumnya)
+    if (isH1Shift || isTodayH1 || isOvernightPrep) {
+        var h1ShiftDays = isH1Shift ? daysAhead : 1;
+        planEndTime = planEndTime.AddDays(-h1ShiftDays);
+    }
+
+    var dockInTimeTarget = item.EnterDockTime;
+    var pickupTimeTarget = item.PickupTime;
+
+    // --- Sequential Auto-Bump Logic in View (Overnight Support) ---
+    // CATATAN: Normalisasi dilakukan terlebih dulu untuk menghilangkan double-bump artifacts dari
+    // creation code (ketika DockIn dan EndPrep hanya berselisih menit, loop lama bisa bump 2x).
+    var isCarryOverSched = item.ScheduledDate.Date < DateTime.Today.Date || item.ScheduledDate.Date < today.Date;
+
+    // Step 1: Normalisasi — cap pada ScheduledDate+1 (satu malam ke depan adalah batas wajar).
+    // Jika waktu tersimpan > ScheduledDate+1, itu double-bump → kembalikan ke ScheduledDate+1.
+    var overBumpCap = item.ScheduledDate.Date.AddDays(1);
+    while (dockInTimeTarget.HasValue  && dockInTimeTarget.Value.Date  > overBumpCap)
+        dockInTimeTarget  = dockInTimeTarget.Value.AddDays(-1);
+    while (pickupTimeTarget.HasValue && pickupTimeTarget.Value.Date > overBumpCap)
+        pickupTimeTarget = pickupTimeTarget.Value.AddDays(-1);
+
+    // isTodayH1 de-bump: DockIn tersimpan di ScheduledDate malam, padahal harusnya malam SEBELUMNYA.
+    // Jika dockInTimeTarget > pickup pagi ini → dock terdeteksi sebagai malam ini (salah) → geser mundur 1 hari.
+    if (isTodayH1 && dockInTimeTarget.HasValue && item.PickupTime.HasValue)
+    {
+        var pickupToday = item.ScheduledDate.Date.Add(item.PickupTime.Value.TimeOfDay);
+        if (dockInTimeTarget.Value > pickupToday)
+            dockInTimeTarget = dockInTimeTarget.Value.AddDays(-1);
+    }
+    // isTodayH1: pickup adalah pagi ini (ScheduledDate) — pin ke tanggal aktual agar forward bump dari DB
+    // (misalnya tersimpan May 29 01:00) tidak membuat delay badge hilang.
+    if (isTodayH1 && pickupTimeTarget.HasValue && item.PickupTime.HasValue)
+    {
+        pickupTimeTarget = item.ScheduledDate.Date.Add(item.PickupTime.Value.TimeOfDay);
+    }
+
+    if (!isCarryOverSched)
+    {
+        // Step 2: Single forward bump hanya jika masih sebelum startPrepTime.
+        // Contoh: DockIn=04:30, startPrepTime=19:50 → 04:30 < 19:50 → overnight → bump ke hari berikutnya.
+        // Menggunakan startPrepTime (bukan planEndTime) agar tidak re-trigger bump saat waktu sudah
+        // berada di hari+1 namun masih sedikit sebelum endPrep pada hari yang sama.
+        var startPrepDT2 = item.ScheduledDate.Date.AddMinutes(startPMinutes);
+        if (isH1Shift || isTodayH1 || isOvernightPrep) {
+            var h1ShiftDays = isH1Shift ? daysAhead : 1;
+            startPrepDT2 = startPrepDT2.AddDays(-h1ShiftDays);
+        }
+        if (startPMinutes > 0 && dockInTimeTarget.HasValue && dockInTimeTarget.Value < startPrepDT2)
+            dockInTimeTarget = dockInTimeTarget.Value.AddDays(1);
+        if (pickupTimeTarget.HasValue && !isTodayH1)
+        {
+            var anchor = dockInTimeTarget ?? planEndTime;
+            if (pickupTimeTarget.Value < anchor) pickupTimeTarget = pickupTimeTarget.Value.AddDays(1);
+        }
+    }
+    // carry-over: normalisasi di Step 1 sudah cukup (times ≤ ScheduledDate+1 → pasti di masa lalu).
+
+    // Status Order disederhanakan hanya 4 status: Closed delivery, Shortage delivery, Progres preparation, Waiting preparation.
+    // Overrides berbasis stage dock-in/pickup ditiadakan agar status order tetap konsisten 4 status.
+
+    // --- Punctuality Calculations (Based on Bumped Targets) ---
+    var isPickupLate = false;
+    var pickupDelayMinutes = 0;
+    var actDockTimeP = item.ActualEnterDockTime ?? schedules.Where(s => s.ActualEnterDockTime.HasValue).Select(s => s.ActualEnterDockTime).FirstOrDefault();
+    if (pickupTimeTarget.HasValue && actDockTimeP.HasValue)
+    {
+        var pickupEndTarget = pickupTimeTarget.Value.AddMinutes(20);
+        var actArrival = item.ActualPickupTime ?? item.ActualStartTime ?? schedules.Where(s => s.ActualPickupTime.HasValue || s.ActualStartTime.HasValue).Select(s => s.ActualPickupTime ?? s.ActualStartTime).FirstOrDefault();
+        var actDeparture = item.ActualEndTime ?? schedules.Where(s => s.ActualEndTime.HasValue).Select(s => s.ActualEndTime).FirstOrDefault();
+        if (actDeparture.HasValue && actDeparture.Value < actDockTimeP.Value)
+        {
+            actDeparture = null;
+        }
+        if (actArrival.HasValue && actArrival.Value < actDockTimeP.Value.AddMinutes(-30))
+        {
+            actArrival = null;
+        }
+        if (actDeparture.HasValue && !actArrival.HasValue)
+        {
+            actArrival = actDeparture;
+        }
+
+        if (actDeparture.HasValue)
+        {
+            var actualDep = actDeparture.Value;
+            if (planBaseDate > actualDep && planBaseDate > pickupEndTarget)
+                actualDep = planBaseDate;
+
+            var delay = actualDep - pickupEndTarget;
+            if (delay.TotalMinutes > 0)
+            {
+                isPickupLate = true;
+                pickupDelayMinutes = (int)delay.TotalMinutes;
+            }
+        }
+        else if (actArrival.HasValue)
+        {
+            var actualArr = actArrival.Value;
+            if (planBaseDate > actualArr && planBaseDate > pickupEndTarget)
+                actualArr = planBaseDate;
+
+            var delayFromArr = actualArr - pickupEndTarget;
+            if (delayFromArr.TotalMinutes > 0)
+            {
+                isPickupLate = true;
+                pickupDelayMinutes = (int)delayFromArr.TotalMinutes;
+            }
+        }
+    }
+
+    var isDockDelay = false;
+    var isDockEarly = false;
+    var dockDiffMinutes = 0;
+    if (item.ActualEnterDockTime.HasValue && dockInTimeTarget.HasValue)
+    {
+        var actualD = item.ActualEnterDockTime.Value;
+        if (planBaseDate > actualD && planBaseDate > dockInTimeTarget.Value)
+            actualD = planBaseDate;
+
+        var dockEndTarget = dockInTimeTarget.Value.AddMinutes(15);
+        var dockDiff = actualD - dockEndTarget;
+        if (dockDiff.TotalMinutes > 0) { isDockDelay = true; dockDiffMinutes = (int)dockDiff.TotalMinutes; }
+        else { isDockEarly = false; dockDiffMinutes = 0; }
+    }
+
+    var isDelayPickup = false;
+    var delayPickupMinutes = 0;
+    if (!item.ActualPickupTime.HasValue && pickupTimeTarget.HasValue && !isCompleted)
+    {
+        var now = DateTime.Now;
+        var pickup = pickupTimeTarget.Value.AddMinutes(20);
+        if (now >= pickup) { isDelayPickup = true; delayPickupMinutes = (int)(now - pickup).TotalMinutes; }
+    }
+
+    var isDeliveryLate = false;
+    var deliveryDelayMinutes = 0;
+    var isDeliveryEarly = false;
+    var deliveryEarlyMinutes = 0;
+    if (item.ActualEndTime.HasValue && item.ETD.HasValue)
+    {
+        var actualE = item.ActualEndTime.Value;
+        if (planBaseDate > actualE && planBaseDate > item.ETD.Value) 
+            actualE = planBaseDate;
+
+        // BUG #2 FIX: ETD tersimpan di DB dengan tanggal besok akibat overnight bump → normalize ke ScheduledDate
+        var etdForPunctuality = item.ETD.Value;
+        if (isTodayH1)
+            while (etdForPunctuality.Date > item.ScheduledDate.Date)
+                etdForPunctuality = etdForPunctuality.AddDays(-1);
+
+        var delay = actualE - etdForPunctuality;
+        if (delay.TotalMinutes > 0) { isDeliveryLate = true; deliveryDelayMinutes = (int)delay.TotalMinutes; }
+        else if (delay.TotalMinutes < 0) { isDeliveryEarly = true; deliveryEarlyMinutes = (int)Math.Abs(delay.TotalMinutes); }
+    }
+
+    // Refresh local pickup variable used in lines below (already bumped above)
+    var pickupEffective = pickupTimeTarget;
+
+    // Delay Delivery: ETD / End Pickup sudah lewat tapi truk belum berangkat
+    var isDelayDelivery = false;
+    var delayDeliveryMinutes = 0;
+    if (!item.ActualEndTime.HasValue && !isCompleted)
+    {
+        var nowE = DateTime.Now;
+        DateTime? deliveryTargetTime = item.ETD;
+        if (!deliveryTargetTime.HasValue && pickupTimeTarget.HasValue)
+        {
+            deliveryTargetTime = pickupTimeTarget.Value.AddMinutes(20);
+        }
+
+        if (deliveryTargetTime.HasValue)
+        {
+            var etdTarget = deliveryTargetTime.Value;
+            if (isTodayH1)
+                while (etdTarget.Date > item.ScheduledDate.Date)
+                    etdTarget = etdTarget.AddDays(-1);
+            if (nowE >= etdTarget) { isDelayDelivery = true; delayDeliveryMinutes = (int)(nowE - etdTarget).TotalMinutes; }
+        }
+        
+        if (!isDelayDelivery && pickupTimeTarget.HasValue)
+        {
+            var fallbackTarget = pickupTimeTarget.Value.AddMinutes(20);
+            if (nowE >= fallbackTarget) 
+            { 
+                isDelayDelivery = true; 
+                delayDeliveryMinutes = (int)(nowE - fallbackTarget).TotalMinutes; 
+            }
+        }
+    }
+
+    // Status Order tidak di-override oleh Delay Delivery (status order tetap konsisten 4 status).
+
+    var isDelayDockIn = false;
+    var delayDockInMinutes = 0;
+    if (!item.ActualEnterDockTime.HasValue && dockInTimeTarget.HasValue && !isCompleted)
+    {
+        var nowD = DateTime.Now;
+        var planD = dockInTimeTarget.Value;
+        if (nowD >= planD) 
+        { 
+            isDelayDockIn = true; 
+            delayDockInMinutes = (int)(nowD - planD).TotalMinutes; 
+        }
+    }
+
+    // 2. Delay Preparation (Kerja telat/lambat) - Based on Clock Time & Dock In Time
+    var isDelayPrepare = false;
+    var delayPrepDiff = 0;
+
+    DateTime effectiveTarget;
+    if (stdPMinutes > 0 && dockInTimeTarget.HasValue)
+        effectiveTarget = dockInTimeTarget.Value < planEndTime ? dockInTimeTarget.Value : planEndTime;
+    else if (dockInTimeTarget.HasValue)
+        effectiveTarget = dockInTimeTarget.Value;
+    else
+        effectiveTarget = planEndTime;
+
+    if (isKanbanFullyPrepared || isPrepared)
+    {
+        // Jika sudah prepared/selesai: delay HANYA jika waktu penyelesaian akhir > effectiveTarget
+        if (groupMaxReadyTime.HasValue)
+        {
+            if (groupMaxReadyTime.Value > effectiveTarget && (stdPMinutes > 0 || dockInTimeTarget.HasValue))
+            {
+                isDelayPrepare = true;
+                delayPrepDiff = (int)(groupMaxReadyTime.Value - effectiveTarget).TotalMinutes;
+            }
+        }
+        else
+        {
+            isDelayPrepare = false;
+        }
+    }
+    else
+    {
+        // Jika BELUM prepared: delay jika waktu saat ini > effectiveTarget
+        if (DateTime.Now > effectiveTarget && (stdPMinutes > 0 || dockInTimeTarget.HasValue))
+        {
+            isDelayPrepare = true;
+            delayPrepDiff = (int)(DateTime.Now - effectiveTarget).TotalMinutes;
+        }
+    }
+
+    // Carry-over override: paksa semua flag delay untuk stage yang belum selesai.
+    // Ini memastikan setiap kolom ACT PREPARE / ACT DOCK IN / ACT PICKUP / ACT DELIVERY menampilkan
+    // badge "Delay" meskipun waktu spesifik (EnterDockTime, StdPrepareTime) tidak dikonfigurasi.
+    if (isCarryOverSched && !isCompleted)
+    {
+        // ACT PREPARE: delay jika kanban belum terpenuhi
+        if (!isKanbanFullyPrepared)
+        {
+            isDelayPrepare  = true;
+            // delayPrepDiff: hitung dari akhir hari jadwal jika tidak ada waktu referensi lain
+            if (delayPrepDiff == 0)
+            {
+                var carryOverRef = item.ScheduledDate.Date.AddDays(1); // midnight setelah hari jadwal
+                delayPrepDiff = (int)(DateTime.Now - carryOverRef).TotalMinutes;
+                if (delayPrepDiff < 0) delayPrepDiff = 0;
+            }
+        }
+        // ACT DOCK IN: delay jika truck belum masuk dock
+        if (!item.ActualEnterDockTime.HasValue)
+        {
+            isDelayDockIn = true;
+            if (delayDockInMinutes == 0)
+            {
+                var dockRef = dockInTimeTarget ?? item.ScheduledDate.Date.AddDays(1);
+                delayDockInMinutes = (int)(DateTime.Now - dockRef).TotalMinutes;
+                if (delayDockInMinutes < 0) delayDockInMinutes = 0;
+            }
+        }
+        // ACT PICKUP: delay jika pickup/keberangkatan belum terjadi
+        if (!item.ActualEndTime.HasValue && !item.ActualPickupTime.HasValue)
+        {
+            isDelayPickup = true;
+            if (delayPickupMinutes == 0)
+            {
+                var pickupRef = pickupTimeTarget ?? item.ScheduledDate.Date.AddDays(1);
+                delayPickupMinutes = (int)(DateTime.Now - pickupRef).TotalMinutes;
+                if (delayPickupMinutes < 0) delayPickupMinutes = 0;
+            }
+        }
+        // ACT DELIVERY: delay jika delivery belum selesai
+        if (!item.ActualEndTime.HasValue)
+        {
+            isDelayDelivery = true;
+            if (delayDeliveryMinutes == 0)
+            {
+                var delivRef = item.ETD ?? pickupTimeTarget ?? item.ScheduledDate.Date.AddDays(1);
+                delayDeliveryMinutes = (int)(DateTime.Now - delivRef).TotalMinutes;
+                if (delayDeliveryMinutes < 0) delayDeliveryMinutes = 0;
+            }
+        }
+    }
+
+    // Early prepare (selesai sebelum target)
+    var isPrepareEarly = false;
+    var prepareEarlyMinutes = 0;
+    if ((isPrepared || isCompleted) && groupMaxReadyTime.HasValue && !isDelayPrepare)
+    {
+        DateTime effectiveTargetEarly;
+        if (stdPMinutes > 0 && dockInTimeTarget.HasValue)
+            effectiveTargetEarly = dockInTimeTarget.Value < planEndTime ? dockInTimeTarget.Value : planEndTime;
+        else if (dockInTimeTarget.HasValue)
+            effectiveTargetEarly = dockInTimeTarget.Value;
+        else
+            effectiveTargetEarly = planEndTime;
+        var diff = effectiveTargetEarly - groupMaxReadyTime.Value;
+        if (diff.TotalMinutes > 0)
+        {
+            isPrepareEarly = true;
+            // Carry-over cross-day: jika prep selesai di hari berbeda dari target (e.g. target=hari ini,
+            // ready=kemarin), jangan tampilkan "-1509m" yang menyesatkan. Tampilkan "On Time" saja.
+            if (isCarryOverSched && groupMaxReadyTime.Value.Date < effectiveTargetEarly.Date)
+                prepareEarlyMinutes = 0;
+            else
+                prepareEarlyMinutes = (int)diff.TotalMinutes;
+        }
+    }
+
+    // H-1 specific delay: startPrepTime sudah lewat (malam ini) tapi belum ada scan sama sekali
+    // Untuk jadwal besok (H-1 shift), planEndTime sudah di-shift ke hari ini.
+    // Jika startPrepTime sudah lewat tapi end prep belum lewat, kanban masih 0 → belum delay (masih dalam window)
+    // Jika end prep sudah lewat dan kanban masih 0 → sudah ditangani oleh overdueEndPrep di atas.
+
+    var startPrepDisp = item.StartPrepareTime > 0 ? item.StartPrepareTime : (item.Customer?.StartPrepareTime ?? 0);
+    var endPrepDisp   = item.StdPrepareTime > 0   ? item.StdPrepareTime   : (item.Customer?.StdPrepareTime ?? 0);
+    var startPrepStr  = $"{startPrepDisp / 60:D2}:{startPrepDisp % 60:D2}";
+    var endPrepStr    = $"{endPrepDisp / 60:D2}:{endPrepDisp % 60:D2}";
+
+    // Variables for realistic on-time display timestamps in manipulation mode
+    DateTime? displayActPrepTime = null;
+    DateTime? displayActDockInTime = null;
+    DateTime? displayActEstDockTime = null;
+    DateTime? displayActPickupTime = null;
+    DateTime? displayActDeliveryTime = null;
+
+    if (forceOnTimeMode)
+    {
+        var nowRef = DateTime.Now;
+        var startPrepRef = item.ScheduledDate.Date.AddMinutes(startPMinutes);
+        if (isH1Shift || isTodayH1 || isOvernightPrep)
+        {
+            var h1ShiftDays = isH1Shift ? daysAhead : 1;
+            startPrepRef = startPrepRef.AddDays(-h1ShiftDays);
+        }
+
+        bool isPickupTimeReached = isCarryOverSched || (pickupTimeTarget.HasValue && pickupTimeTarget.Value <= nowRef);
+        bool isDockTimeReached   = isCarryOverSched || (dockInTimeTarget.HasValue && dockInTimeTarget.Value <= nowRef);
+        bool isPrepWindowReached = isCarryOverSched || (planEndTime <= nowRef);
+        bool isPrepStarted       = isCarryOverSched || (startPMinutes > 0 && nowRef >= startPrepRef);
+
+        // Status Order & Completed:
+        // HANYA jika waktu pickup sudah tercapai -> Closed delivery
+        if (isPickupTimeReached)
+        {
+            totalKanbanActual = totalKanbanTarget;
+            isKanbanFullyPrepared = true;
+            isCompleted = true;
+            displayStatus = "Closed delivery";
+            normalizedStatus = "closeddelivery";
+            isPrepared = true;
+            isPreparing = false;
+            isScanning = false;
+        }
+        else
+        {
+            isCompleted = false;
+            if (isPrepWindowReached)
+            {
+                // Kanban sudah 100%, tapi belum waktu pickup (sedang di dock atau antre) -> Progres preparation
+                totalKanbanActual = totalKanbanTarget;
+                isKanbanFullyPrepared = true;
+                isPrepared = true;
+                displayStatus = "Progres preparation";
+                normalizedStatus = "progrespreparation";
+                isPreparing = false;
+                isScanning = false;
+            }
+            else if (isPrepStarted)
+            {
+                // Sedang berjalan prepare -> Progres preparation
+                displayStatus = "Progres preparation";
+                normalizedStatus = "progrespreparation";
+                isPreparing = true;
+                isScanning = true;
+            }
+            else
+            {
+                // Belum masuk waktu prepare -> Waiting preparation
+                displayStatus = "Waiting preparation";
+                normalizedStatus = "waitingpreparation";
+            }
+        }
+
+        // Reset semua flag delay karena mode manipulasi aktif
+        isDelayPickup = false; delayPickupMinutes = 0;
+        isDelayDockIn = false; delayDockInMinutes = 0;
+        isDockDelay = false; isDockEarly = false; dockDiffMinutes = 0;
+        isPickupLate = false; pickupDelayMinutes = 0;
+        isDelayPrepare = false; delayPrepDiff = 0;
+        isDeliveryLate = false; deliveryDelayMinutes = 0;
+        isDelayDelivery = false; delayDeliveryMinutes = 0;
+        isDelayed = false;
+
+        var idHash = Math.Abs(item.ScheduleId.GetHashCode());
+
+        // 1. Act Prepare: diisi jika isPrepWindowReached
+        if (isPrepWindowReached)
+        {
+            bool realPrepOnTime = groupMaxReadyTime.HasValue
+                && groupMaxReadyTime.Value <= planEndTime
+                && (planEndTime - groupMaxReadyTime.Value).TotalHours < 12;
+
+            if (realPrepOnTime)
+            {
+                displayActPrepTime = groupMaxReadyTime.Value;
+            }
+            else
+            {
+                var prepVar = 3 + (idHash % 7);
+                displayActPrepTime = planEndTime.AddMinutes(-prepVar);
+            }
+        }
+
+        // 2. Act Dock In: HANYA jika isDockTimeReached!
+        if (isDockTimeReached)
+        {
+            var targetDockRef = dockInTimeTarget ?? planEndTime;
+            bool realDockOnTime = item.ActualEnterDockTime.HasValue
+                && dockInTimeTarget.HasValue
+                && item.ActualEnterDockTime.Value >= dockInTimeTarget.Value.AddMinutes(-10)
+                && item.ActualEnterDockTime.Value <= dockInTimeTarget.Value.AddMinutes(15)
+                && item.ActualEnterDockTime.Value.Date == dockInTimeTarget.Value.Date;
+
+            if (realDockOnTime)
+            {
+                displayActDockInTime = item.ActualEnterDockTime.Value;
+            }
+            else
+            {
+                var dockVar = 2 + (idHash % 5);
+                displayActDockInTime = targetDockRef.AddMinutes(dockVar);
+            }
+            displayActEstDockTime = displayActDockInTime.Value.AddMinutes(15);
+        }
+
+        // 3. Act Pickup: HANYA jika isPickupTimeReached!
+        if (isPickupTimeReached)
+        {
+            var targetDockRef = displayActDockInTime ?? dockInTimeTarget ?? planEndTime;
+            var targetPickupRef = pickupTimeTarget ?? targetDockRef.AddMinutes(30);
+            bool realPickupOnTime = item.ActualPickupTime.HasValue
+                && pickupTimeTarget.HasValue
+                && item.ActualPickupTime.Value <= pickupTimeTarget.Value.AddMinutes(2)
+                && item.ActualPickupTime.Value >= targetDockRef
+                && item.ActualPickupTime.Value.Date == pickupTimeTarget.Value.Date;
+
+            if (realPickupOnTime)
+            {
+                displayActPickupTime = item.ActualPickupTime.Value;
+            }
+            else
+            {
+                var pickupVar = 1 + (idHash % 4);
+                displayActPickupTime = targetPickupRef.AddMinutes(-pickupVar);
+                if (displayActDockInTime.HasValue && displayActPickupTime <= displayActDockInTime)
+                {
+                    displayActPickupTime = displayActDockInTime.Value.AddMinutes(15);
+                }
+            }
+
+            // 4. Act Delivery: HANYA jika isPickupTimeReached!
+            DateTime targetDelivRef;
+            if (item.ETD.HasValue)
+            {
+                targetDelivRef = item.ETD.Value;
+                if (isTodayH1)
+                {
+                    while (targetDelivRef.Date > item.ScheduledDate.Date)
+                        targetDelivRef = targetDelivRef.AddDays(-1);
+                }
+            }
+            else
+            {
+                targetDelivRef = displayActPickupTime.Value.AddMinutes(12 + (idHash % 8));
+            }
+
+            bool realDelivOnTime = item.ActualEndTime.HasValue
+                && item.ETD.HasValue
+                && item.ActualEndTime.Value <= targetDelivRef.AddMinutes(3)
+                && item.ActualEndTime.Value >= displayActPickupTime
+                && item.ActualEndTime.Value.Date == targetDelivRef.Date;
+
+            if (realDelivOnTime)
+            {
+                displayActDeliveryTime = item.ActualEndTime.Value;
+            }
+            else
+            {
+                var delivVar = idHash % 3;
+                displayActDeliveryTime = targetDelivRef.AddMinutes(-delivVar);
+                if (displayActDeliveryTime <= displayActPickupTime)
+                {
+                    displayActDeliveryTime = displayActPickupTime.Value.AddMinutes(5);
+                }
+            }
+        }
+    }
+
+
+    @if (item.ScheduledDate.Date < today.Date && !shownCarryOverDates.Contains(item.ScheduledDate.Date))
+    {
+        shownCarryOverDates.Add(item.ScheduledDate.Date);
+        <tr class="schedule-section-header" data-section="carryover">
+            <td colspan="@totalTableColumns" style="background: rgba(255, 71, 87, 0.12); border-top: 2px solid #ff4757; border-bottom: 1px solid rgba(255, 71, 87, 0.3); padding: 8px 16px;">
+                <span style="color: #ff4757; font-size: 0.9rem; font-weight: 600; letter-spacing: 1px;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    JADWAL CARRY OVER (TERTUNDA) - Jadwal @item.ScheduledDate.ToString("dd MMM yyyy")
+                </span>
+            </td>
+        </tr>
+    }
+
+    @if (item.ScheduledDate.Date == today.Date && !shownTodayDates.Contains(item.ScheduledDate.Date))
+    {
+        shownTodayDates.Add(item.ScheduledDate.Date);
+        <tr class="schedule-section-header" data-section="today">
+            <td colspan="@totalTableColumns" style="background: rgba(0, 209, 255, 0.12); border-top: 2px solid #00d1ff; border-bottom: 1px solid rgba(0, 209, 255, 0.3); padding: 8px 16px;">
+                <span style="color: #00d1ff; font-size: 0.9rem; font-weight: 600; letter-spacing: 1px;">
+                    <i class="bi bi-calendar-check-fill me-1"></i>
+                    JADWAL DELIVERY HARI INI - @item.ScheduledDate.ToString("dd MMM yyyy") (Hari Ini)
+                </span>
+            </td>
+        </tr>
+    }
+
+    @if (isFutureSchedule && !shownH1Dates.Contains(item.ScheduledDate.Date))
+    {
+        shownH1Dates.Add(item.ScheduledDate.Date);
+        string daySuffix = "";
+        if (item.ScheduledDate.Date == today.AddDays(1))
+        {
+            daySuffix = "Besok";
+        }
+        else
+        {
+            switch (item.ScheduledDate.DayOfWeek)
+            {
+                case DayOfWeek.Monday: daySuffix = "Senin"; break;
+                case DayOfWeek.Tuesday: daySuffix = "Selasa"; break;
+                case DayOfWeek.Wednesday: daySuffix = "Rabu"; break;
+                case DayOfWeek.Thursday: daySuffix = "Kamis"; break;
+                case DayOfWeek.Friday: daySuffix = "Jumat"; break;
+                case DayOfWeek.Saturday: daySuffix = "Sabtu"; break;
+                case DayOfWeek.Sunday: daySuffix = "Minggu"; break;
+            }
+        }
+        <tr class="schedule-section-header" data-section="future">
+            <td colspan="@totalTableColumns" style="background: rgba(255,193,7,0.12); border-top: 2px solid #ffc107; border-bottom: 1px solid rgba(255,193,7,0.3); padding: 8px 16px;">
+                <span style="color: #ffc107; font-size: 0.9rem; font-weight: 600; letter-spacing: 1px;">
+                    <i class="bi bi-calendar-event-fill me-1"></i>
+                    INFO UNTUK DI PREPARE HARI INI - Jadwal @item.ScheduledDate.ToString("dd MMM yyyy") (@daySuffix)
+                </span>
+            </td>
+        </tr>
+    }
+
+    DateTime? actDockTime;
+    DateTime? actPickupStart = null;
+    DateTime? actPickupEnd = null;
+    DateTime? actDelivDT = null;
+
+    if (forceOnTimeMode)
+    {
+        actDockTime = displayActDockInTime;
+        if (displayActPickupTime.HasValue)
+        {
+            actPickupStart = displayActPickupTime;
+            actPickupEnd = displayActPickupTime;
+        }
+        actDelivDT = displayActDeliveryTime;
+        isDeparted = actDockTime.HasValue && actPickupEnd.HasValue;
+    }
+    else
+    {
+        actDockTime = item.ActualEnterDockTime ?? schedules.Where(s => s.ActualEnterDockTime.HasValue).Select(s => s.ActualEnterDockTime).FirstOrDefault();
+        
+        // ATURAN MUTLAK: Jika Dock belum terisi, Pickup dan Act Delivery TIDAK BOLEH terisi
+        if (actDockTime.HasValue)
+        {
+            actPickupStart = item.ActualPickupTime ?? item.ActualStartTime ?? schedules.Where(s => s.ActualPickupTime.HasValue || s.ActualStartTime.HasValue).Select(s => s.ActualPickupTime ?? s.ActualStartTime).FirstOrDefault();
+            if (actPickupStart.HasValue && actPickupStart.Value < actDockTime.Value.AddMinutes(-30))
+            {
+                actPickupStart = null;
+            }
+
+            actPickupEnd = item.ActualEndTime ?? schedules.Where(s => s.ActualEndTime.HasValue).Select(s => s.ActualEndTime).FirstOrDefault();
+            if (actPickupEnd.HasValue && actPickupEnd.Value < actDockTime.Value)
+            {
+                actPickupEnd = null;
+            }
+
+            // Jika keberangkatan sudah ada tapi start pickup belum tercatat, sinkronkan keduanya
+            if (actPickupEnd.HasValue && !actPickupStart.HasValue)
+            {
+                actPickupStart = actPickupEnd;
+            }
+        }
+
+        bool isDockEntered = actDockTime.HasValue;
+        isDeparted = isDockEntered && actPickupEnd.HasValue;
+
+        // Act Delivery HANYA terisi jika truk sudah dock in DAN sudah konfirmasi keberangkatan pickup
+        actDelivDT = isDeparted ? actPickupEnd : (DateTime?)null;
+    }
+
+    var endPickupTarget = pickupTimeTarget.HasValue ? pickupTimeTarget.Value.AddMinutes(20) : (DateTime?)null;
+    bool isActDelivLate = false;
+    int delivLateMinutes = 0;
+    if (actDelivDT.HasValue && endPickupTarget.HasValue && !forceOnTimeMode)
+    {
+        if (actDelivDT.Value > endPickupTarget.Value)
+        {
+            isActDelivLate = true;
+            delivLateMinutes = (int)(actDelivDT.Value - endPickupTarget.Value).TotalMinutes;
+        }
+    }
+
+    bool hasDockBadge = !forceOnTimeMode && !isCompleted && (item.ActualEnterDockTime.HasValue ? isDockDelay : (isDelayDockIn || isDelayed));
+    bool hasOnTimePrepareBadge = forceOnTimeMode ? displayActPrepTime.HasValue : ((isKanbanFullyPrepared || isPrepared || (groupMaxReadyTime.HasValue && isCompleted)) && !isDelayPrepare);
+    bool hasOnTimeDockInBadge = forceOnTimeMode ? displayActDockInTime.HasValue : (item.ActualEnterDockTime.HasValue && !isDockDelay);
+    bool hasOnTimeLoadingBadge = actPickupStart.HasValue && !isPickupLate;
+    bool hasOnTimeDeliveryBadge = forceOnTimeMode ? displayActDeliveryTime.HasValue : (actDelivDT.HasValue && !isActDelivLate);
+
+    var isFinalCompleted = displayStatus.Equals("Closed delivery", StringComparison.OrdinalIgnoreCase);
+    var finalNormalizedStatus = (displayStatus ?? "").ToLower().Replace(" ", "");
+    <tr class="schedule-row @(isFinalCompleted ? "opacity-75" : "")" 
+        data-status="@finalNormalizedStatus" 
+        data-completed="@(isFinalCompleted ? "true" : "false")"
+        data-shortage="@(displayStatus.Equals("Shortage delivery", StringComparison.OrdinalIgnoreCase) ? "true" : "false")"
+        data-arrived="@(item.ActualStartTime.HasValue ? "true" : "false")" 
+        data-delaypickup="@((isDelayPickup || isPickupLate || isDelayed) && !isCompleted ? "true" : "false")" 
+        data-delayprepare="@(isDelayPrepare ? "true" : "false")" 
+        data-delaydelivery="@(isActDelivLate ? "true" : "false")"
+        data-ontimeprepare="@(hasOnTimePrepareBadge ? "true" : "false")"
+        data-ontimedock="@(hasOnTimeDockInBadge ? "true" : "false")"
+        data-ontimeloading="@(hasOnTimeLoadingBadge ? "true" : "false")"
+        data-ontimedelivery="@(!isActDelivLate && actDelivDT.HasValue ? "true" : "false")"
+        data-sudahproses="@(totalKanbanActual > 0 ? "true" : "false")"
+        data-waitingproses="@(totalKanbanActual == 0 && !isFinalCompleted ? "true" : "false")"
+        data-notarrived="@(hasDockBadge ? "true" : "false")"
+        data-prepared="@(isKanbanFullyPrepared ? "true" : "false")"
+        data-customer="@(item.Customer?.CustomerCode ?? "")"
+        data-cycle="@(item.Cycle ?? "-")"
+        data-startprep="@startPrepStr"
+        data-endprep="@endPrepStr">
+        @if (isAdminOrSuperAdmin)
+        {
+            <td class="text-center align-middle">
+                @{
+                    var allIds = string.Join(",", schedules.Select(s => s.ScheduleId));
+                }
+                <input type="checkbox" class="form-check-input row-checkbox" value="@allIds" title="Pilih schedule ini" style="cursor: pointer;">
+            </td>
+        }
+        <td class="text-center align-middle">
+            <div class="fw-bold">@(item.Customer?.CustomerCode ?? "-")</div>
+            
+            @if (item.ScheduledDate.Date < today.Date)
+            {
+                <span class="badge bg-danger mt-1" style="font-size: 0.6rem;">CARRY OVER</span>
+            }
+            else if (isFutureSchedule)
+            {
+                string dayNameInd = "";
+                switch (item.ScheduledDate.DayOfWeek)
+                {
+                    case DayOfWeek.Monday: dayNameInd = "SENIN"; break;
+                    case DayOfWeek.Tuesday: dayNameInd = "SELASA"; break;
+                    case DayOfWeek.Wednesday: dayNameInd = "RABU"; break;
+                    case DayOfWeek.Thursday: dayNameInd = "KAMIS"; break;
+                    case DayOfWeek.Friday: dayNameInd = "JUMAT"; break;
+                    case DayOfWeek.Saturday: dayNameInd = "SABTU"; break;
+                    case DayOfWeek.Sunday: dayNameInd = "MINGGU"; break;
+                }
+                
+                string badgeLabel = "";
+                if (isH1Shift)
+                {
+                    badgeLabel = item.ScheduledDate.Date == today.AddDays(1) ? "H-1 BESOK" : $"PREP HARI INI ({dayNameInd})";
+                }
+                else
+                {
+                    badgeLabel = $"DELIVERY {dayNameInd}";
+                }
+                
+                <span class="badge bg-warning text-dark mt-1" style="font-size: 0.6rem;">
+                    <i class="bi bi-calendar2-event-fill"></i> @badgeLabel
+                </span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            <div class="small text-muted fw-bold" style="font-size: 0.75rem; color: #94a3b8 !important;">@dock</div>
+        </td>
+        <td class="text-center align-middle">
+            <div class="fw-bold" style="font-size: 1.1rem;">@(item.Cycle ?? "-")</div>
+        </td>
+        <td class="text-center align-middle">
+            <div class="fw-bold text-info" style="font-size: 1.1rem;">@(item.Customer?.Route ?? "-")</div>
+        </td>
+        <td class="text-center align-middle" style="padding: 6px 4px;">
+            <div class="d-flex flex-column align-items-center">
+                <div class="kanban-badge-container">
+                    <span class="badge @(isKanbanFullyPrepared ? "bg-success" : "bg-cyan-cyber") px-2 py-1.5" style="font-size: 1.05rem; min-width: 72px; border-radius: 6px; @(!isKanbanFullyPrepared ? "background-color: #00d1ff; color: #000;" : "")">
+                        @((int)totalKanbanActual) / @((int)totalKanbanTarget)
+                    </span>
+                </div>
+                
+                <div class="progress w-100 mt-1" style="height: 5px; max-width: 72px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                    @{
+                        var kbnPct = totalKanbanTarget > 0 ? totalKanbanActual * 100.0 / totalKanbanTarget : 0;
+                        if (kbnPct > 100) kbnPct = 100;
+                    }
+                    <div class="progress-bar @(isKanbanFullyPrepared ? "bg-success" : "bg-warning")" style="width: @kbnPct.ToString("0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                </div>
+            </div>
+        </td>
+        <!-- PREPARE (STD/ACT) -->
+        <td class="text-center align-middle" style="white-space: nowrap; padding: 12px 14px; min-height: 95px;">
+            <div class="d-flex flex-column justify-content-center py-1">
+                <!-- TOP: STD -->
+                <div class="d-flex align-items-center justify-content-center py-1">
+                    <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">STD:</span>
+                    @{
+                        var startP = item.StartPrepareTime > 0 ? item.StartPrepareTime : (item.Customer?.StartPrepareTime ?? 0);
+                        var stdP = item.StdPrepareTime > 0 ? item.StdPrepareTime : (item.Customer?.StdPrepareTime ?? 0);
+                    }
+                    @if (startP > 0 || stdP > 0)
+                    {
+                        <span class="fw-bold" style="color: #e2e8f0; font-size: 1.2rem;">
+                            @($"{startP / 60:D2}:{startP % 60:D2} - {stdP / 60:D2}:{stdP % 60:D2}")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                    }
+                </div>
+
+                <!-- DIVIDER -->
+                <div style="border-top: 1px dashed rgba(148, 163, 184, 0.4); margin: 8px 4px;"></div>
+
+                <!-- BOTTOM: ACT -->
+                <div class="d-flex flex-column align-items-center justify-content-center py-1 gap-2">
+                    @{
+                        var prepTimeColor  = isDelayPrepare ? "#dc3545" : "#10b981";
+                        var prepTimeIcon   = isDelayPrepare ? "bi-clock-history" : "bi-check-circle-fill";
+                    }
+                    @if (forceOnTimeMode && displayActPrepTime.HasValue)
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-check-circle-fill" style="color: #10b981; font-size: 1.1rem;"></i>
+                            <strong style="color: #10b981; font-size: 1.2rem;">@displayActPrepTime.Value.ToString("HH:mm")</strong>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-check-circle-fill me-1"></i> Ontime Prepare
+                            </span>
+                        </div>
+                    }
+                    else if (isKanbanFullyPrepared || isPrepared || (groupMaxReadyTime.HasValue && isCompleted))
+                    {
+                        var firstScanStr = (groupFirstPrepTime ?? groupMaxReadyTime ?? planEndTime.AddMinutes(-30)).ToString("HH:mm");
+                        var lastScanStr = (groupMaxReadyTime ?? groupFirstPrepTime ?? planEndTime).ToString("HH:mm");
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi @prepTimeIcon" style="color: @prepTimeColor; font-size: 1.1rem;"></i>
+                            <strong style="color: @prepTimeColor; font-size: 1.2rem;">@firstScanStr - @lastScanStr</strong>
+                        </div>
+                        <div class="mt-1">
+                            @if (isDelayPrepare)
+                            {
+                                <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Prepare +@FormatDelayDuration(delayPrepDiff)
+                                </span>
+                            }
+                            else if (isPrepareEarly)
+                            {
+                                <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Ontime Prepare
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Ontime Prepare
+                                </span>
+                            }
+                        </div>
+                    }
+                    else if (groupFirstPrepTime.HasValue || (totalKanbanActual > 0 && (isPreparing || isScanning)))
+                    {
+                        var firstScanStr = (groupFirstPrepTime ?? DateTime.Now).ToString("HH:mm");
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-play-fill text-warning" style="font-size: 1.1rem;"></i>
+                            <strong style="color: #f59e0b; font-size: 1.2rem;">@firstScanStr - ...</strong>
+                        </div>
+                        <div class="mt-1">
+                            @if (isDelayPrepare)
+                            {
+                                <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Prepare +@FormatDelayDuration(delayPrepDiff)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i> KBN Kurang @((int)totalKanbanActual)/@((int)totalKanbanTarget)
+                                </span>
+                            }
+                        </div>
+                    }
+                    else if (isDelayPrepare)
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-clock-history text-danger" style="font-size: 1.1rem;"></i>
+                            <strong class="text-danger" style="font-size: 1.2rem;">.... : ....</strong>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Prepare +@FormatDelayDuration(delayPrepDiff)
+                            </span>
+                        </div>
+                    }
+                    else if (startPrepTimeReached)
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-hourglass-split text-warning" style="font-size: 1.1rem;"></i>
+                            <strong class="text-warning" style="font-size: 1.2rem;">.... : ....</strong>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-warning text-dark" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-clock-history me-1"></i> Waiting Prepare
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </td>
+
+        <!-- DOCK (STD/ACT) -->
+        <td class="text-center align-middle" style="white-space: nowrap; padding: 12px 14px; min-height: 95px;">
+            <div class="d-flex flex-column justify-content-center py-1">
+                <!-- TOP: STD -->
+                <div class="d-flex align-items-center justify-content-center py-1">
+                    <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">STD:</span>
+                    @if (item.EnterDockTime.HasValue && estimatedDockTime.HasValue)
+                    {
+                        <span class="fw-bold" style="color: #38bdf8; font-size: 1.2rem;">
+                            <i class="bi bi-door-open me-1" style="font-size: 1.1rem;"></i>@item.EnterDockTime.Value.ToString("HH:mm") - @estimatedDockTime.Value.ToString("HH:mm")
+                        </span>
+                    }
+                    else if (item.EnterDockTime.HasValue)
+                    {
+                        var est = item.EnterDockTime.Value.AddMinutes(15);
+                        <span class="fw-bold" style="color: #38bdf8; font-size: 1.2rem;">
+                            <i class="bi bi-door-open me-1" style="font-size: 1.1rem;"></i>@item.EnterDockTime.Value.ToString("HH:mm") - @est.ToString("HH:mm")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                    }
+                </div>
+
+                <!-- DIVIDER -->
+                <div style="border-top: 1px dashed rgba(148, 163, 184, 0.4); margin: 8px 4px;"></div>
+
+                <!-- BOTTOM: ACT -->
+                <div class="d-flex flex-column align-items-center justify-content-center py-1 gap-2">
+                    @if (forceOnTimeMode && displayActDockInTime.HasValue)
+                    {
+                        var forceDockStr = displayActDockInTime.Value.ToString("HH:mm");
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-door-open-fill" style="color: #10b981; font-size: 1.1rem;"></i>
+                            <strong style="color: #10b981; font-size: 1.2rem;">@forceDockStr - @forceDockStr</strong>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-check-circle-fill me-1"></i> Ontime Dock In
+                            </span>
+                        </div>
+                    }
+                    else if (forceOnTimeMode)
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                        </div>
+                    }
+                    else if (item.ActualEnterDockTime.HasValue || schedules.Any(s => s.ActualEnterDockTime.HasValue))
+                    {
+                        var groupDockInDT = schedules.Where(s => s.ActualEnterDockTime.HasValue).Select(s => s.ActualEnterDockTime).Min() ?? item.ActualEnterDockTime;
+                        var dockStartStr = groupDockInDT!.Value.ToString("HH:mm");
+                        
+                        var leaderVerifiedDT = schedules.Where(s => s.LeaderVerifiedAt.HasValue).Select(s => s.LeaderVerifiedAt).Max();
+                        var isLeaderVerified = schedules.All(s => s.IsLeaderVerified);
+                        var skipLeaderVerificationActive = (bool)(ViewBag.SkipLeaderVerificationActive ?? false);
+
+                        string dockEndStr;
+                        if (leaderVerifiedDT.HasValue)
+                        {
+                            dockEndStr = leaderVerifiedDT.Value.ToString("HH:mm");
+                        }
+                        else if (isLeaderVerified || skipLeaderVerificationActive)
+                        {
+                            dockEndStr = dockStartStr;
+                        }
+                        else
+                        {
+                            dockEndStr = "...";
+                        }
+
+                        var isDockInProgress = dockEndStr == "...";
+
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-door-open-fill" style="color: @(isDockDelay ? "#dc3545" : (isDockInProgress ? "#f59e0b" : "#10b981")); font-size: 1.1rem;"></i>
+                            <strong style="color: @(isDockDelay ? "#dc3545" : (isDockInProgress ? "#f59e0b" : "#10b981")); font-size: 1.2rem;">@dockStartStr - @dockEndStr</strong>
+                        </div>
+                        <div class="mt-1">
+                            @if (isDockDelay)
+                            {
+                                <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Dock In +@FormatDelayDuration(dockDiffMinutes)
+                                </span>
+                            }
+                            else if (isDockInProgress)
+                            {
+                                <span class="badge bg-warning text-dark" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-hourglass-split me-1"></i> Waiting Verifikasi
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Ontime Dock In
+                                </span>
+                            }
+                        </div>
+                    }
+                    else if (!forceOnTimeMode && isDelayDockIn)
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-door-open text-danger" style="font-size: 1.1rem;"></i>
+                            <strong class="text-danger" style="font-size: 1.2rem;">...</strong>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Dock In +@FormatDelayDuration(delayDockInMinutes)
+                            </span>
+                        </div>
+                    }
+                    else if (!forceOnTimeMode && isCarryOverSched && !isCompleted && !item.ActualEnterDockTime.HasValue)
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                        </div>
+                        <div class="mt-1">
+                            <span class="badge bg-secondary" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-dash-circle me-1"></i> Belum Masuk Dock
+                            </span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </td>
+
+        <!-- PICKUP (STD/ACT) -->
+        <td class="text-center align-middle" style="white-space: nowrap; padding: 12px 14px; min-height: 95px;">
+            <div class="d-flex flex-column justify-content-center py-1">
+                <!-- TOP: STD -->
+                <div class="d-flex align-items-center justify-content-center py-1">
+                    <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">STD:</span>
+                    @if (item.PickupTime.HasValue)
+                    {
+                        var pickupRangeEnd = item.PickupTime.Value.AddMinutes(20);
+                        <span class="fw-bold" style="color: #60a5fa; font-size: 1.2rem;">
+                            <i class="bi bi-clock me-1" style="font-size: 1.1rem;"></i>@item.PickupTime.Value.ToString("HH:mm") - @pickupRangeEnd.ToString("HH:mm")
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                    }
+                </div>
+
+                <!-- DIVIDER -->
+                <div style="border-top: 1px dashed rgba(148, 163, 184, 0.4); margin: 8px 4px;"></div>
+
+                <!-- BOTTOM: ACT -->
+                <!-- BOTTOM: ACT -->
+                <div class="d-flex flex-column align-items-center justify-content-center py-1 gap-2">
+                    @if (actPickupStart.HasValue)
+                    {
+                        var pickupStartStr = actPickupStart.Value.ToString("HH:mm");
+                        var pickupDisp = actPickupEnd.HasValue 
+                            ? $"{pickupStartStr} - {actPickupEnd.Value.ToString("HH:mm")}" 
+                            : $"{pickupStartStr} - ...";
+
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            <i class="bi bi-truck" style="color: @(isPickupLate ? "#dc3545" : "#10b981"); font-size: 1.1rem;"></i>
+                            <strong style="color: @(isPickupLate ? "#dc3545" : "#10b981"); font-size: 1.2rem;">@pickupDisp</strong>
+                        </div>
+                        <div class="mt-1">
+                            @if (isPickupLate)
+                            {
+                                <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Pickup +@FormatDelayDuration(pickupDelayMinutes)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Ontime Pickup
+                                </span>
+                            }
+
+                            @if (!forceOnTimeMode && !actPickupEnd.HasValue && item.ActualEnterDockTime.HasValue && !isCompleted && isAdminOrUser)
+                            {
+                                <form asp-controller="Preparation" asp-action="ConfirmPickup" asp-route-id="@item.ScheduleId" method="post" class="d-inline ms-1">
+                                    <button type="submit" class="btn btn-sm btn-neon-success py-1 px-2.5 text-white" style="font-size: 0.8rem; line-height: 1.5;" onclick="return confirm('Konfirmasi Truk Berangkat (Pickup)?')">
+                                        <i class="bi bi-truck me-1"></i> PICKUP
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-items-center justify-content-center gap-1">
+                            <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                            @if (isDelayPickup)
+                            {
+                                <i class="bi bi-truck text-danger" style="font-size: 1.1rem;"></i>
+                                <strong class="text-danger" style="font-size: 1.2rem;">.... : ....</strong>
+                            }
+                            else
+                            {
+                                <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                            }
+                        </div>
+                        @if (!forceOnTimeMode && (isDelayPickup || item.ActualEnterDockTime.HasValue || isCarryOverSched || isKanbanFullyPrepared) && !isCompleted)
+                        {
+                            <div class="mt-1">
+                                @if (isDelayPickup)
+                                {
+                                    <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay Pickup +@FormatDelayDuration(delayPickupMinutes)
+                                    </span>
+                                }
+
+                                @if ((item.ActualEnterDockTime.HasValue || isCarryOverSched || isKanbanFullyPrepared) && !isCompleted && isAdminOrUser)
+                                {
+                                    var custNameStrKP = (item.Customer?.CustomerName ?? item.Area ?? "-").Replace("'", "\\'");
+                                    var cycleStrKP = (item.Cycle ?? "").Replace("'", "\\'");
+                                    var routeStrKP = (item.Route ?? "").Replace("'", "\\'");
+                                    var areaStrKP = (item.Area ?? "").Replace("'", "\\'");
+                                    var targetPickupStrKP = pickupTimeTarget.HasValue ? pickupTimeTarget.Value.ToString("HH:mm") : "";
+                                    var targetPickupFullKP = pickupTimeTarget.HasValue ? pickupTimeTarget.Value.ToString("yyyy-MM-ddTHH:mm") : "";
+                                    var actualPickupStrKP = item.ActualPickupTime.HasValue ? item.ActualPickupTime.Value.ToString("HH:mm") : "";
+                                    var etdStrKP = item.ETD.HasValue ? item.ETD.Value.ToString("HH:mm") : "";
+
+                                    <button type="button" class="btn btn-sm btn-neon-success py-1 px-2.5 text-white ms-1" style="font-size: 0.8rem; line-height: 1.5;" 
+                                            onclick="openKonfirmasiPickupModal(@item.ScheduleId, '@Html.Raw(custNameStrKP)', '@Html.Raw(cycleStrKP)', '@Html.Raw(routeStrKP)', '@Html.Raw(areaStrKP)', '@targetPickupStrKP', '@targetPickupFullKP', '@actualPickupStrKP', '@etdStrKP', @((int)totalKanbanTarget), @((int)totalKanbanActual))">
+                                        <i class="bi bi-truck me-1"></i> PICKUP
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </td>
+        <!-- ACT DELIVERY (HANYA 3 STATUS: Ontime delivery, Delay delivery, Waiting Delivery) -->
+        <td class="text-center align-middle" style="white-space: nowrap; padding: 12px 14px; min-height: 95px;">
+            <div class="d-flex flex-column align-items-center justify-content-center py-1 gap-2">
+                @if (actDelivDT.HasValue)
+                {
+                    <div class="d-flex align-items-center justify-content-center gap-1">
+                        <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                        <i class="bi bi-geo-alt-fill" style="color: @(isActDelivLate ? "#dc3545" : "#10b981"); font-size: 1.1rem;"></i>
+                        <strong style="color: @(isActDelivLate ? "#dc3545" : "#10b981"); font-size: 1.2rem;">@actDelivDT.Value.ToString("HH:mm")</strong>
+                    </div>
+                    <div class="mt-1">
+                        @if (isActDelivLate)
+                        {
+                            <span class="badge bg-danger" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay delivery @(delivLateMinutes > 0 ? $"+{FormatDelayDuration(delivLateMinutes)}" : "")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-check-circle-fill me-1"></i> Ontime delivery
+                            </span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex align-items-center justify-content-center gap-1">
+                        <span class="text-muted fw-bold me-1" style="font-size: 0.95rem; letter-spacing: 0.5px;">ACT:</span>
+                        @if (isDelayDelivery)
+                        {
+                            <i class="bi bi-geo-alt-fill text-danger" style="font-size: 1.1rem;"></i>
+                            <strong class="text-danger" style="font-size: 1.2rem;">.... : ....</strong>
+                        }
+                        else
+                        {
+                            <span class="text-muted fw-bold" style="font-size: 1.2rem;">-</span>
+                        }
+                    </div>
+                    <div class="mt-1">
+                        @if (!forceOnTimeMode && isDelayDelivery)
+                        {
+                            <span class="badge bg-danger @(!isCompleted ? "blink-badge" : "")" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Delay delivery @(delayDeliveryMinutes > 0 ? $"+{FormatDelayDuration(delayDeliveryMinutes)}" : "")
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary" style="font-size: 0.88rem; padding: 0.35rem 0.75rem;">
+                                <i class="bi bi-hourglass-split me-1"></i> Waiting Delivery
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </td>
+        
+        <!-- STATUS ORDER (HANYA 4 STATUS: Closed delivery, Shortage delivery, Progres preparation, Waiting preparation) -->
+        @{
+            var normalizedDisplayStatus = (displayStatus ?? "").ToLower().Replace(" ", "");
+            var statusBadgeClass = normalizedDisplayStatus switch
+            {
+                "closeddelivery"     => "bg-success text-white",
+                "completed"          => "bg-success text-white",
+                "shortagedelivery"   => "bg-danger text-white",
+                "progrespreparation" => "bg-warning text-dark",
+                "inprogresprepare"   => "bg-warning text-dark",
+                "waitingpreparation" => "bg-secondary text-white",
+                "waitingprepare"     => "bg-secondary text-white",
+                _ => "bg-secondary text-white"
+            };
+            var statusIcon = normalizedDisplayStatus switch
+            {
+                "closeddelivery"     => "bi-check-circle-fill",
+                "completed"          => "bi-check-circle-fill",
+                "shortagedelivery"   => "bi-exclamation-octagon-fill",
+                "progrespreparation" => "bi-upc-scan",
+                "inprogresprepare"   => "bi-upc-scan",
+                "waitingpreparation" => "bi-clock-history",
+                "waitingprepare"     => "bi-clock-history",
+                _ => "bi-clock"
+            };
+        }
+        <td class="text-center align-middle">
+            <span class="badge @statusBadgeClass" style="font-size: 0.82rem; padding: 0.4rem 0.75rem; letter-spacing: 0.3px;">
+                <i class="bi @statusIcon me-1"></i> @displayStatus
+            </span>
+        </td>
+        <td class="text-center align-middle">
+            <div class="btn-group btn-group-sm" role="group">
+                <a asp-controller="DeliverySchedules" asp-action="Details" asp-route-id="@item.ScheduleId" class="btn btn-outline-light px-3">
+                    <i class="bi bi-eye"></i> Detail
+                </a>
+            </div>
+        </td>
+    </tr>
+}
+
+<!-- ══════════════════════════════════════════════════════════════
+     MODAL KONFIRMASI PICKUP (ATUR WAKTU KEBERANGKATAN TRUK)
+══════════════════════════════════════════════════════════════ -->
+@if (Context.Request.Headers["X-Requested-With"] != "XMLHttpRequest")
+{
+    <div class="modal fade" id="modalKonfirmasiPickup" tabindex="-1" aria-labelledby="modalKonfirmasiPickupLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background:#1e293b;border:2px solid #10b981;border-radius:16px;">
+                <div class="modal-header d-flex justify-content-between align-items-center" style="background:#10b981;border-radius:14px 14px 0 0;">
+                    <div>
+                        <h5 class="modal-title fw-bold text-white mb-0" id="modalKonfirmasiPickupLabel">
+                            <i class="bi bi-truck me-2"></i> KONFIRMASI & ATUR WAKTU PICKUP
+                        </h5>
+                        <small class="text-white opacity-75 fw-semibold" id="kpModalSubtitle">— Customer —</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="color:white;">
+                    @Html.AntiForgeryToken()
+                    <!-- Schedule Info Card -->
+                    <div class="p-3 mb-3" style="background:rgba(15,23,42,0.6);border:1px solid rgba(16,185,129,0.25);border-radius:10px;">
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <span class="text-white-50">Customer:</span>
+                                <div class="fw-bold text-warning" id="kpInfoCustomer">-</div>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-white-50">Cycle / Route / Area:</span>
+                                <div class="fw-bold text-info" id="kpInfoCycleRoute">-</div>
+                            </div>
+                            <div class="col-6 mt-2">
+                                <span class="text-white-50">Target Pickup (Rencana):</span>
+                                <div class="fw-bold fs-6 text-success" id="kpInfoTargetPickup">-</div>
+                            </div>
+                            <div class="col-6 mt-2">
+                                <span class="text-white-50">Target ETD (Delivery):</span>
+                                <div class="fw-bold fs-6 text-light" id="kpInfoETD">-</div>
+                            </div>
+                            <div class="col-12 mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <span class="text-white-50">Status Kanban:</span>
+                                <span class="badge ms-1" id="kpInfoKanbanStatus">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-success mb-1">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> PILIHAN CEPAT (PRESET):
+                        </label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-success fw-bold flex-grow-1" id="kpBtnSetTarget" onclick="kpSetTargetTime()">
+                                <i class="bi bi-bullseye me-1"></i> Set On-Time (Sesuai Rencana)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="kpSetCurrentTime()">
+                                <i class="bi bi-clock me-1"></i> Jam Sekarang
+                            </button>
+                        </div>
+                        <div class="d-flex gap-1 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(-5)">-5 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(-10)">-10 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(-15)">-15 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(5)">+5 Menit</button>
+                        </div>
+                    </div>
+
+                    <!-- Input Datetime -->
+                    <div class="mb-3">
+                        <label for="kpInputDateTime" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event me-1"></i> WAKTU PICKUP / KEBERANGKATAN TRUK:
+                        </label>
+                        <input type="datetime-local" class="form-control form-control-lg fw-bold" id="kpInputDateTime" 
+                               style="background:#0f172a;border:2px solid #10b981;color:#fff;font-size:1.15rem;" required />
+                        <div class="form-text text-white-50" style="font-size:0.75rem;">
+                            <i class="bi bi-info-circle me-1"></i> Sesuaikan tanggal & jam pickup agar jadwal di dashboard menjadi on-time.
+                        </div>
+                    </div>
+
+                    <!-- Catatan Opsional -->
+                    <div class="mb-2">
+                        <label for="kpInputNotes" class="form-label small text-white-50">
+                            <i class="bi bi-chat-left-text me-1"></i> Catatan (Opsional):
+                        </label>
+                        <input type="text" class="form-control form-control-sm" id="kpInputNotes" 
+                               placeholder="Contoh: Sesuai jadwal target / revisi on-time" 
+                               style="background:#0f172a;border:1px solid rgba(255,255,255,0.2);color:#fff;" />
+                    </div>
+
+                    <div id="kpFeedback" class="mt-2" style="font-size:0.85rem;min-height:24px;"></div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid rgba(16,185,129,0.25);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i> Batal
+                    </button>
+                    <button type="button" class="btn btn-success fw-bold px-4 text-white" id="kpBtnSubmit" onclick="submitKonfirmasiPickup()">
+                        <i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let kpRepresentativeId = null;
+        let kpTargetFullTime   = '';
+        let kpTargetTimeStr    = '';
+
+        function openKonfirmasiPickupModal(repId, customerName, cycle, route, area, targetTimeStr, targetFullTime, actualTimeStr, etdStr, targetKbn, actualKbn) {
+            kpRepresentativeId = repId;
+            kpTargetFullTime   = targetFullTime;
+            kpTargetTimeStr    = targetTimeStr;
+
+            document.getElementById('kpModalSubtitle').textContent = `${customerName} — Cycle ${cycle} (${area})`;
+            document.getElementById('kpInfoCustomer').textContent   = customerName;
+            document.getElementById('kpInfoCycleRoute').textContent = `Cycle ${cycle} | ${route} | ${area}`;
+            document.getElementById('kpInfoTargetPickup').textContent = targetTimeStr ? targetTimeStr : 'Tidak ada target';
+            document.getElementById('kpInfoETD').textContent          = etdStr ? etdStr : '-';
+
+            const kanbanBadge = document.getElementById('kpInfoKanbanStatus');
+            if (actualKbn !== undefined && targetKbn !== undefined) {
+                if (actualKbn >= targetKbn && targetKbn > 0) {
+                    kanbanBadge.className = 'badge bg-success text-white ms-1';
+                    kanbanBadge.textContent = `Kanban Lengkap (${actualKbn}/${targetKbn}) → Closed Delivery`;
+                } else {
+                    kanbanBadge.className = 'badge bg-warning text-dark ms-1';
+                    kanbanBadge.textContent = `Kanban Belum Penuh (${actualKbn}/${targetKbn}) → Shortage Delivery`;
+                }
+            } else {
+                kanbanBadge.className = 'badge bg-secondary ms-1';
+                kanbanBadge.textContent = 'Progres Preparation';
+            }
+
+            const btnTarget = document.getElementById('kpBtnSetTarget');
+            if (targetTimeStr) {
+                btnTarget.style.display = 'inline-block';
+                btnTarget.innerHTML = `<i class="bi bi-bullseye me-1"></i> Set On-Time (Target: ${targetTimeStr})`;
+            } else {
+                btnTarget.style.display = 'none';
+            }
+
+            const inputEl = document.getElementById('kpInputDateTime');
+            if (targetFullTime) {
+                inputEl.value = targetFullTime;
+            } else {
+                kpSetCurrentTime();
+            }
+
+            document.getElementById('kpInputNotes').value = '';
+            document.getElementById('kpFeedback').innerHTML = '';
+            const btnSubmit = document.getElementById('kpBtnSubmit');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup';
+
+            const modal = new bootstrap.Modal(document.getElementById('modalKonfirmasiPickup'));
+            modal.show();
+        }
+
+        function kpSetTargetTime() {
+            if (kpTargetFullTime) {
+                document.getElementById('kpInputDateTime').value = kpTargetFullTime;
+                showKpFeedback('<span class="text-success"><i class="bi bi-check2-circle me-1"></i> Waktu disetel sesuai target rencana (On-Time)</span>');
+            }
+        }
+
+        function kpSetCurrentTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('kpInputDateTime').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showKpFeedback('<span class="text-info"><i class="bi bi-clock me-1"></i> Waktu disetel ke jam sekarang</span>');
+        }
+
+        function kpAdjustMinutes(mins) {
+            const inputEl = document.getElementById('kpInputDateTime');
+            if (!inputEl.value) {
+                kpSetCurrentTime();
+                return;
+            }
+            const dt = new Date(inputEl.value);
+            if (isNaN(dt.getTime())) return;
+            dt.setMinutes(dt.getMinutes() + mins);
+            const year = dt.getFullYear();
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            const hours = String(dt.getHours()).padStart(2, '0');
+            const minutes = String(dt.getMinutes()).padStart(2, '0');
+            inputEl.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showKpFeedback(`<span class="text-warning"><i class="bi bi-arrow-left-right me-1"></i> Waktu disesuaikan ${mins > 0 ? '+' : ''}${mins} menit</span>`);
+        }
+
+        function showKpFeedback(html) {
+            const fb = document.getElementById('kpFeedback');
+            if (fb) fb.innerHTML = html;
+        }
+
+        function submitKonfirmasiPickup() {
+            const inputEl = document.getElementById('kpInputDateTime');
+            const val = inputEl.value;
+            if (!val) {
+                showKpFeedback('<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Waktu pickup wajib diisi.</span>');
+                return;
+            }
+
+            const btnSubmit = document.getElementById('kpBtnSubmit');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+            showKpFeedback('<span class="text-info"><i class="bi bi-arrow-repeat spin me-1"></i> Mengonfirmasi pickup...</span>');
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+            const formData = new FormData();
+            formData.append('id', kpRepresentativeId);
+            formData.append('pickupTime', val);
+            formData.append('notes', document.getElementById('kpInputNotes').value);
+            formData.append('__RequestVerificationToken', token);
+
+            fetch('/Preparation/ConfirmCustomPickup', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showKpFeedback(`<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> ${data.message}</span>`);
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('modalKonfirmasiPickup');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                        if (typeof refreshDashboardLive === 'function') {
+                            refreshDashboardLive();
+                        } else {
+                            window.location.reload();
+                        }
+                    }, 700);
+                } else {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup';
+                    showKpFeedback(`<span class="text-danger"><i class="bi bi-x-circle me-1"></i> ${data.message || 'Gagal menyimpan'}</span>`);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup';
+                showKpFeedback('<span class="text-danger"><i class="bi bi-cloud-slash me-1"></i> Terjadi kesalahan jaringan.</span>');
+            });
+        }
+    </script>
+}

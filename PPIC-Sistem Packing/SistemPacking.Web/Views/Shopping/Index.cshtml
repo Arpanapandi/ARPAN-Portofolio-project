@@ -1,0 +1,228 @@
+@{
+    ViewData["Title"] = "Shopping Module";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Operasional</li>
+    <li class="breadcrumb-item active">Shopping</li>
+}
+
+<!-- Info Panel -->
+<div class="row align-items-center bg-dark text-white p-3 mb-4 rounded" style="box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div class="col-md-3">
+        <i class="bi bi-calendar-event me-2"></i><strong>Process Date:</strong> @DateTime.Now.ToString("dd MMM yyyy")
+    </div>
+    <div class="col-md-3">
+        <i class="bi bi-person-badge me-2"></i><strong>Operator:</strong> @(ViewBag.User?.FullName ?? "Unknown")
+    </div>
+    <div class="col-md-4 d-flex align-items-center">
+        <i class="bi bi-clock-history me-2"></i><strong>Shift:</strong>
+        <select id="shiftSelect" class="form-select form-select-sm d-inline-block w-auto ms-2">
+            <option value="">-- Pilih Shift --</option>
+            @if(ViewBag.Shifts != null)
+            {
+                foreach(var s in ViewBag.Shifts) {
+                    <option value="@s.Id">@s.ShiftName</option>
+                }
+            }
+        </select>
+        
+        @if (ViewBag.User?.RoleId == 1 || ViewBag.User?.RoleName == "SuperAdmin" || ViewBag.User?.FullName == "Super Administrator")
+        {
+            <div class="form-check form-switch ms-3 d-inline-block">
+                <input class="form-check-input cursor-pointer" type="checkbox" id="manualModeToggle">
+                <label class="form-check-label text-warning fw-bold cursor-pointer" for="manualModeToggle" style="font-size:0.85rem; padding-top: 2px;">
+                    <i class="bi bi-keyboard"></i> Ketik Manual
+                </label>
+            </div>
+        }
+    </div>
+    <div class="col-md-2 text-end">
+        <h6 class="m-0 text-warning fw-bold">SHOPPING</h6>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm h-100" style="border-radius:12px;">
+            <div class="card-body bg-light py-4">
+                <div class="row justify-content-center g-4">
+                    <div class="col-12 col-md-10 col-lg-8 text-start">
+                        <!-- Scan Tag Rak -->
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2 fw-bold text-uppercase" style="font-size: 0.85rem;"><i class="bi bi-upc-scan me-2"></i>Scan Barcode Rak <span class="text-danger">*</span></h6>
+                            <div class="input-group input-group-lg shadow-sm" style="border-radius: 8px; overflow: hidden;">
+                                <span class="input-group-text bg-light border-secondary"><i class="bi bi-tag-fill text-secondary"></i></span>
+                                <input type="text" id="scanTagRak" class="form-control text-start border-secondary" 
+                                       style="font-size:18px; letter-spacing:1px;" 
+                                       placeholder="Scan Barcode Rak..." autofocus autocomplete="off" />
+                                <span class="input-group-text bg-light border-secondary"><i class="bi bi-qr-code-scan text-secondary"></i></span>
+                            </div>
+                        </div>
+
+                        <!-- Scan Label -->
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2 fw-bold text-uppercase" style="font-size: 0.85rem;"><i class="bi bi-tag me-2"></i>Scan Barcode Label <span class="text-danger">*</span></h6>
+                            <div class="input-group input-group-lg shadow-sm" style="border-radius: 8px; overflow: hidden;">
+                                <span class="input-group-text bg-light border-primary"><i class="bi bi-upc text-primary"></i></span>
+                                <input type="text" id="scanLabel" class="form-control text-start border-primary" 
+                                       style="font-size:18px; letter-spacing:1px;" 
+                                       placeholder="Scan Barcode Label..." disabled autocomplete="off" />
+                                <span class="input-group-text bg-light border-primary"><i class="bi bi-qr-code-scan text-primary"></i></span>
+                            </div>
+                        </div>
+
+                        <!-- Scan Kanban -->
+                        <div class="mb-2">
+                            <h6 class="text-muted mb-2 fw-bold text-uppercase" style="font-size: 0.85rem;"><i class="bi bi-card-checklist me-2"></i>Scan Barcode Kanban <span class="text-danger">*</span></h6>
+                            <div class="input-group input-group-lg shadow-sm" style="border-radius: 8px; overflow: hidden;">
+                                <span class="input-group-text bg-light border-success"><i class="bi bi-clipboard-check text-success"></i></span>
+                                <input type="text" id="scanKanban" class="form-control text-start border-success" 
+                                       style="font-size:18px; letter-spacing:1px;" 
+                                       placeholder="Scan Barcode Kanban..." disabled autocomplete="off" />
+                                <span class="input-group-text bg-light border-success"><i class="bi bi-qr-code-scan text-success"></i></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center mt-4">
+                    <small class="text-danger fw-bold"><i class="bi bi-exclamation-triangle-fill me-1"></i>Point check: Tag Rak, Label, dan Kanban harus sama. Jika tidak cocok, scan akan terkunci.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(document).ready(function () {
+    let lastKeyTimeTagRak = Date.now();
+    let lastKeyTimeLabel = Date.now();
+    let lastKeyTimeKanban = Date.now();
+    let currentVin = null;
+    let isManualMode = false;
+
+    $('#manualModeToggle').change(function() {
+        isManualMode = $(this).is(':checked');
+        if(isManualMode) {
+            const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
+            Toast.fire({ icon: 'info', title: 'Mode Ketik Manual Aktif' });
+        }
+    });
+
+    function setupScanner(inputId, lastKeyTimeVar, onEnter) {
+        $(inputId).on('keypress', function(e) {
+            let currentTime = Date.now();
+            if (!isManualMode && currentTime - lastKeyTimeVar > 50) {
+                $(this).val('');
+            }
+            lastKeyTimeVar = currentTime;
+            
+            if (e.which === 13) {
+                e.preventDefault();
+                if ($(this).val().length > 0) {
+                    onEnter($(this).val().trim());
+                }
+            }
+        });
+        $(inputId).on('paste', function(e) { 
+            if(!isManualMode) {
+                e.preventDefault(); 
+            }
+        });
+    }
+
+    setupScanner('#scanTagRak', lastKeyTimeTagRak, function(val) {
+        // Validate Tag Rak must end with 'X' or 'x'
+        if (!val.toLowerCase().endsWith('x')) {
+            showStrictError('Barcode Rak harus diakhiri dengan huruf X.');
+            return;
+        }
+
+        $('#scanTagRak').prop('disabled', true);
+        
+        $.get('/Shopping/ValidateTagRak', { tagRak: val })
+            .done(function (res) {
+                if (res.success) {
+                    currentVin = res.vin;
+                    $('#scanLabel').prop('disabled', false).val('').focus();
+                } else {
+                    showStrictError(res.message);
+                }
+            })
+            .fail(function() {
+                showStrictError('Gagal terhubung ke server saat memvalidasi Tag Rak.');
+            });
+    });
+
+    setupScanner('#scanLabel', lastKeyTimeLabel, function(val) {
+        // Validate Label contains VIN (or VIN contains Label according to rule "vin TA1234 label TA12, TA123, TA1234")
+        if (currentVin && (currentVin.includes(val) || val.includes(currentVin))) {
+            $('#scanLabel').prop('disabled', true);
+            $('#scanKanban').prop('disabled', false).val('').focus();
+        } else {
+            showStrictError(`Barcode Label (${val}) tidak cocok dengan VIN (${currentVin}).`, true);
+        }
+    });
+
+    setupScanner('#scanKanban', lastKeyTimeKanban, function(kanbanVal) {
+        $('#scanKanban').prop('disabled', true);
+        doScan(kanbanVal);
+    });
+
+    function resetScanners(keepRak = false) {
+        if (!keepRak) {
+            $('#scanTagRak').prop('disabled', false).val('').focus();
+            currentVin = null;
+        }
+        
+        $('#scanLabel').prop('disabled', !keepRak).val('');
+        if (keepRak) {
+            $('#scanLabel').focus();
+        }
+        
+        $('#scanKanban').prop('disabled', true).val('');
+    }
+
+    function doScan(barcode) {
+        const shiftId = $('#shiftSelect').val();
+        if (!shiftId) {
+            Swal.fire({
+                icon: 'warning', title: 'Pilih Shift', text: 'Harap pilih shift operasional terlebih dahulu sebelum melakukan scan.',
+                allowOutsideClick: false, confirmButtonColor: '#3085d6'
+            }).then(() => { $('#shiftSelect').focus(); resetScanners(true); });
+            return;
+        }
+
+        $.post('/Shopping/Scan', {
+            barcode: barcode, 
+            shiftId: shiftId,
+            __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val()
+        })
+        .done(function (result) {
+            if (result.success && !result.isOverQty) {
+                resetScanners(false);
+                if (result.isComplete) {
+                    Swal.fire({ icon: 'success', title: '🎉 Shopping Selesai!', text: 'Semua item pada order ini telah dishopping.', timer: 3000, showConfirmButton: false });
+                } else {
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500, timerProgressBar: true });
+                    Toast.fire({ icon: 'success', title: 'Scan OK: ' + result.itemName });
+                }
+            } else {
+                showStrictError(result.message, true);
+            }
+        })
+        .fail(() => { 
+            showStrictError('Gagal terhubung ke server.', true); 
+        });
+    }
+
+    function showStrictError(msg, keepRak = false) {
+        Swal.fire({
+            icon: 'error', title: '❌ GAGAL SCAN!', text: msg, allowOutsideClick: false, allowEscapeKey: false,
+            confirmButtonText: 'Tutup & Scan Ulang', confirmButtonColor: '#d33', backdrop: `rgba(220, 38, 38, 0.4)`
+        }).then(() => { resetScanners(keepRak); });
+    }
+});
+</script>
+}

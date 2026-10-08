@@ -1,0 +1,495 @@
+@model IEnumerable<SistemPacking.Web.Models.Item>
+@{
+    ViewData["Title"] = "Master Item Service Part";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">Item Service Part</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-box"></i> Master Item Service Part</h2>
+    <div>
+        <a href="/Master/DownloadTemplateItem" class="btn btn-outline-info me-2">
+            <i class="bi bi-download me-1"></i>Template
+        </a>
+        <button class="btn btn-outline-success me-2" onclick="$('#importModal').modal('show')">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import
+        </button>
+        <a href="/Master/ExportItems" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Export
+        </a>
+        <button class="btn btn-outline-danger me-2 d-none" id="btnBulkDelete" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="showModal()">
+            <i class="bi bi-plus-circle me-1"></i>Tambah Item
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="itemTable" style="width: 100%;">
+            <thead style="position: sticky; top: 0; z-index: 10; background: #fff;">
+                <tr>
+                    <th style="width: 40px;" class="text-center">
+                        <input class="form-check-input" type="checkbox" id="selectAll">
+                    </th>
+                    <th style="width: 50px;">No</th>
+                    <th>VIN</th>
+                    <th>Part No</th>
+                    <th>Part Name</th>
+                    <th>DOCK</th>
+                    <th>SPIS</th>
+                    <th>SPPS</th>
+                    <th>Type Karton</th>
+                    <th>Type Plastik</th>
+                    <th>Point 1</th>
+                    <th>Point 2</th>
+                    <th>Point 3</th>
+                    <th>Point 4</th>
+                    <th>Point 5</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int no = 1; }
+                @foreach (var i in Model)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input chk-item" type="checkbox" value="@i.Id">
+                        </td>
+                        <td>@(no++)</td>
+                        <td>@i.VIN</td>
+                        <td class="fw-semibold text-primary">@i.ItemCode</td>
+                        <td>@i.ItemName</td>
+                        <td>@i.Dock</td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(i.SpisImagePath)) { 
+                                <img src="@i.SpisImagePath" alt="SPIS" style="height: 40px; border-radius: 4px; cursor: pointer;" onclick="window.open(this.src, '_blank')" title="Klik untuk memperbesar" />
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(i.SppsImagePath)) { 
+                                <img src="@i.SppsImagePath" alt="SPPS" style="height: 40px; border-radius: 4px; cursor: pointer;" onclick="window.open(this.src, '_blank')" title="Klik untuk memperbesar" />
+                            }
+                        </td>
+                        <td>@i.TypeKarton</td>
+                        <td>@i.TypePlastik</td>
+                        <td><code>@i.Point1</code></td>
+                        <td><code>@i.Point2</code></td>
+                        <td><code>@i.Point3</code></td>
+                        <td><code>@i.Point4</code></td>
+                        <td><code>@i.Point5</code></td>
+                        <td>
+                            <button class="btn btn-xs btn-outline-primary" onclick="editItem(@i.Id, '@i.VIN', '@i.ItemCode', '@i.ItemName', '@i.Dock', '@i.Point1', '@i.Point2', '@i.Point3', '@i.Point4', '@i.Point5', '@i.UOM', @i.PackingStandard, '@i.Status', '@i.SpisImagePath', '@i.SppsImagePath', '@i.TypeKarton', '@i.TypePlastik')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-xs btn-outline-danger" onclick="deleteItem(@i.Id, '@i.ItemName')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Master Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pilih File Excel (.xlsx) <span class="text-danger">*</span></label>
+                        <input type="file" id="importFile" name="file" class="form-control" accept=".xlsx" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Upload Image SPIS (.zip) - Opsional</label>
+                        <input type="file" id="spisZip" name="spisZip" class="form-control" accept=".zip" />
+                        <small class="text-muted">Zip berisi file gambar. Nama gambar harus sesuai dengan Part No atau VIN.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Upload Image SPPS (.zip) - Opsional</label>
+                        <input type="file" id="sppsZip" name="sppsZip" class="form-control" accept=".zip" />
+                        <small class="text-muted">Zip berisi file gambar. Nama gambar harus sesuai dengan Part No atau VIN.</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnImport" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i> Upload & Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Form -->
+<div class="modal fade" id="itemModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Tambah Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="itemForm">
+                    <input type="hidden" id="Id" value="0" />
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">VIN <span class="text-danger">*</span></label>
+                            <input type="text" id="VIN" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">DOCK <span class="text-danger">*</span></label>
+                            <input type="text" id="Dock" class="form-control" required />
+                        </div>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Part No <span class="text-danger">*</span></label>
+                            <input type="text" id="ItemCode" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Part Name <span class="text-danger">*</span></label>
+                            <input type="text" id="ItemName" class="form-control" required />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Point 1</label>
+                            <input type="text" id="Point1" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Point 2</label>
+                            <input type="text" id="Point2" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Point 3</label>
+                            <input type="text" id="Point3" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Point 4</label>
+                            <input type="text" id="Point4" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Point 5</label>
+                            <input type="text" id="Point5" class="form-control" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Status</label>
+                            <select id="Status" class="form-select">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Type Karton</label>
+                            <input type="text" id="TypeKarton" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Type Plastik</label>
+                            <input type="text" id="TypePlastik" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">SPIS Image</label>
+                            <input type="file" id="SpisImage" class="form-control" accept="image/*" />
+                            <small class="text-muted d-none" id="SpisExisting">Gambar sudah ada</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">SPPS Image</label>
+                            <input type="file" id="SppsImage" class="form-control" accept="image/*" />
+                            <small class="text-muted d-none" id="SppsExisting">Gambar sudah ada</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#itemTable').DataTable({
+            pageLength: 20,
+            scrollY: 'calc(100vh - 350px)',
+            scrollCollapse: true,
+            language: { url: '/js/id.json' },
+            columnDefs: [{ orderable: false, targets: 0 }]
+        });
+
+        // Select All Checkbox Logic
+        $('#selectAll').change(function() {
+            var isChecked = $(this).prop('checked');
+            $('.chk-item').prop('checked', isChecked);
+            updateBulkDeleteButton();
+        });
+
+        // Individual Checkbox Logic
+        $(document).on('change', '.chk-item', function() {
+            if (!$(this).prop('checked')) {
+                $('#selectAll').prop('checked', false);
+            } else {
+                if ($('.chk-item:checked').length === $('.chk-item').length) {
+                    $('#selectAll').prop('checked', true);
+                }
+            }
+            updateBulkDeleteButton();
+        });
+
+        function updateBulkDeleteButton() {
+            var count = $('.chk-item:checked').length;
+            $('#selectedCount').text(count);
+            if (count > 0) {
+                $('#btnBulkDelete').removeClass('d-none');
+            } else {
+                $('#btnBulkDelete').addClass('d-none');
+            }
+        }
+
+        $('#saveBtn').click(function () {
+            if (!$('#ItemCode').val() || !$('#ItemName').val() || !$('#VIN').val() || !$('#Dock').val()) {
+                showToast('warning', 'VIN, Dock, Part No, dan Part Name wajib diisi!');
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('Id', $('#Id').val());
+            formData.append('VIN', $('#VIN').val());
+            formData.append('Dock', $('#Dock').val());
+            formData.append('ItemCode', $('#ItemCode').val());
+            formData.append('ItemName', $('#ItemName').val());
+            formData.append('Barcode', $('#ItemCode').val()); // Fallback barcode
+            formData.append('Point1', $('#Point1').val() || '');
+            formData.append('Point2', $('#Point2').val() || '');
+            formData.append('Point3', $('#Point3').val() || '');
+            formData.append('Point4', $('#Point4').val() || '');
+            formData.append('Point5', $('#Point5').val() || '');
+            formData.append('TypeKarton', $('#TypeKarton').val() || '');
+            formData.append('TypePlastik', $('#TypePlastik').val() || '');
+            formData.append('Category', 'SparePart');
+            formData.append('UOM', 'PCS');
+            formData.append('PackingStandard', '1');
+            formData.append('Status', $('#Status').val() === 'Active' ? '1' : '0');
+            formData.append('CustomerId', '1'); // Default customer ID or actual from form
+
+            var spis = $('#SpisImage')[0].files[0];
+            if (spis) formData.append('spisImage', spis);
+
+            var spps = $('#SppsImage')[0].files[0];
+            if (spps) formData.append('sppsImage', spps);
+
+            // Need antiforgery token
+            formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Master/SaveItem',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                        $('#saveBtn').prop('disabled', false).text('Simpan');
+                    }
+                }
+            });
+        });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('itemModal'));
+
+    function showModal() {
+        $('#modalTitle').text('Tambah Item');
+        $('#itemForm')[0].reset();
+        $('#Id').val(0);
+        $('#UOM').val('PCS');
+        $('#PackingStandard').val(1);
+        $('#Status').val('Active');
+        $('#SpisExisting').addClass('d-none');
+        $('#SppsExisting').addClass('d-none');
+        modal.show();
+    }
+
+    function editItem(id, vin, code, name, dock, p1, p2, p3, p4, p5, uom, std, status, spis, spps, typeKarton, typePlastik) {
+        $('#modalTitle').text('Edit Item');
+        $('#Id').val(id);
+        $('#VIN').val(vin);
+        $('#Dock').val(dock);
+        $('#ItemCode').val(code);
+        $('#ItemName').val(name);
+        $('#Point1').val(p1);
+        $('#Point2').val(p2);
+        $('#Point3').val(p3);
+        $('#Point4').val(p4);
+        $('#Point5').val(p5);
+        $('#TypeKarton').val(typeKarton);
+        $('#TypePlastik').val(typePlastik);
+        $('#Status').val(status);
+        
+        if(spis) $('#SpisExisting').removeClass('d-none');
+        else $('#SpisExisting').addClass('d-none');
+        
+        if(spps) $('#SppsExisting').removeClass('d-none');
+        else $('#SppsExisting').addClass('d-none');
+
+        modal.show();
+    }
+
+    function deleteItem(id, name) {
+        Swal.fire({
+            title: 'Hapus Item?',
+            text: `Anda yakin ingin menghapus '${name}'?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post('/Master/DeleteItem', { id: id, __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val() }, function(res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Terhapus!', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', 'Gagal menghapus', 'error');
+                    }
+                });
+            }
+        });
+    }
+
+    function doImport() {
+        var file = $('#importFile')[0].files[0];
+        if (!file) {
+            Swal.fire('Error', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', file);
+        
+        var spisZip = $('#spisZip')[0].files[0];
+        if (spisZip) formData.append('spisZip', spisZip);
+        
+        var sppsZip = $('#sppsZip')[0].files[0];
+        if (sppsZip) formData.append('sppsZip', sppsZip);
+
+        formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+        $('#btnImport').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Loading...');
+
+        $.ajax({
+            url: '/Master/ImportItems',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    if (res.errors && res.errors.length > 0) {
+                        var errorMsg = res.message + "<br><br><div style='max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;'>" + res.errors.join('<br>') + "</div>";
+                        Swal.fire({
+                            title: 'Selesai dengan Catatan', 
+                            html: errorMsg, 
+                            icon: 'warning',
+                            width: 600,
+                            customClass: { htmlContainer: 'text-start' }
+                        }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Berhasil', res.message, 'success').then(() => location.reload());
+                    }
+                } else {
+                    var errorMsg = res.message + "<br><br><div style='max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;'>" + (res.errors ? res.errors.join('<br>') : '') + "</div>";
+                    Swal.fire({
+                        title: 'Import Gagal', 
+                        html: errorMsg, 
+                        icon: 'error',
+                        width: 600,
+                        customClass: { htmlContainer: 'text-start' }
+                    });
+                }
+            },
+            error: function () {
+                Swal.fire('Error', 'Gagal menghubungi server', 'error');
+            },
+            complete: function () {
+                $('#btnImport').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload & Import');
+            }
+        });
+    }
+
+    function bulkDelete() {
+        var selectedIds = [];
+        $('.chk-item:checked').each(function() {
+            selectedIds.push(parseInt($(this).val()));
+        });
+
+        if (selectedIds.length === 0) return;
+
+        Swal.fire({
+            title: 'Hapus Item Terpilih?',
+            text: `Anda yakin ingin menghapus ${selectedIds.length} item yang dipilih?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/BulkDeleteItems',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(selectedIds),
+                    headers: {
+                        'RequestVerificationToken': $('[name="__RequestVerificationToken"]').val()
+                    },
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire({ icon: 'success', title: 'Terhapus!', text: res.message, timer: 1500, showConfirmButton: false }).then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message || 'Gagal menghapus', 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'Terjadi kesalahan sistem.', 'error');
+                    }
+                });
+            }
+        });
+    }
+</script>
+@Html.AntiForgeryToken()
+}

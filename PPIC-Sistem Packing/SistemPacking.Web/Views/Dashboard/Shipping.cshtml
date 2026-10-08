@@ -1,0 +1,783 @@
+@model SistemPacking.Web.Models.ShippingDashboardKpiDto
+@{
+    ViewData["Title"] = "Dashboard Shipping";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item active">Dashboard Shipping</li>
+}
+
+@section Styles {
+<style>
+    /* ── Indicator Cards ── */
+    .ind-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    @@media (max-width: 1399px) { .ind-grid { grid-template-columns: repeat(4, 1fr); } }
+    @@media (max-width: 767px)  { .ind-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .ind-card {
+        background: var(--bs-card-bg, #fff);
+        border: 2px solid transparent;
+        border-radius: 12px;
+        padding: 14px 12px 12px;
+        cursor: pointer;
+        transition: all .2s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,.06);
+        position: relative;
+        overflow: hidden;
+        user-select: none;
+    }
+    .ind-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: var(--ind-color, #6c757d);
+        border-radius: 12px 12px 0 0;
+    }
+    .ind-card:hover {
+        border-color: var(--ind-color, #6c757d);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,.12);
+    }
+    .ind-card.active {
+        border-color: var(--ind-color, #6c757d);
+        background: color-mix(in srgb, var(--ind-color) 8%, var(--bs-card-bg, #fff));
+        box-shadow: 0 4px 16px color-mix(in srgb, var(--ind-color) 30%, transparent);
+    }
+    .ind-icon {
+        font-size: 1.5rem;
+        color: var(--ind-color);
+        margin-bottom: 4px;
+        display: block;
+    }
+    .ind-count {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1;
+        color: var(--ind-color);
+        margin-bottom: 2px;
+    }
+    .ind-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        color: var(--bs-secondary-color, #6c757d);
+        line-height: 1.3;
+    }
+    .ind-sub {
+        font-size: 0.68rem;
+        margin-top: 6px;
+        color: var(--bs-secondary-color, #6c757d);
+        white-space: nowrap;
+    }
+    .ind-progress {
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(0,0,0,.08);
+        margin-top: 8px;
+        overflow: hidden;
+    }
+    .ind-progress-bar {
+        height: 100%;
+        border-radius: 2px;
+        background: var(--ind-color);
+        transition: width .6s ease;
+    }
+
+    /* ── Table Section ── */
+    .table-section {
+        background: var(--bs-card-bg, #fff);
+        border-radius: 14px;
+        box-shadow: 0 2px 12px rgba(0,0,0,.07);
+        overflow: hidden;
+    }
+    .table-section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--bs-border-color, #e9ecef);
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .table-section-title {
+        font-size: 0.95rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .table-section-title .ind-dot {
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        background: var(--active-color, #6c757d);
+        flex-shrink: 0;
+    }
+
+    /* ── Bulk Delete Toolbar ── */
+    .bulk-toolbar {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 20px;
+        background: color-mix(in srgb, #dc3545 10%, var(--bs-card-bg, #fff));
+        border-bottom: 1px solid #dc354540;
+        flex-wrap: wrap;
+    }
+    .bulk-toolbar.show { display: flex; }
+    .bulk-count-badge {
+        background: #dc3545;
+        color: #fff;
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    /* ── DataTables overrides ── */
+    #shippingTable_wrapper .dataTables_filter input {
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 0.85rem;
+    }
+    #shippingTable th { font-size: 0.78rem; white-space: nowrap; }
+    #shippingTable td { font-size: 0.82rem; vertical-align: middle; }
+    .qty-minus-neg { color: #dc3545; font-weight: 600; }
+    .qty-minus-ok  { color: #22c55e; font-weight: 600; }
+    .delay-badge   { background: #dc3545; color: #fff; border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; }
+    .check-all-wrapper { display: flex; align-items: center; justify-content: center; }
+</style>
+}
+
+<div class="page-header mb-3">
+    <h2 class="page-title">
+        <i class="bi bi-truck"></i>
+        Dashboard Shipping
+    </h2>
+    <div class="d-flex gap-2 align-items-center">
+        <span class="text-muted small" id="lastRefreshed"></span>
+        <button class="btn btn-outline-secondary btn-sm" id="refreshBtn">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <span class="badge bg-success py-2 px-3">
+            <i class="bi bi-circle-fill me-1" style="font-size:7px;"></i>Live
+        </span>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     7 INDICATOR CARDS
+══════════════════════════════════════════════════════ -->
+<div class="ind-grid" id="indGrid">
+
+    <!-- 1. Progres Shopping (H-2) -->
+    <div class="ind-card" data-indicator="ProgresShopping" data-type="detail"
+         style="--ind-color:#0ea5e9" title="Klik untuk lihat detail Shopping">
+        <i class="bi bi-cart3 ind-icon"></i>
+        <div class="ind-count" id="kpi-shop-count">@Model.ProgresShoppingCount</div>
+        <div class="ind-label">Progres Shopping<br><span style="font-size:.62rem;opacity:.7;">(H-2)</span></div>
+        <div class="ind-sub" id="kpi-shop-sub">
+            T: @Model.ProgresShoppingTarget.ToString("N0") / A: @Model.ProgresShoppingActual.ToString("N0")
+        </div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" id="kpi-shop-bar"
+                 style="width:@(Model.ProgresShoppingTarget > 0 ? Math.Min(100, Model.ProgresShoppingActual / Model.ProgresShoppingTarget * 100) : 0)%"></div>
+        </div>
+    </div>
+
+    <!-- 2. Progres Packing (H-1) -->
+    <div class="ind-card" data-indicator="ProgresPacking" data-type="detail"
+         style="--ind-color:#8b5cf6" title="Klik untuk lihat detail Packing">
+        <i class="bi bi-box-seam ind-icon"></i>
+        <div class="ind-count" id="kpi-pack-count">@Model.ProgresPackingCount</div>
+        <div class="ind-label">Progres Packing<br><span style="font-size:.62rem;opacity:.7;">(H-1)</span></div>
+        <div class="ind-sub" id="kpi-pack-sub">
+            T: @Model.ProgresPackingTarget.ToString("N0") / A: @Model.ProgresPackingActual.ToString("N0")
+        </div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" id="kpi-pack-bar"
+                 style="width:@(Model.ProgresPackingTarget > 0 ? Math.Min(100, Model.ProgresPackingActual / Model.ProgresPackingTarget * 100) : 0)%"></div>
+        </div>
+    </div>
+
+    <!-- 3. Progres Delivery -->
+    <div class="ind-card" data-indicator="ProgresDelivery" data-type="order"
+         style="--ind-color:#22c55e" title="Klik untuk lihat detail Delivery">
+        <i class="bi bi-truck ind-icon"></i>
+        <div class="ind-count" id="kpi-deliv-count">@Model.ProgresDeliveryCount</div>
+        <div class="ind-label">Progres Delivery</div>
+        <div class="ind-sub" id="kpi-deliv-sub">
+            T: @Model.ProgresDeliveryTarget.ToString("N0") / A: @Model.ProgresDeliveryActual.ToString("N0")
+        </div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" id="kpi-deliv-bar"
+                 style="width:@(Model.ProgresDeliveryTarget > 0 ? Math.Min(100, Model.ProgresDeliveryActual / Model.ProgresDeliveryTarget * 100) : 0)%"></div>
+        </div>
+    </div>
+
+    <!-- 4. Delay Shopping -->
+    <div class="ind-card" data-indicator="DelayShopping" data-type="detail"
+         style="--ind-color:#f59e0b" title="Klik untuk lihat data delay Shopping">
+        <i class="bi bi-exclamation-triangle ind-icon"></i>
+        <div class="ind-count" id="kpi-dshop-count">@Model.DelayShoppingCount</div>
+        <div class="ind-label">Delay Shopping</div>
+        <div class="ind-sub">&nbsp;</div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" style="width:@(Model.DelayShoppingCount > 0 ? 100 : 0)%"></div>
+        </div>
+    </div>
+
+    <!-- 5. Delay Packing -->
+    <div class="ind-card" data-indicator="DelayPacking" data-type="detail"
+         style="--ind-color:#f97316" title="Klik untuk lihat data delay Packing">
+        <i class="bi bi-clock-history ind-icon"></i>
+        <div class="ind-count" id="kpi-dpack-count">@Model.DelayPackingCount</div>
+        <div class="ind-label">Delay Packing</div>
+        <div class="ind-sub">&nbsp;</div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" style="width:@(Model.DelayPackingCount > 0 ? 100 : 0)%"></div>
+        </div>
+    </div>
+
+    <!-- 6. Delay Delivery -->
+    <div class="ind-card" data-indicator="DelayDelivery" data-type="order"
+         style="--ind-color:#ef4444" title="Klik untuk lihat data delay Delivery">
+        <i class="bi bi-truck ind-icon"></i>
+        <div class="ind-count" id="kpi-ddeliv-count">@Model.DelayDeliveryCount</div>
+        <div class="ind-label">Delay Delivery</div>
+        <div class="ind-sub">&nbsp;</div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" style="width:@(Model.DelayDeliveryCount > 0 ? 100 : 0)%"></div>
+        </div>
+    </div>
+
+    <!-- 7. Finished -->
+    <div class="ind-card" data-indicator="Finished" data-type="order"
+         style="--ind-color:#10b981" title="Klik untuk lihat order finished">
+        <i class="bi bi-check-circle ind-icon"></i>
+        <div class="ind-count" id="kpi-fin-count">@Model.FinishedCount</div>
+        <div class="ind-label">Finished</div>
+        <div class="ind-sub">&nbsp;</div>
+        <div class="ind-progress">
+            <div class="ind-progress-bar" style="width:100%"></div>
+        </div>
+    </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     DYNAMIC TABLE SECTION
+══════════════════════════════════════════════════════ -->
+<div class="table-section">
+    <!-- Header -->
+    <div class="table-section-header">
+        <div class="table-section-title">
+            <span class="ind-dot" id="tableIndicatorDot"></span>
+            <span id="tableIndicatorLabel">— Klik indikator di atas untuk menampilkan data —</span>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="text-muted small" id="tableRowCount" style="display:none;">
+                <i class="bi bi-table me-1"></i><span id="rowCountNum">0</span> data
+            </span>
+        </div>
+    </div>
+
+    <!-- Bulk Delete Toolbar -->
+    <div class="bulk-toolbar" id="bulkToolbar">
+        <span class="bulk-count-badge" id="bulkCountBadge">0 dipilih</span>
+        <button class="btn btn-danger btn-sm" id="bulkDeleteBtn">
+            <i class="bi bi-trash3 me-1"></i>Hapus yang Dipilih
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" id="clearSelectionBtn">
+            <i class="bi bi-x me-1"></i>Batalkan Pilihan
+        </button>
+    </div>
+
+    <!-- Table -->
+    <div class="table-responsive px-1">
+        <table class="table table-hover table-sm mb-0" id="shippingTable" style="width:100%;min-width:700px;">
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody">
+                <tr>
+                    <td colspan="10" class="text-center py-5 text-muted">
+                        <i class="bi bi-hand-index-thumb fs-1 d-block mb-2" style="opacity:.25;"></i>
+                        Klik salah satu indikator di atas untuk menampilkan data tabel
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     MODAL EDIT DELIVERY
+══════════════════════════════════════════════════════ -->
+<div class="modal fade" id="editDeliveryModal" tabindex="-1" aria-labelledby="editDeliveryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editDeliveryModalLabel">
+                    <i class="bi bi-pencil-square me-2 text-primary"></i>Edit Delivery
+                    <small class="text-muted fw-normal ms-2" id="editOrderNo"></small>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editOrderId" />
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Plan Delivery Date</label>
+                        <input type="date" class="form-control" id="editPlanDeliveryDate" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Actual Delivery Date</label>
+                        <input type="date" class="form-control" id="editActualDeliveryDate" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Plan ETD</label>
+                        <input type="text" class="form-control" id="editPlanETD" placeholder="e.g. 08:00 WIB" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Actual ETD</label>
+                        <input type="text" class="form-control" id="editActualETD" placeholder="e.g. 09:30 WIB" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Remark</label>
+                        <textarea class="form-control" id="editDeliveryRemark" rows="2"
+                                  placeholder="Catatan / alasan delay..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="saveDeliveryBtn">
+                    <i class="bi bi-floppy me-1"></i>Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+let currentIndicator = null;
+let currentType = 'detail';       // 'detail' | 'order'
+let dtInstance = null;
+let selectedIds = new Set();
+const csrfToken = $('meta[name="csrf-token"]').attr('content');
+
+// Indicator metadata
+const IND_META = {
+    ProgresShopping : { label: 'Progres Shopping (H-2)', color: '#0ea5e9', type: 'detail' },
+    ProgresPacking  : { label: 'Progres Packing (H-1)', color: '#8b5cf6', type: 'detail' },
+    ProgresDelivery : { label: 'Progres Delivery',       color: '#22c55e', type: 'order'  },
+    DelayShopping   : { label: 'Delay Shopping',         color: '#f59e0b', type: 'detail' },
+    DelayPacking    : { label: 'Delay Packing',          color: '#f97316', type: 'detail' },
+    DelayDelivery   : { label: 'Delay Delivery',         color: '#ef4444', type: 'order'  },
+    Finished        : { label: 'Finished',               color: '#10b981', type: 'order'  }
+};
+
+// Column configs per indicator
+const COL_DEFS = {
+    ProgresShopping: [
+        { title: '<div class="check-all-wrapper"><input type="checkbox" id="checkAll" title="Pilih Semua" /></div>', data: null, orderable: false, className: 'text-center', width: '36px',
+          render: (d,t,r) => `<input type="checkbox" class="row-check" data-id="${r.orderDetailId}" />` },
+        { title: 'No', data: null, orderable: false, render: (d,t,r,m) => m.row + 1 },
+        { title: 'Order No', data: 'orderNo' },
+        { title: 'Item', data: 'itemName' },
+        { title: 'Cust Part No.', data: 'custPartNo' },
+        { title: 'QTY Order (Pcs)', data: 'qtyOrder', className: 'text-end', render: v => fmtN(v) },
+        { title: 'Qty Act Shop. (Pcs)', data: 'qtyActShop', className: 'text-end', render: v => fmtN(v) },
+        { title: 'Qty Minus', data: 'qtyMinus', className: 'text-end',
+          render: v => `<span class="${v > 0 ? 'qty-minus-neg' : 'qty-minus-ok'}">${fmtN(v)}</span>` },
+        { title: 'Stock FG (Pcs)', data: 'stockFG', className: 'text-center' },
+        { title: 'Actions', data: null, orderable: false, className: 'text-center',
+          render: (d,t,r) => `<button class="btn btn-outline-primary btn-xs btn-edit-shop" data-id="${r.orderDetailId}" data-orderid="${r.orderId}" title="Edit"><i class="bi bi-pencil"></i></button>` }
+    ],
+    ProgresPacking: [
+        { title: '<div class="check-all-wrapper"><input type="checkbox" id="checkAll" title="Pilih Semua" /></div>', data: null, orderable: false, className: 'text-center', width: '36px',
+          render: (d,t,r) => `<input type="checkbox" class="row-check" data-id="${r.orderDetailId}" />` },
+        { title: 'No', data: null, orderable: false, render: (d,t,r,m) => m.row + 1 },
+        { title: 'Order No', data: 'orderNo' },
+        { title: 'Item', data: 'itemName' },
+        { title: 'Cust Part No.', data: 'custPartNo' },
+        { title: 'QTY Order (Pcs)', data: 'qtyOrder', className: 'text-end', render: v => fmtN(v) },
+        { title: 'QTY Packed (Pcs)', data: 'qtyPacked', className: 'text-end', render: v => fmtN(v) },
+        { title: 'QTY Minus (Pcs)', data: 'qtyMinus', className: 'text-end',
+          render: v => `<span class="${v > 0 ? 'qty-minus-neg' : 'qty-minus-ok'}">${fmtN(v)}</span>` },
+        { title: 'QTY Shopping (Pcs)', data: 'qtyShopping', className: 'text-end', render: v => fmtN(v) },
+        { title: 'Actions', data: null, orderable: false, className: 'text-center',
+          render: (d,t,r) => `<button class="btn btn-outline-primary btn-xs btn-edit-pack" data-id="${r.orderDetailId}" data-orderid="${r.orderId}" title="Edit"><i class="bi bi-pencil"></i></button>` }
+    ],
+    DelayShopping: null,   // same as ProgresShopping — set after
+    DelayPacking: null,    // same as ProgresPacking — set after
+};
+
+// Delivery-style columns (shared for ProgresDelivery, DelayDelivery, Finished)
+function deliveryCols(indKey) {
+    const showRemark2 = (indKey === 'DelayDelivery');
+    return [
+        { title: '<div class="check-all-wrapper"><input type="checkbox" id="checkAll" title="Pilih Semua" /></div>', data: null, orderable: false, className: 'text-center', width: '36px',
+          render: (d,t,r) => `<input type="checkbox" class="row-check" data-id="${r.orderId}" />` },
+        { title: 'No', data: null, orderable: false, render: (d,t,r,m) => m.row + 1 },
+        { title: 'Order No', data: 'orderNo' },
+        { title: 'Order Date', data: 'orderDate', render: v => fmtDate(v) },
+        { title: 'Plan Delv Date', data: 'planDeliveryDate',
+          render: (v, t, r) => {
+              const s = fmtDate(v);
+              return (r.isDelay && v) ? `<span class="text-danger fw-semibold">${s} <span class="delay-badge">DELAY</span></span>` : s;
+          }
+        },
+        { title: 'Total Qty', data: 'totalQty', className: 'text-end', render: v => fmtN(v) },
+        { title: 'Plan ETD', data: 'planETD', render: v => v || '—' },
+        { title: 'Act Delv Date', data: 'actualDeliveryDate', render: v => fmtDate(v) },
+        { title: 'Remark', data: 'deliveryRemark', render: v => v ? `<span class="text-muted small">${escHtml(v)}</span>` : '—' },
+        { title: 'Act ETD', data: 'actualETD', render: v => v || '—' },
+        { title: 'Actions', data: null, orderable: false, className: 'text-center',
+          render: (d,t,r) => `<button class="btn btn-outline-primary btn-xs btn-edit-delivery" data-id="${r.orderId}" data-orderNo="${escHtml(r.orderNo)}" data-plandelv="${r.planDeliveryDate || ''}" data-actdelv="${r.actualDeliveryDate || ''}" data-planetd="${escHtml(r.planETD||'')}" data-actetd="${escHtml(r.actualETD||'')}" data-remark="${escHtml(r.deliveryRemark||'')}" title="Edit Delivery"><i class="bi bi-pencil"></i></button>` }
+    ];
+}
+
+// Resolve col defs
+COL_DEFS.DelayShopping   = COL_DEFS.ProgresShopping;
+COL_DEFS.DelayPacking    = COL_DEFS.ProgresPacking;
+COL_DEFS.ProgresDelivery = deliveryCols('ProgresDelivery');
+COL_DEFS.DelayDelivery   = deliveryCols('DelayDelivery');
+COL_DEFS.Finished        = deliveryCols('Finished');
+
+// ══════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════
+function fmtN(v) { return v != null ? Number(v).toLocaleString('id-ID') : '—'; }
+function fmtDate(v) {
+    if (!v) return '—';
+    const d = new Date(v);
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('id-ID', { day:'2-digit', month:'short', year:'numeric' });
+}
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INDICATOR CLICK
+// ══════════════════════════════════════════════════════════════
+$('.ind-card').on('click', function() {
+    const ind  = $(this).data('indicator');
+    const type = $(this).data('type');
+    if (ind === currentIndicator) return; // already active
+
+    // Visual active state
+    $('.ind-card').removeClass('active');
+    $(this).addClass('active');
+
+    // Update header dot color
+    const meta = IND_META[ind];
+    document.querySelector('.table-section').style.setProperty('--active-color', meta.color);
+    $('#tableIndicatorDot').css('background', meta.color);
+    $('#tableIndicatorLabel').text(meta.label);
+
+    currentIndicator = ind;
+    currentType = type;
+
+    loadTableData(ind);
+});
+
+// ══════════════════════════════════════════════════════════════
+//  LOAD TABLE DATA
+// ══════════════════════════════════════════════════════════════
+function loadTableData(indicator) {
+    selectedIds.clear();
+    updateBulkToolbar();
+
+    // Show loading
+    $('#tableBody').html(`
+        <tr><td colspan="12" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary me-2"></div>Memuat data...
+        </td></tr>`);
+
+    // Destroy old DataTable
+    if (dtInstance) { dtInstance.destroy(); dtInstance = null; }
+
+    $.getJSON(`/Dashboard/GetTableData?indicator=${encodeURIComponent(indicator)}`)
+        .done(function(data) {
+            const cols = COL_DEFS[indicator];
+            if (!cols) { $('#tableBody').html('<tr><td class="text-center py-4 text-muted">Konfigurasi kolom tidak ditemukan.</td></tr>'); return; }
+
+            // Render
+            dtInstance = $('#shippingTable').DataTable({
+                data: data,
+                columns: cols,
+                destroy: true,
+                pageLength: 20,
+                language: {
+                    search: 'Cari:',
+                    lengthMenu: 'Tampilkan _MENU_ data',
+                    info: 'Menampilkan _START_ – _END_ dari _TOTAL_ data',
+                    emptyTable: `<div class="py-4 text-muted"><i class="bi bi-inbox fs-2 d-block mb-2"></i>Tidak ada data untuk indikator ini</div>`,
+                    zeroRecords: 'Data tidak ditemukan'
+                },
+                drawCallback: function() {
+                    // Re-bind checkboxes after every redraw
+                    bindCheckboxes();
+                    bindEditBtns();
+                    // Restore selection state
+                    $('#shippingTable .row-check').each(function() {
+                        const id = parseInt($(this).data('id'));
+                        if (selectedIds.has(id)) $(this).prop('checked', true);
+                    });
+                    updateCheckAll();
+                    updateBulkToolbar();
+                    // Row count
+                    const total = dtInstance ? dtInstance.rows().count() : data.length;
+                    $('#rowCountNum').text(total.toLocaleString('id-ID'));
+                    $('#tableRowCount').show();
+                }
+            });
+        })
+        .fail(function() {
+            $('#tableBody').html('<tr><td class="text-center py-4 text-danger"><i class="bi bi-exclamation-circle me-2"></i>Gagal memuat data.</td></tr>');
+        });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CHECKBOX LOGIC
+// ══════════════════════════════════════════════════════════════
+function bindCheckboxes() {
+    // Check-all header
+    $(document).off('change', '#checkAll').on('change', '#checkAll', function() {
+        const checked = $(this).is(':checked');
+        // Operate only on current page rows
+        $('#shippingTable .row-check').prop('checked', checked);
+        $('#shippingTable .row-check').each(function() {
+            const id = parseInt($(this).data('id'));
+            checked ? selectedIds.add(id) : selectedIds.delete(id);
+        });
+        updateBulkToolbar();
+    });
+
+    // Individual row checkbox
+    $(document).off('change', '.row-check').on('change', '.row-check', function() {
+        const id = parseInt($(this).data('id'));
+        $(this).is(':checked') ? selectedIds.add(id) : selectedIds.delete(id);
+        updateCheckAll();
+        updateBulkToolbar();
+    });
+}
+
+function updateCheckAll() {
+    const total   = $('#shippingTable .row-check').length;
+    const checked = $('#shippingTable .row-check:checked').length;
+    $('#checkAll').prop('indeterminate', checked > 0 && checked < total);
+    $('#checkAll').prop('checked', total > 0 && checked === total);
+}
+
+function updateBulkToolbar() {
+    const count = selectedIds.size;
+    if (count > 0) {
+        $('#bulkCountBadge').text(`${count} dipilih`);
+        $('#bulkToolbar').addClass('show');
+    } else {
+        $('#bulkToolbar').removeClass('show');
+    }
+}
+
+$('#clearSelectionBtn').on('click', function() {
+    selectedIds.clear();
+    $('#shippingTable .row-check').prop('checked', false);
+    $('#checkAll').prop('checked', false).prop('indeterminate', false);
+    updateBulkToolbar();
+});
+
+// ══════════════════════════════════════════════════════════════
+//  BULK DELETE
+// ══════════════════════════════════════════════════════════════
+$('#bulkDeleteBtn').on('click', function() {
+    if (selectedIds.size === 0) return;
+    const label = IND_META[currentIndicator]?.label || currentIndicator;
+    Swal.fire({
+        icon: 'warning',
+        title: 'Konfirmasi Hapus',
+        html: `Yakin ingin menghapus <strong>${selectedIds.size}</strong> data dari <em>${label}</em>?<br><small class="text-muted">Data akan ditandai sebagai dihapus (soft delete).</small>`,
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        confirmButtonText: '<i class="bi bi-trash3 me-1"></i>Ya, Hapus',
+        cancelButtonText: 'Batal',
+        reverseButtons: true
+    }).then(result => {
+        if (!result.isConfirmed) return;
+
+        $.ajax({
+            url: '/Dashboard/BulkDelete',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRF-TOKEN': csrfToken },
+            data: JSON.stringify({ ids: [...selectedIds], type: currentType })
+        })
+        .done(function(res) {
+            if (res.success) {
+                Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.message, timer: 2000, showConfirmButton: false });
+                selectedIds.clear();
+                updateBulkToolbar();
+                loadTableData(currentIndicator);
+                refreshKpi();
+            } else {
+                Swal.fire({ icon: 'error', title: 'Gagal', text: res.message });
+            }
+        })
+        .fail(() => Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal terhubung ke server.' }));
+    });
+});
+
+// ══════════════════════════════════════════════════════════════
+//  EDIT BUTTONS
+// ══════════════════════════════════════════════════════════════
+function bindEditBtns() {
+    // Shopping/Packing edit → redirect to order detail (for now redirect to order page)
+    $(document).off('click', '.btn-edit-shop, .btn-edit-pack')
+               .on('click', '.btn-edit-shop, .btn-edit-pack', function() {
+        const orderId = $(this).data('orderid');
+        Swal.fire({
+            icon: 'info',
+            title: 'Buka Order Detail?',
+            text: 'Anda akan diarahkan ke halaman detail order.',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Buka',
+            cancelButtonText: 'Tutup'
+        }).then(r => {
+            if (r.isConfirmed) window.open(`/Order/Detail/${orderId}`, '_blank');
+        });
+    });
+
+    // Delivery edit → open inline modal
+    $(document).off('click', '.btn-edit-delivery')
+               .on('click', '.btn-edit-delivery', function() {
+        const $btn = $(this);
+        $('#editOrderId').val($btn.data('id'));
+        $('#editOrderNo').text('— ' + $btn.data('orderno'));
+
+        const planDelv = $btn.data('plandelv');
+        const actDelv  = $btn.data('actdelv');
+        $('#editPlanDeliveryDate').val(planDelv  ? new Date(planDelv).toISOString().split('T')[0]  : '');
+        $('#editActualDeliveryDate').val(actDelv ? new Date(actDelv).toISOString().split('T')[0]   : '');
+        $('#editPlanETD').val($btn.data('planetd') || '');
+        $('#editActualETD').val($btn.data('actetd') || '');
+        $('#editDeliveryRemark').val($btn.data('remark') || '');
+
+        new bootstrap.Modal(document.getElementById('editDeliveryModal')).show();
+    });
+}
+
+// Save delivery edit
+$('#saveDeliveryBtn').on('click', function() {
+    const orderId = parseInt($('#editOrderId').val());
+    const planDelv = $('#editPlanDeliveryDate').val();
+    const actDelv  = $('#editActualDeliveryDate').val();
+
+    const payload = {
+        orderId: orderId,
+        planDeliveryDate: planDelv ? planDelv : null,
+        actualDeliveryDate: actDelv ? actDelv : null,
+        planETD: $('#editPlanETD').val() || null,
+        actualETD: $('#editActualETD').val() || null,
+        deliveryRemark: $('#editDeliveryRemark').val() || null
+    };
+
+    $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Menyimpan...');
+
+    $.ajax({
+        url: '/Dashboard/UpdateDelivery',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRF-TOKEN': csrfToken },
+        data: JSON.stringify(payload)
+    })
+    .done(function(res) {
+        if (res.success) {
+            bootstrap.Modal.getInstance(document.getElementById('editDeliveryModal')).hide();
+            const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2500, timerProgressBar: true });
+            Toast.fire({ icon: 'success', title: 'Data delivery diperbarui!' });
+            loadTableData(currentIndicator);
+        } else {
+            Swal.fire({ icon: 'error', title: 'Gagal', text: res.message });
+        }
+    })
+    .fail(() => Swal.fire({ icon: 'error', title: 'Error', text: 'Gagal terhubung ke server.' }))
+    .always(() => {
+        $('#saveDeliveryBtn').prop('disabled', false).html('<i class="bi bi-floppy me-1"></i>Simpan');
+    });
+});
+
+// ══════════════════════════════════════════════════════════════
+//  KPI REFRESH
+// ══════════════════════════════════════════════════════════════
+function refreshKpi() {
+    $.getJSON('/Dashboard/GetShippingKpi').done(function(kpi) {
+        // Animate counters
+        animateCount('kpi-shop-count',  kpi.progresShoppingCount);
+        animateCount('kpi-pack-count',  kpi.progresPackingCount);
+        animateCount('kpi-deliv-count', kpi.progresDeliveryCount);
+        animateCount('kpi-dshop-count', kpi.delayShoppingCount);
+        animateCount('kpi-dpack-count', kpi.delayPackingCount);
+        animateCount('kpi-ddeliv-count',kpi.delayDeliveryCount);
+        animateCount('kpi-fin-count',   kpi.finishedCount);
+
+        // Sub text
+        $('#kpi-shop-sub').text(`T: ${fmtN(kpi.progresShoppingTarget)} / A: ${fmtN(kpi.progresShoppingActual)}`);
+        $('#kpi-pack-sub').text(`T: ${fmtN(kpi.progresPackingTarget)} / A: ${fmtN(kpi.progresPackingActual)}`);
+        $('#kpi-deliv-sub').text(`T: ${fmtN(kpi.progresDeliveryTarget)} / A: ${fmtN(kpi.progresDeliveryActual)}`);
+
+        // Progress bars
+        setBar('kpi-shop-bar',  kpi.progresShoppingTarget  > 0 ? Math.min(100, kpi.progresShoppingActual  / kpi.progresShoppingTarget  * 100) : 0);
+        setBar('kpi-pack-bar',  kpi.progresPackingTarget   > 0 ? Math.min(100, kpi.progresPackingActual   / kpi.progresPackingTarget   * 100) : 0);
+        setBar('kpi-deliv-bar', kpi.progresDeliveryTarget  > 0 ? Math.min(100, kpi.progresDeliveryActual  / kpi.progresDeliveryTarget  * 100) : 0);
+
+        // Timestamp
+        $('#lastRefreshed').text('Diperbarui: ' + new Date().toLocaleTimeString('id-ID'));
+    });
+}
+
+function animateCount(id, newVal) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const start = parseInt(el.textContent) || 0;
+    const duration = 500;
+    const t0 = performance.now();
+    function step(t) {
+        const pct = Math.min((t - t0) / duration, 1);
+        el.textContent = Math.round(start + (newVal - start) * pct);
+        if (pct < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+function setBar(id, pct) {
+    const el = document.getElementById(id);
+    if (el) el.style.width = pct + '%';
+}
+
+// Auto-refresh KPI every 60s
+refreshKpi();
+setInterval(refreshKpi, 60000);
+
+$('#refreshBtn').on('click', function() {
+    refreshKpi();
+    if (currentIndicator) loadTableData(currentIndicator);
+});
+
+// Default: open ProgresShopping on load
+$(function() {
+    $('.ind-card[data-indicator="ProgresShopping"]').trigger('click');
+});
+</script>
+}

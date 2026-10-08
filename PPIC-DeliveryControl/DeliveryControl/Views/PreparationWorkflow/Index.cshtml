@@ -1,0 +1,2698 @@
+@model IEnumerable<DeliveryControl.Models.DeliverySchedule>
+@{
+    ViewData["Title"] = "Preparation Workflow Scanner";
+    bool isUserRolePrep = ViewData["IsUser"] is bool uPrep && uPrep;
+}
+
+<!-- Custom Styles -->
+<style>
+    :root {
+        --cyber-yellow: #facc15;
+        --cyber-bg: #0f172a;
+        --cyber-card-bg: #1e293b;
+        --cyber-border: #334155;
+        --cyber-text-muted: #94a3b8;
+    }
+
+    body {
+        background-color: var(--cyber-bg);
+        color: white;
+    }
+
+    .scanner-top-bar {
+        background: var(--cyber-card-bg);
+        border: 1px solid var(--cyber-border);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 2rem;
+    }
+
+    .custom-cyber-input-group {
+        display: flex;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 10px;
+        overflow: hidden;
+        min-height: 54px; /* Touch-friendly height */
+    }
+    
+    .input-icon-left {
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        color: rgba(255, 255, 255, 0.5);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 1.2rem;
+    }
+    
+    .cyber-field {
+        background: transparent !important;
+        border: none !important;
+        color: white !important;
+        padding: 12px 16px !important;
+        width: 100%;
+        font-size: 1.1rem; /* Larger font */
+    }
+    
+    .btn-scan-trigger {
+        background: transparent;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.6);
+        padding: 0 16px;
+        font-size: 1.2rem;
+    }
+
+    .btn-neon-success {
+        background: #10b981;
+        color: white;
+        font-weight: bold;
+        border: none;
+        transition: 0.3s;
+        padding: 14px !important;
+        font-size: 1.1rem !important;
+    }
+
+    /* Progress Table Styles */
+    .progress-table-container {
+        background: var(--cyber-card-bg);
+        border: 1px solid var(--cyber-border);
+        border-radius: 12px;
+        overflow-x: auto; /* Tablet scroll fix */
+        margin-top: 1.5rem;
+    }
+
+    .cyber-table {
+        width: 100%;
+        margin-bottom: 0;
+        color: white;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .cyber-table th {
+        background: rgba(0,0,0,0.3);
+        color: var(--cyber-yellow);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.85rem; /* Larger font */
+        padding: 16px 15px;
+        border-bottom: 2px solid var(--cyber-border);
+    }
+
+    .cyber-table td {
+        padding: 16px 15px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        vertical-align: middle;
+        font-size: 0.95rem; /* Larger font */
+    }
+
+    .item-row.highlight-row {
+        background: rgba(250, 204, 21, 0.1) !important;
+        border-left: 4px solid var(--cyber-yellow);
+        animation: row-glow 1s infinite alternate;
+    }
+
+    @@keyframes row-glow {
+        from { background: rgba(250, 204, 21, 0.05); }
+        to { background: rgba(250, 204, 21, 0.2); }
+    }
+
+    @@keyframes slideInRight {
+        from { opacity: 0; transform: translateX(40px); }
+        to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .progress-mini {
+        height: 8px; /* Slightly thicker */
+        background: rgba(255,255,255,0.05);
+        border-radius: 4px;
+        margin-top: 6px;
+    }
+
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 700;
+    }
+
+    /* Floating Progress Area (Success Dialog) */
+    .progress-detail-container {
+        display: none;
+        background: #0f172a;
+        border: 2px solid var(--cyber-yellow);
+        border-radius: 8px;
+        padding: 24px;
+        margin-top: 20px;
+        box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    }
+    /* Scanner Video Fix */
+    #reader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain !important; /* Fix alignment */
+    }
+
+    /* Scanner Overlay & Bounding Box */
+    .scanner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 20;
+    }
+
+    .bounding-box {
+        width: 250px;
+        height: 250px;
+        position: relative;
+        box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4);
+        border: 2px solid var(--cyber-yellow);
+        border-radius: 4px;
+    }
+    
+    .scan-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: #ef4444;
+        box-shadow: 0 0 10px #ef4444;
+        animation: scan-line 2.5s ease-in-out infinite;
+    }
+
+    @@keyframes scan-line {
+        0% { top: 0; opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { top: 100%; opacity: 0; }
+    }
+
+    .scanner-tip {
+        color: white;
+        font-size: 0.85rem;
+        margin-top: 15px;
+        background: rgba(0,0,0,0.6);
+        padding: 6px 16px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .active-scan {
+        background: rgba(250, 204, 21, 0.2) !important;
+        border-color: var(--cyber-yellow) !important;
+    }
+
+    #scannerToast {
+        backdrop-filter: blur(8px);
+        background: rgba(15, 23, 42, 0.9);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    .selected-glow {
+        border-color: var(--cyber-yellow) !important;
+        box-shadow: 0 0 15px rgba(250, 204, 21, 0.5) !important;
+        background: rgba(30, 41, 59, 0.9) !important;
+    }
+    .modal-cyber {
+        background: var(--cyber-bg) !important;
+        border: 2px solid var(--cyber-border) !important;
+        box-shadow: 0 0 30px rgba(250, 204, 21, 0.2);
+    }
+    
+    .modal-cyber .modal-header {
+        background: rgba(15, 23, 42, 0.95);
+        border-bottom: 2px solid var(--cyber-yellow) !important;
+        padding: 0.8rem 1.25rem !important;
+        align-items: center;
+    }
+
+    .modal-cyber .modal-title {
+        color: var(--cyber-yellow);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
+        margin-bottom: 0;
+        line-height: 1.2;
+    }
+
+    .table-dark {
+        background: transparent !important;
+    }
+
+    #tableScheduleList thead th {
+        background: #1e293b !important;
+        color: var(--cyber-yellow) !important;
+        z-index: 1000;
+        padding: 6px 8px !important;
+        font-size: 0.7rem !important;
+        border-bottom: 2px solid var(--cyber-border);
+        position: sticky;
+        top: 0;
+    }
+    
+    #tableScheduleList tbody td {
+        padding: 5px 8px !important;
+        font-size: 0.75rem !important;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    #scheduleModal .modal-body {
+        max-height: 420px;
+        overflow-y: auto;
+    }
+
+    .floating-fab {
+        position: fixed !important;
+        bottom: 30px !important;
+        right: 30px !important;
+        z-index: 1050;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--cyber-yellow), #f59e0b);
+        color: #000;
+        border: none;
+        box-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .floating-fab:hover {
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 0 30px rgba(250, 204, 21, 0.6);
+    }
+
+    /* SignalR Status Badge */
+    .realtime-status-badge {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .status-connecting { border-color: #adb5bd; color: #adb5bd; }
+    .status-live { border-color: #34d399; color: #34d399; }
+    .status-reconnecting { border-color: #fbbf24; color: #fbbf24; }
+    .status-disconnected { border-color: #f87171; color: #f87171; }
+
+    .status-pulse {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 20px;
+        animation: pulse-ring 2s infinite;
+        opacity: 0;
+        left: 0;
+    }
+    .status-live .status-pulse { background: rgba(16, 185, 129, 0.3); }
+
+    @@keyframes pulse-ring {
+        0% { transform: scale(1); opacity: 0.5; }
+        100% { transform: scale(1.1); opacity: 0; }
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h2 class="text-white fw-bold mb-0"><i class="bi bi-upc-scan me-2 text-warning"></i> Input Progress Preparation</h2>
+            <div id="signalr-status" class="realtime-status-badge status-connecting">
+                <div class="status-pulse"></div>
+                <i class="bi bi-circle-fill status-icon"></i>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Section (Refactored to match Pulling UI) -->
+    <div class="row justify-content-center">
+        <div class="col-12">
+            @if (isUserRolePrep)
+            {
+                <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+                    <i class="bi bi-eye me-2 fs-5"></i>
+                    <span>Anda login sebagai <strong>User</strong> — halaman ini hanya dapat dilihat, tidak dapat melakukan input preparation.</span>
+                </div>
+            }
+            <div class="cyber-card p-4" style="background: #1e293b; border-radius: 12px; border: 1px solid #334155;">
+                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom border-secondary pb-2">
+                    <h5 class="mb-0 fw-bold text-white"><i class="bi bi-pencil-square me-2"></i> Form Input Preparation</h5>
+                    <div class="d-flex align-items-center gap-3 flex-wrap justify-content-end">
+                        @{
+                            var userRole = Context.Session.GetString("Role");
+                            bool isSuperAdmin = userRole == "Super Admin";
+                        }
+                        @if (isSuperAdmin)
+                        {
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input bg-warning border-warning" type="checkbox" id="fastScanMode" checked>
+                                <label class="form-check-label text-warning small fw-bold" for="fastScanMode">MODE SCAN CEPAT (EXT)</label>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="manualInputMode" style="background-color:#ef4444;border-color:#ef4444;">
+                                <label class="form-check-label small fw-bold" style="color:#ef4444;" for="manualInputMode"><i class="bi bi-keyboard me-1"></i>MODE KETIK MANUAL</label>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="skipStockMode" style="background-color:#f97316;border-color:#f97316;">
+                                <label class="form-check-label small fw-bold" style="color:#f97316;" for="skipStockMode"><i class="bi bi-box-seam me-1"></i>SKIP VALIDASI STOCK</label>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="validateProdIntLabelMode" style="background-color:#3b82f6;border-color:#3b82f6;" checked>
+                                <label class="form-check-label small fw-bold" style="color:#3b82f6;" for="validateProdIntLabelMode"><i class="bi bi-shield-check me-1"></i>VALIDASI LABEL PROD INT</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @if (ViewData["TargetVin"] != null && !string.IsNullOrEmpty(ViewData["TargetVin"].ToString()))
+                {
+                    <div class="alert bg-info bg-opacity-10 border-info border-opacity-50 text-info mb-4 d-flex align-items-center">
+                        <i class="bi bi-bullseye fs-4 me-3"></i>
+                        <div>
+                            <div class="small text-uppercase opacity-75 fw-bold">Manifest Sedang Diproses:</div>
+                            <div class="fs-5 fw-bold text-white">@ViewData["TargetVin"]</div>
+                        </div>
+                        <a asp-action="Index" class="btn btn-sm btn-outline-info ms-auto">
+                            <i class="bi bi-x-circle me-1"></i> Batal Fokus
+                        </a>
+                    </div>
+                }
+                
+                <div class="mx-auto">
+                    <!-- Manual Mode Indicator (Admin Only) -->
+                    @if (ViewData["IsAdmin"] is bool isAdminIndicator && isAdminIndicator)
+                    {
+                    <div id="manualModeIndicator" style="display:none;" class="mb-3 py-2 px-3 d-flex align-items-center gap-2" style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.5);border-radius:8px;">
+                        <span style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.5);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:8px;">
+                            <i class="bi bi-keyboard" style="color:#ef4444;font-size:1.1rem;"></i>
+                            <span style="color:#ef4444;font-weight:700;font-size:0.85rem;">MODE KETIK MANUAL AKTIF</span>
+                            <span style="color:#94a3b8;font-size:0.8rem;">— Validasi suffix X dinonaktifkan (Admin Only)</span>
+                        </span>
+                    </div>
+                    }
+
+                    <!-- Skip Stock Validation Indicator (Admin only — Preparation tidak perlu tahu) -->
+                    @{
+                        bool skipStockActive = ViewData["SkipStockActive"] is bool ssa && ssa;
+                        bool isAdminForIndicator = ViewData["IsAdmin"] is bool iai && iai;
+                    }
+                    @if (isAdminForIndicator)
+                    {
+                    <div id="skipStockIndicator" style="display:@(skipStockActive ? "block" : "none");" class="mb-3 py-2 px-3 d-flex align-items-center gap-2">
+                        <span style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.5);border-radius:8px;padding:6px 14px;display:flex;align-items:center;gap:8px;">
+                            <i class="bi bi-box-seam" style="color:#f97316;font-size:1.1rem;"></i>
+                            <span style="color:#f97316;font-weight:700;font-size:0.85rem;">SKIP VALIDASI STOCK AKTIF</span>
+                            <span style="color:#94a3b8;font-size:0.8rem;">— Preparation bisa scan meski stock habis/kosong.</span>
+                        </span>
+                    </div>
+                    }
+
+                    <!-- Status Identification (Moved here for better flow) -->
+                    <div id="idStatusSection" style="display: none;" class="mb-4 p-3 border border-primary border-opacity-50 rounded bg-dark bg-opacity-50">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="spinner-grow spinner-grow-sm text-yellow me-2" role="status"></div>
+                                <span id="idStatusText" class="text-white small fw-bold">Mencocokkan data...</span>
+                            </div>
+                            <span id="idTargetInfo" class="badge bg-primary px-3">---</span>
+                        </div>
+                    </div>
+
+
+
+                    <!-- 0. Pilih Dock (WAJIB sebelum scan) -->
+                    <div class="mb-4" id="dockSelectSection">
+                        <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">
+                            <i class="bi bi-geo-alt-fill me-1 text-warning"></i>PILIH DOCK <span class="text-danger">*</span>
+                        </label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <div style="flex:1;">
+                                <select id="dockSelect" class="form-select" style="background:#0f172a;color:white;border:1px solid rgba(250,204,21,0.5);border-radius:10px;padding:12px 16px;font-size:1rem;">
+                                    <option value="">-- Memuat dock... --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Konfirmasi dock terpilih -->
+                        <div id="dockSelectedBar" style="display:none;" class="mt-3 py-2 px-3 d-flex align-items-center justify-content-between"
+                             style="background:rgba(250,204,21,0.1);border:1px solid rgba(250,204,21,0.4);border-radius:8px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-check-circle-fill text-warning fs-5"></i>
+                                <div>
+                                    <div id="dockConfirmName" class="text-white fw-bold" style="font-size:0.95rem;"></div>
+                                    <div id="dockConfirmCycle" class="text-warning-emphasis" style="font-size:0.78rem;"></div>
+                                </div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-warning" id="btnChangeDock">
+                                <i class="bi bi-pencil me-1"></i>Ganti Dock
+                            </button>
+                        </div>
+
+                        <!-- Card Lokasi Rak (muncul setelah scan VIN multi-rack, stays sampai SELESAI) -->
+                        <div id="rackSelectionPanelPrep" style="display:none;" class="mt-3">
+                            <div style="background:rgba(245,158,11,0.08);border:1.5px solid rgba(245,158,11,0.45);border-radius:12px;padding:16px 20px;">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div>
+                                        <i class="bi bi-grid-3x3-gap-fill me-2" style="color:#f59e0b;font-size:1.1rem;"></i>
+                                        <span style="color:#f59e0b;font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:1px;">Pilih Lokasi Rak</span>
+                                        <span style="color:#94a3b8;font-size:0.78rem;margin-left:8px;">— Item ini memiliki beberapa lokasi rak</span>
+                                    </div>
+                                    <button type="button" id="btnSelesaiPrep" class="btn btn-sm"
+                                        style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.5);color:#ef4444;font-weight:700;border-radius:8px;padding:5px 14px;">
+                                        <i class="bi bi-check2-square me-1"></i>SELESAI
+                                    </button>
+                                </div>
+                                <div id="rackLocationGridPrep" class="d-flex flex-wrap gap-2">
+                                    <!-- Rack location buttons rendered by JS -->
+                                </div>
+                                <div class="mt-2" id="selectedRackInfoPrep" style="display:none;">
+                                    <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);border-radius:6px;padding:4px 12px;color:#10b981;font-size:0.82rem;font-weight:600;">
+                                        <i class="bi bi-check-circle-fill me-1"></i>
+                                        <span id="selectedRackTextPrep">-</span>
+                                    </span>
+                                    <span style="color:#94a3b8;font-size:0.78rem;margin-left:8px;">Silakan scan label produk</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!-- end #dockSelectSection -->
+
+                    <!-- TANGGAL JADWAL SCAN (Target Date for future-dated preparation) -->
+                    <div class="mb-3" id="targetDateSection">
+                        <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">
+                            <i class="bi bi-calendar2-event me-1"></i> Tanggal Jadwal Scan
+                        </label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="date" class="form-control cyber-field" id="targetDateInput"
+                                   min="@DateTime.Today.AddDays(-2).ToString("yyyy-MM-dd")"
+                                   style="max-width:180px; background:#0d1117; color:#e2e8f0; border:1px solid #334155;">
+                            <span id="badgeTodayDate" class="badge bg-secondary small" style="font-size:0.72rem;">Hari Ini</span>
+                            <span id="badgePastDate" class="badge bg-info text-dark small" style="display:none;font-size:0.72rem;"><i class="bi bi-arrow-counterclockwise me-1"></i>Susulan</span>
+                            <span id="badgeFutureDate" class="badge bg-warning text-dark small" style="display:none;font-size:0.72rem;"><i class="bi bi-clock-history me-1"></i>Scan Ke Depan</span>
+                        </div>
+                        <div id="pastDateNote" class="mt-1" style="display:none;">
+                            <small class="text-info"><i class="bi bi-info-circle me-1"></i>Mode <strong>Susulan</strong> — preparation akan dicatat pada tanggal yang dipilih (maks H-2).</small>
+                        </div>
+                        <div id="futureDateNote" class="mt-1" style="display:none;">
+                            <small class="text-warning"><i class="bi bi-info-circle me-1"></i>Scan Ke Depan — item akan langsung masuk ke jadwal jika <strong>jadwal tanggal tersebut sudah ada</strong>. Jika belum ada, akan tersimpan sebagai PENDING dan sync otomatis saat jadwal di-upload.</small>
+                        </div>
+                    </div>
+
+                    <!-- Scan inputs (disabled until dock selected) -->
+                    <div id="scanInputsSection" style="opacity:0.4;pointer-events:none;transition:opacity 0.3s;">
+
+                    <!-- 1. VIN (Tag) -->
+                    <div class="mb-3">
+                        <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">Scan Barcode Rak <span class="text-danger">*</span></label>
+                        <div class="custom-cyber-input-group">
+                            <div class="input-icon-left"><i class="bi bi-tag-fill"></i></div>
+                            <input type="text" class="form-control cyber-field" id="tagInput" placeholder="Scan Barcode Rak..." readonly autofocus>
+                            <button type="button" class="btn-scan-trigger" data-target="tagInput"><i class="bi bi-qr-code-scan"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- 2. Label Customer -->
+                    <div class="mb-3">
+                        <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">Scan Barcode Label <span class="text-danger">*</span></label>
+                        <div class="custom-cyber-input-group">
+                            <div class="input-icon-left"><i class="bi bi-upc-scan"></i></div>
+                            <input type="text" class="form-control cyber-field" id="labelInput" placeholder="Scan Barcode Label..." disabled readonly>
+                            <button type="button" class="btn-scan-trigger" data-target="labelInput" disabled><i class="bi bi-qr-code-scan"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- 3. Kanban Customer -->
+                    <div class="mb-3">
+                        <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">Scan Barcode Kanban <span class="text-danger">*</span></label>
+                        <div class="custom-cyber-input-group">
+                            <div class="input-icon-left"><i class="bi bi-clipboard-check"></i></div>
+                            <input type="text" class="form-control cyber-field" id="kanbanInput" placeholder="Scan Barcode Kanban..." disabled readonly>
+                            <button type="button" class="btn-scan-trigger" data-target="kanbanInput" disabled><i class="bi bi-qr-code-scan"></i></button>
+                        </div>
+                    </div>
+
+                    </div><!-- end #scanInputsSection -->
+
+
+                                    <!-- Hidden Button & Indicator -->
+                    <div class="mt-4 text-center">
+                        <button type="button" class="btn btn-neon-success w-100 py-2 shadow-lg fs-5" id="btnSavePreparation" style="display:none;">
+                            <i class="bi bi-shield-check-fill me-2"></i> SIMPAN DATA
+                        </button>
+                        <div id="prepLoadingIndicator" style="display:none;" class="text-info">
+                            <span class="spinner-border spinner-border-sm me-2"></span>Menyimpan otomatis...
+                        </div>
+                    </div>
+
+                    <!-- Pending Save Notification (fixed bottom-right layar, tidak menumpuk tombol) -->
+                    <div id="pendingSaveNotif" style="
+                        display:none;
+                        position:fixed;
+                        bottom:28px;
+                        right:24px;
+                        z-index:1200;
+                        min-width:280px;
+                        max-width:360px;
+                        background:linear-gradient(135deg,#14532d,#166534);
+                        border:1px solid #22c55e;
+                        border-radius:10px;
+                        padding:12px 16px;
+                        box-shadow:0 4px 24px rgba(34,197,94,0.30);
+                        animation: slideInRight 0.35s ease;
+                    ">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-check-circle-fill text-success mt-1" style="font-size:1.1rem;flex-shrink:0;"></i>
+                            <div>
+                                <div style="color:#bbf7d0;font-weight:700;font-size:0.85rem;line-height:1.3;">Part tersimpan sebagai <span style="color:#4ade80;">PENDING</span></div>
+                                <div style="color:#86efac;font-size:0.75rem;margin-top:2px;">Scan tersimpan, menunggu jadwal yang sesuai.</div>
+                            </div>
+                            <button onclick="document.getElementById('pendingSaveNotif').style.display='none';" 
+                                style="background:none;border:none;color:#86efac;font-size:1rem;cursor:pointer;padding:0;margin-left:4px;line-height:1;">&times;</button>
+                        </div>
+                    </div>
+
+                    <!-- Kanban Full Notification -->
+                    <div id="kanbanFullNotif" style="
+                        display:none;
+                        position:fixed;
+                        bottom:28px;
+                        right:24px;
+                        z-index:1300;
+                        min-width:300px;
+                        max-width:380px;
+                        background:linear-gradient(135deg,#7f1d1d,#991b1b);
+                        border:2px solid #ef4444;
+                        border-radius:10px;
+                        padding:14px 16px;
+                        box-shadow:0 4px 28px rgba(239,68,68,0.45);
+                        animation: slideInRight 0.3s ease;
+                    ">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-exclamation-octagon-fill mt-1" style="color:#fca5a5;font-size:1.3rem;flex-shrink:0;"></i>
+                            <div>
+                                <div style="color:#fecaca;font-weight:700;font-size:0.9rem;line-height:1.3;">⛔ KANBAN SUDAH PENUH</div>
+                                <div id="kanbanFullDetail" style="color:#fca5a5;font-size:0.75rem;margin-top:3px;">Target QTY sudah tercapai.</div>
+                            </div>
+                            <button onclick="document.getElementById('kanbanFullNotif').style.display='none';"
+                                style="background:none;border:none;color:#fca5a5;font-size:1.1rem;cursor:pointer;padding:0;margin-left:4px;line-height:1;">&times;</button>
+                        </div>
+                    </div>
+
+                    <!-- Pending Banner (info saja, tanpa tombol Sync) -->
+                    <div id="pendingBanner" style="display:none;" class="mt-4 p-3 rounded" 
+                         style="background:linear-gradient(135deg,rgba(234,179,8,0.12),rgba(234,179,8,0.06));border:1px solid rgba(234,179,8,0.4);">
+                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-clock-history text-warning fs-5"></i>
+                                <div>
+                                    <div class="text-warning fw-bold small">
+                                        <span id="pendingTotalCount">0</span> SCAN PENDING
+                                    </div>
+                                    <div class="text-white-50" style="font-size:0.72rem;">Scan tersimpan tapi belum terikat ke jadwal. <a href="#" id="linkShowPendingList" class="text-warning">Lihat detail →</a></div>
+                                </div>
+                            </div>
+                            {{-- Tombol Synchronize disembunyikan (sync dilakukan dari halaman Jadwal Preparation) --}}
+                        </div>
+                    </div>
+
+                    <!-- Toast Notification (untuk sukses/info) -->
+                    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+                        <div id="scannerToast" class="toast hide align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                            <div class="d-flex">
+                                <div class="toast-body" id="scannerToastBody">Message here</div>
+                                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Success Progress Popup -->
+    <div id="progressDetailArea" class="progress-detail-container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="text-yellow mb-0"><i class="bi bi-check-circle me-2"></i> BERHASIL DI-SCAN: <span id="progressTargetName" class="text-white">---</span></h6>
+            <span id="progressPercentTotal" class="badge bg-success">0%</span>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal Scanner -->
+<div class="modal fade" id="scannerModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border-secondary">
+            <div class="modal-header border-secondary">
+                <h6 class="modal-title text-white" id="scannerModalLabel">Scanning...</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 position-relative overflow-hidden" style="height: 400px; background: #000;">
+                <div id="reader" style="width: 100%; height: 100%;"></div>
+                <div class="scanner-overlay">
+                    <div class="bounding-box">
+                        <div class="scan-line"></div>
+                    </div>
+                    <div class="scanner-tip" id="scanner-status">Mencari Barcode / QR...</div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Floating Action Button -->
+<button type="button" class="floating-fab" id="btnShowSchedule" title="Lihat Jadwal Preparation">
+    <i class="bi bi-calendar3"></i>
+</button>
+
+<!-- Modal Jadwal Preparation -->
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content modal-cyber text-white">
+
+<!-- Modal Pending Detail + Sync -->
+<div class="modal fade" id="pendingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content modal-cyber text-white">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold" style="color:#facc15;">
+                    <i class="bi bi-clock-history me-2"></i> SCAN PENDING
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <!-- Info Bar -->
+            <div class="px-3 py-2 border-bottom border-secondary d-flex justify-content-between align-items-center flex-wrap gap-2" 
+                 style="background:rgba(15,23,42,0.6);">
+                <div class="text-white-50 small">
+                    Total: <span id="modalPendingTotal" class="text-warning fw-bold">0</span> records pending
+                </div>
+                {{-- Tombol Synchronize disembunyikan (sync dilakukan dari halaman Jadwal Preparation) --}}
+            </div>
+            <!-- Filter Tanggal Pending -->
+            <div class="px-3 py-2 border-bottom border-secondary d-flex flex-wrap gap-2 align-items-center" 
+                 style="background:rgba(250,204,21,0.04);">
+                <i class="bi bi-funnel-fill text-warning" style="font-size:0.85rem;"></i>
+                <span class="text-white-50" style="font-size:0.78rem;font-weight:600;">FILTER TANGGAL:</span>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="text-white-50" style="font-size:0.75rem;white-space:nowrap;">Dari</label>
+                    <input type="date" id="pendingDateFrom"
+                           class="form-control form-control-sm border-secondary text-white"
+                           style="background:#0f172a;max-width:145px;font-size:0.8rem;"
+                           title="Filter dari tanggal">
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                    <label class="text-white-50" style="font-size:0.75rem;white-space:nowrap;">Sampai</label>
+                    <input type="date" id="pendingDateTo"
+                           class="form-control form-control-sm border-secondary text-white"
+                           style="background:#0f172a;max-width:145px;font-size:0.8rem;"
+                           title="Filter sampai tanggal">
+                </div>
+                <button type="button" id="btnPendingDateFilter"
+                        class="btn btn-sm btn-warning text-dark fw-bold py-0 px-2"
+                        style="font-size:0.78rem;"
+                        onclick="loadPendingList(1)">
+                    <i class="bi bi-search me-1"></i>Filter
+                </button>
+                <button type="button" id="btnPendingDateReset"
+                        class="btn btn-sm btn-outline-secondary py-0 px-2"
+                        style="font-size:0.78rem;"
+                        onclick="document.getElementById('pendingDateFrom').value=''; document.getElementById('pendingDateTo').value=''; loadPendingList(1);">
+                    <i class="bi bi-x-circle me-1"></i>Reset
+                </button>
+            </div>
+            <!-- Info Note -->
+            <div class="px-3 py-2 border-bottom border-secondary" style="background:rgba(234,179,8,0.06);">
+                <div class="small text-warning-emphasis d-flex align-items-start gap-2">
+                    <i class="bi bi-info-circle-fill text-warning mt-1 flex-shrink-0"></i>
+                    <span class="text-white-50">
+                        Scan yang tersimpan sebagai <strong class="text-warning">PENDING</strong> belum terikat ke jadwal.
+                        Scan akan otomatis tersync ke jadwal yang sesuai berdasarkan tanggal scan.
+                    </span>
+                </div>
+            </div>
+            <div class="modal-body p-0">
+                <div id="pendingListLoading" class="text-center py-5">
+                    <div class="spinner-border text-warning" role="status"></div>
+                    <div class="mt-2 text-white-50">Memuat data pending...</div>
+                </div>
+                <div id="pendingListEmpty" style="display:none;" class="text-center py-5">
+                    <i class="bi bi-check2-all text-success fs-1"></i>
+                    <div class="mt-2 text-success fw-bold">Tidak ada scan pending!</div>
+                    <div class="text-white-50 small">Semua scan sudah terikat ke jadwal.</div>
+                </div>
+                <div class="table-responsive" id="pendingListTableWrap" style="display:none;">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead class="sticky-top">
+                            <tr class="text-uppercase" style="background:#1e293b;font-size:0.72rem;color:#94a3b8;">
+                                <th class="p-2 text-center" style="width:40px;"><input type="checkbox" id="checkAllPending" class="form-check-input"></th>
+                                <th class="p-2">#</th>
+                                <th class="p-2">Waktu Scan</th>
+                                <th class="p-2">Dock</th>
+                                <th class="p-2">Cycle</th>
+                                <th class="p-2">TAG / VIN</th>
+                                <th class="p-2">Label</th>
+                                <th class="p-2">Kanban / Part No</th>
+                                <th class="p-2">Delivery Date</th>
+                                <th class="p-2">Operator</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingListBody"></tbody>
+                    </table>
+                    <!-- Pagination -->
+                    <div id="pendingListPagination" style="display:none;" class="d-flex justify-content-between align-items-center px-3 py-2" style="border-top:1px solid rgba(245,158,11,0.2);">
+                        <span id="pendingListPageInfo" style="font-size:0.78rem;color:#94a3b8;"></span>
+                        <div class="d-flex gap-1" id="pendingListPageBtns"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <input type="text" id="pendingManifestInput" class="form-control form-control-sm border-warning text-warning fw-bold" placeholder="Ketik No Manifest..." style="background: rgba(250, 204, 21, 0.1); width: 200px;">
+                    <button type="button" class="btn btn-warning fw-bold text-dark" id="btnSyncSelectedPending"><i class="bi bi-arrow-repeat me-1"></i> Sync Sekarang</button>
+                    <button type="button" class="btn btn-danger" id="btnDeletePending"><i class="bi bi-trash me-1"></i> Hapus Semua</button>
+                </div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-yellow">
+                    <i class="bi bi-list-check me-2"></i> JADWAL PREPARATION
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <!-- Filter Bar (Fixed) -->
+            <div class="p-3 bg-dark bg-opacity-50 border-bottom border-secondary d-flex flex-wrap gap-2 align-items-center">
+                 <div class="input-group input-group-sm flex-grow-1" style="min-width: 150px; max-width: 250px;">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-calendar3"></i></span>
+                    <input type="date" id="filterSchedDate" class="form-control bg-dark text-white border-secondary" value="@DateTime.Today.ToString("yyyy-MM-dd")">
+                </div>
+                 <div class="input-group input-group-sm flex-grow-1" style="min-width: 200px;">
+                    <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-upc-scan"></i></span>
+                    <input type="text" id="filterSchedVin" class="form-control bg-dark text-white border-secondary" placeholder="Cari VIN / Part No...">
+                </div>
+            </div>
+
+            <!-- Summary Bar (Dashboard Style) -->
+            <div class="px-3 py-2 border-bottom border-secondary d-flex gap-4 align-items-center" style="background: rgba(15, 23, 42, 0.6);">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center fw-bold bg-warning text-dark" id="modal-prep-count" style="width:30px; height:30px; font-size:0.9rem; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);">0</span>
+                    <span class="text-warning fw-bold small text-uppercase" style="letter-spacing: 0.5px; opacity: 0.9;">Preparing</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center fw-bold bg-secondary text-white" id="modal-wait-count" style="width:30px; height:30px; font-size:0.9rem;">0</span>
+                    <span class="text-secondary fw-bold small text-uppercase" style="letter-spacing: 0.5px; opacity: 0.9;">Waiting</span>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle d-flex align-items-center justify-content-center fw-bold bg-success text-white" id="modal-done-count" style="width:30px; height:30px; font-size:0.9rem; box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);">0</span>
+                    <span class="text-success fw-bold small text-uppercase" style="letter-spacing: 0.5px; opacity: 0.9;">Completed</span>
+                </div>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0 align-middle" id="tableScheduleList">
+                        <thead class="sticky-top">
+                            <tr class="text-uppercase text-secondary small" style="background: #1e293b;">
+                                <th class="p-2">Manifest</th>
+                                <th class="p-2">Customer</th>
+                                <th class="p-2">Part No / VIN</th>
+                                <th class="p-2 text-center">QPC</th>
+                                <th class="p-2 text-center">Kbn Prep</th>
+                                <th class="p-2 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleListBody">
+                            <tr>
+                                <td colspan="6" class="text-center py-5">
+                                    <div class="spinner-border text-yellow" role="status"></div>
+                                    <div class="mt-2">Memuat data...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+@section Scripts {
+    <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+
+    <script>
+        // Global variables for Dock Mapping
+        let selectedDock = null; // { customerId, dockName, cycle, startPrepTime }
+        let lockedRackInfo = null; // { rack, noRack, plant } — lokasi multi-rack yang sedang dikerjakan
+
+        $(document).ready(function () {
+            // --- SignalR Realtime Updates ---
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/deliveryHub")
+                .withAutomaticReconnect()
+                .build();
+
+            function updateSignalRStatus(status) {
+                const badge = document.getElementById('signalr-status');
+                if (!badge) return;
+                const text = badge.querySelector('.status-text');
+                badge.className = 'realtime-status-badge status-' + status;
+                
+                if (status === 'live') {
+                    text.innerText = 'Live';
+                } else if (status === 'connecting') {
+                    text.innerText = 'Connecting...';
+                } else if (status === 'reconnecting') {
+                    text.innerText = 'Reconnecting...';
+                } else {
+                    text.innerText = 'Offline';
+                }
+            }
+
+            // Sync indicators when data changes anywhere
+            connection.on("deliveryUpdated", function (data) {
+                console.log("Realtime update received:", data);
+                loadScheduleList(); // Refreshes Modal & FAB counts
+            });
+
+            connection.onreconnecting(() => updateSignalRStatus('reconnecting'));
+            connection.onreconnected(() => updateSignalRStatus('live'));
+            connection.onclose(() => updateSignalRStatus('disconnected'));
+
+            async function startSignalR() {
+                try {
+                    await connection.start();
+                    console.log("SignalR: Connected to Delivery Hub");
+                    updateSignalRStatus('live');
+                } catch (err) {
+                    console.error("SignalR Connection Error: ", err);
+                    updateSignalRStatus('disconnected');
+                    setTimeout(startSignalR, 5000); // Retry after 5s
+                }
+            }
+
+            startSignalR();
+
+            // ── RACK PICK MODAL (popup amber — muncul saat PERTAMA scan multi-rack) ────
+            const $rackPickModalPrep = $(`
+                <div class="modal fade" id="rackPickModalPrepDyn" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index:2100">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content" style="background:#1a2035;border:2px solid #f59e0b;border-radius:14px;box-shadow:0 0 40px rgba(245,158,11,0.3);">
+                            <div class="modal-body text-center py-4 px-4">
+                                <div style="font-size:2.5rem;color:#f59e0b;" class="mb-2">
+                                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                                </div>
+                                <h5 class="fw-bold text-white mb-1" style="letter-spacing:1px;text-transform:uppercase;">Pilih Lokasi Rak</h5>
+                                <p class="mb-1" style="color:#94a3b8;font-size:0.82rem;" id="rackPickVinLabelPrep"></p>
+                                <p class="mb-3" style="color:#f59e0b;font-size:0.78rem;">Item ini memiliki beberapa lokasi rak — pilih salah satu</p>
+                                <div id="rackPickBtnsPrep" class="d-flex flex-wrap gap-2 justify-content-center"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`);
+            $('body').append($rackPickModalPrep);
+            const rackPickModalPrep = new bootstrap.Modal(document.getElementById('rackPickModalPrepDyn'));
+
+            // Setelah popup ditutup: fokus ke label jika sudah di-enable, atau clear focus
+            document.getElementById('rackPickModalPrepDyn').addEventListener('hidden.bs.modal', function() {
+                if (!$('#labelInput').prop('disabled')) {
+                    $('#labelInput').focus();
+                } else {
+                    $(document.activeElement).blur();
+                }
+            });
+
+            // ── LOCATION PANEL HELPERS (Multi-Rack) ─────────────────────────────
+            function selectRackPrep(loc) {
+                lockedRackInfo = loc;
+                // Update tombol di panel inline — highlight yang dipilih
+                $('#rackLocationGridPrep button').each(function() {
+                    const btnRack = $(this).data('rack');
+                    const btnNoRack = $(this).data('norack');
+                    if (btnRack === loc.rack && String(btnNoRack) === String(loc.noRack)) {
+                        $(this).addClass('rack-loc-active-prep').css({
+                            background: 'rgba(59,130,246,0.25)',
+                            borderColor: '#3b82f6',
+                            color: '#fff',
+                            boxShadow: '0 0 10px rgba(59,130,246,0.4)'
+                        });
+                    } else {
+                        $(this).removeClass('rack-loc-active-prep').css({
+                            background: 'rgba(30,41,59,0.7)',
+                            borderColor: 'rgba(59,130,246,0.35)',
+                            color: '#93c5fd',
+                            boxShadow: 'none'
+                        });
+                    }
+                });
+                const display = loc.noRack ? `Rak ${loc.rack}.${loc.noRack} (${loc.plant || '-'})` : `Rak ${loc.rack} (${loc.plant || '-'})`;
+                $('#selectedRackTextPrep').text(display);
+                $('#selectedRackInfoPrep').fadeIn(200);
+                $('#rackSelectionPanelPrep').slideDown(250);
+                enableLabelForPrep();
+            }
+
+            function renderRackLocationGridPrep(locations) {
+                const $grid = $('#rackLocationGridPrep');
+                $grid.empty();
+                locations.forEach(function(loc) {
+                    const label = loc.noRack ? `${loc.rack}.${loc.noRack}` : `${loc.rack}`;
+                    const $btn = $('<button type="button"></button>')
+                        .text(label)
+                        .attr('title', `${loc.plant || ''} — Rak ${loc.rack}`)
+                        .data('rack', loc.rack)
+                        .data('norack', loc.noRack)
+                        .css({
+                            background: 'rgba(30,41,59,0.7)',
+                            border: '1.5px solid rgba(59,130,246,0.35)',
+                            borderRadius: '8px',
+                            color: '#93c5fd',
+                            fontWeight: '700',
+                            fontSize: '0.9rem',
+                            padding: '8px 18px',
+                            cursor: 'pointer',
+                            transition: 'all 0.18s'
+                        });
+                    $btn.on('mouseenter', function() {
+                        if (!$(this).hasClass('rack-loc-active-prep'))
+                            $(this).css({ background: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.8)', color: '#fff' });
+                    }).on('mouseleave', function() {
+                        if (!$(this).hasClass('rack-loc-active-prep'))
+                            $(this).css({ background: 'rgba(30,41,59,0.7)', borderColor: 'rgba(59,130,246,0.35)', color: '#93c5fd' });
+                    });
+                    $btn.on('click', function() { selectRackPrep(loc); });
+                    $grid.append($btn);
+                });
+                // Panel TIDAK langsung slideDown — akan muncul setelah user pilih di popup (via selectRackPrep)
+            }
+
+            function showRackPickModalPrep(locations, vinTag) {
+                // Tampilkan VIN di modal header
+                const normVin = vinTag ? vinTag.replace(/X$/i, '').replace(/LB$/i, '').replace(/^LB/i, '') : $('#tagInput').val().replace(/X$/i, '').replace(/LB$/i, '').replace(/^LB/i, '');
+                $('#rackPickVinLabelPrep').text('VIN: ' + normVin);
+
+                const $btns = $('#rackPickBtnsPrep');
+                $btns.empty();
+                locations.forEach(function(loc) {
+                    const label = loc.noRack ? `${loc.rack}.${loc.noRack}` : `${loc.rack}`;
+                    const plantText = (loc.plant && loc.plant !== '-') ? `<div style="font-size:0.7rem;color:#94a3b8;margin-top:2px;">${loc.plant}</div>` : '';
+                    const $btn = $(`<button type="button" style="
+                        background:rgba(245,158,11,0.12);border:1.5px solid rgba(245,158,11,0.5);
+                        border-radius:10px;color:#fbbf24;font-weight:700;font-size:0.95rem;
+                        padding:10px 20px;cursor:pointer;transition:all 0.18s;min-width:80px;">
+                        <div>${label}</div>${plantText}
+                    </button>`);
+                    $btn.on('mouseenter', function() {
+                        $(this).css({ background: 'rgba(245,158,11,0.28)', borderColor: '#f59e0b', color: '#fff' });
+                    }).on('mouseleave', function() {
+                        $(this).css({ background: 'rgba(245,158,11,0.12)', borderColor: 'rgba(245,158,11,0.5)', color: '#fbbf24' });
+                    });
+                    $btn.on('click', function() {
+                        $(document.activeElement).blur();
+                        rackPickModalPrep.hide();
+                        selectRackPrep(loc);
+                    });
+                    $btns.append($btn);
+                });
+                rackPickModalPrep.show();
+            }
+
+            function handleLocationCard(rackLocations) {
+                if (!rackLocations || rackLocations.length === 0) return true;
+
+                const isPanelVisible = $('#rackSelectionPanelPrep').is(':visible');
+                if (!isPanelVisible) {
+                    renderRackLocationGridPrep(rackLocations);
+                    if (rackLocations.length === 1) {
+                        // Single rack — auto select langsung tanpa popup modal
+                        selectRackPrep(rackLocations[0]);
+                        return false; // selectRackPrep sudah handle enable label & focus
+                    }
+                    // Multi rack — tampil popup pilih lokasi
+                    showRackPickModalPrep(rackLocations, $('#tagInput').val());
+                    return false; // label enabled SETELAH user pilih rak di popup
+                } else {
+                    // Panel sudah tampil: validasi rak terkunci cocok dengan rak item baru (cek rack.noRack)
+                    if (lockedRackInfo) {
+                        const lockedKey = `${(lockedRackInfo.rack||'').toUpperCase().trim()}.${lockedRackInfo.noRack||0}`;
+                        const newKeys = rackLocations.map(r => `${(r.rack||'').toUpperCase().trim()}.${r.noRack||0}`);
+                        if (!newKeys.some(k => k === lockedKey)) {
+                            // Beda rak → auto switch ke rak baru
+                            lockedRackInfo = null;
+                            renderRackLocationGridPrep(rackLocations);
+                            if (rackLocations.length === 1) {
+                                selectRackPrep(rackLocations[0]);
+                                return false;
+                            }
+                            showRackPickModalPrep(rackLocations, $('#tagInput').val());
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            }
+
+            function enableLabelForPrep() {
+                const isFastMode = $('#fastScanMode').is(':checked');
+                $('#labelInput, .btn-scan-trigger[data-target="labelInput"]').prop('disabled', false);
+                setTimeout(() => $('#labelInput').focus(), isFastMode ? 50 : 300);
+            }
+
+            // SELESAI: reset semua termasuk panel rak
+            function resetAll() {
+                lockedRackInfo = null;
+                $('#rackSelectionPanelPrep').slideUp(200);
+                $('#selectedRackInfoPrep').hide();
+                $('#rackLocationGridPrep').empty();
+                resetInputs();
+            }
+
+            $('#btnSelesaiPrep').on('click', function() {
+                resetAll();
+            });
+
+            let html5QrCode = null;
+            const scannerModalEl = document.getElementById('scannerModal');
+            const scannerModal = new bootstrap.Modal(scannerModalEl);
+            let activeInputId = null;
+            let currentScheduleId = null;
+            let currentManifestNumber = null; // Manifest/ScheduleNumber yang ditemukan saat LookupSchedule
+            let manualMode = false; // Admin only: Manual input tanpa scanner
+            let skipStockMode = false; // Admin+Preparation: Skip stock habis validation
+            let validateProdIntLabelMode = true; // Admin: Enable/disable Prod Internal duplicate label validation
+            let isSubmitting = false; // Flag to prevent duplicate requests (legacy, masih dipakai untuk manual mode)
+            let isReadOnly = @(isUserRolePrep ? "true" : "false"); // Role User: view only — no scan/save
+            let isTwoPointCheck = false; // Flag: Customer No Kanban
+            let selectedTargetDate = null; // null = hari ini, string "yyyy-MM-dd" = tanggal jadwal ke depan
+
+            // ================================================================
+            // SCAN QUEUE SYSTEM
+            // Scan ke-2, 3, 4... langsung masuk antrian tanpa menunggu response
+            // server dari scan sebelumnya. Form di-reset SEGERA agar operator
+            // bisa scan item berikutnya tanpa delay.
+            // 
+            // NOTE: Tidak ada duplicate check karena:
+            // - 1 item bisa butuh 10+ kanban = scan 3-point check yang SAMA 10x
+            // - Semua scan identik VALID dan harus tersimpan sebagai qty
+            // - Validasi kanban terhadap database dilakukan di server
+            // ================================================================
+            const ScanQueue = (() => {
+                const _q = [];
+                let _running = false;
+                let _badgeEl = null;
+                let _scanCount = 0; // Counter untuk tracking jumlah scan dalam session
+
+                // Tambahkan 1 scan ke antrian (non-blocking, no duplicate check)
+                function push(payload) {
+                    _scanCount++;
+                    payload._scanId = _scanCount; // Unique ID untuk tracking
+                    _q.push(payload);
+                    _refreshBadge();
+                    if (!_running) _next();
+                }
+
+                async function _next() {
+                    if (_q.length === 0) {
+                        _running = false;
+                        _refreshBadge();
+                        return;
+                    }
+                    _running = true;
+                    const item = _q.shift();
+                    _refreshBadge();
+
+                    try {
+                        await _execute(item);
+                    } catch (e) {
+                        logNGScan('Preparation', item.Tag || '', item.Label || '', item.Kanban || '', "Koneksi Error (Queue): " + e.message);
+                        _toast('danger', '🔌 Koneksi error: ' + e.message);
+                    }
+
+                    // Jeda 80ms antar request agar SQLite tidak konflik
+                    await _sleep(80);
+                    _next();
+                }
+
+                async function _execute(payload) {
+                    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value ?? '';
+                    let attempt = 0;
+                    const maxAttempts = 3;
+
+                    while (attempt < maxAttempts) {
+                        attempt++;
+                        try {
+                            const res = await fetch('@Url.Action("Save", "PreparationWorkflow")', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'RequestVerificationToken': token
+                                },
+                                body: JSON.stringify(payload)
+                            });
+
+                            const data = await res.json();
+
+                            if (data.success) {
+                                if (data.isPending) {
+                                    // Tampilkan notifikasi PENDING (scan tersimpan tapi belum match schedule)
+                                    const notif = document.getElementById('pendingSaveNotif');
+                                    if (notif) {
+                                        notif.style.display = 'block';
+                                        clearTimeout(notif._t);
+                                        notif._t = setTimeout(() => notif.style.display = 'none', 5000);
+                                    }
+                                } else {
+                                    _toast('success', data.message || '✅ Berhasil tersimpan!');
+                                    // Update progress detail
+                                    if (data.scheduleDetails) {
+                                        $('#progressTargetName').text(data.scheduleDetails.customerName);
+                                        const pct = Math.round(data.scheduleDetails.totalPercent);
+                                        $('#progressPercentTotal').text(pct + '%');
+                                        $('#progressDetailArea').fadeIn();
+                                        setTimeout(() => $('#progressDetailArea').fadeOut(), 3000);
+                                    }
+                                }
+                            } else {
+                                // Jika server retryable (SQLite busy) → coba lagi
+                                if (data.retryable && attempt < maxAttempts) {
+                                    await _sleep(150 * attempt);
+                                    continue;
+                                }
+                                // Special case: kanban sudah penuh
+                                const errMsg = data.message || '';
+                                if (errMsg.includes('QTY sudah CUKUP') || errMsg.includes('sudah CUKUP')) {
+                                    const notifEl = document.getElementById('kanbanFullNotif');
+                                    if (notifEl) {
+                                        const detailEl = document.getElementById('kanbanFullDetail');
+                                        if (detailEl) detailEl.textContent = (payload.Tag ? `Tag: ${payload.Tag} — ` : '') + 'Target QTY sudah tercapai.';
+                                        notifEl.style.display = 'block';
+                                        clearTimeout(notifEl._t);
+                                        notifEl._t = setTimeout(() => notifEl.style.display = 'none', 5000);
+                                    }
+                                } else {
+                                    _toast('danger', errMsg || '❌ Scan gagal!');
+                                }
+                                // Catat ke NG Log — form sudah di-reset, gunakan data dari payload
+                                logNGScan('Preparation', payload.Tag || '', payload.Label || '', payload.Kanban || '', errMsg || 'Scan gagal (queue)');
+                                // CATATAN: Di mode queue, form sudah di-reset dan user mungkin sudah scan item berikutnya.
+                                // JANGAN panggil resetKanbanOnly/resetInputs di sini karena akan mengganggu scan yang sedang berjalan.
+                                // Cukup tampilkan error toast saja — user akan tahu item mana yang gagal.
+                            }
+                            break; // keluar dari retry loop
+
+                        } catch (fetchErr) {
+                            if (attempt >= maxAttempts) throw fetchErr;
+                            await _sleep(200 * attempt);
+                        }
+                    }
+                }
+
+                function _refreshBadge() {
+                    if (!_badgeEl) {
+                        _badgeEl = document.createElement('div');
+                        _badgeEl.id = '_sqBadge';
+                        _badgeEl.style.cssText = [
+                            'position:fixed', 'bottom:80px', 'right:20px', 'z-index:9999',
+                            'background:#f59e0b', 'color:#1a1a2e', 'font-weight:700',
+                            'font-size:13px', 'border-radius:20px', 'padding:7px 16px',
+                            'box-shadow:0 4px 12px rgba(0,0,0,.5)', 'display:none',
+                            'pointer-events:none'
+                        ].join(';');
+                        document.body.appendChild(_badgeEl);
+                    }
+                    if (_q.length > 0 || _running) {
+                        _badgeEl.textContent = _running
+                            ? '⚡ Menyimpan... (' + _q.length + ' antrian)'
+                            : '⏳ Antrian: ' + _q.length + ' scan';
+                        _badgeEl.style.display = 'block';
+                    } else {
+                        _badgeEl.style.display = 'none';
+                    }
+                }
+
+                function _toast(type, msg) {
+                    showScannerToast(msg, type);
+                }
+
+                function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+                return { push, get busy() { return _running; }, get size() { return _q.length; } };
+            })();
+
+            // helper: validasi apakah label mengandung VIN/Tag yang sesuai
+            // Mendukung relaksasi untuk kode MS-series (sebagian label hanya ambil 3 digit angka)
+            function isLabelMatch(tagNorm, scannedLabel) {
+                if (!tagNorm || tagNorm.length < 4) return true;
+                if (!scannedLabel) return false;
+                
+                const sLabel = scannedLabel.toUpperCase().trim();
+                const tNorm = tagNorm.toUpperCase().trim();
+                
+                if (sLabel.includes(tNorm)) return true;
+                
+                // Relaksasi khusus MS-series: misal jika VIN MS0020, label cukup mengandung MS002
+                if (tNorm.startsWith('MS') && tNorm.length >= 5) {
+                    const shortTag = tNorm.substring(0, 5);
+                    if (sLabel.includes(shortTag)) return true;
+                }
+                
+                return false;
+            }
+
+            // --- TOGGLE PERSISTENCE: Simpan & restore state toggle via localStorage ---
+            const LS_FAST   = 'prep_fastScanMode';
+            const LS_MANUAL = 'prep_manualInputMode';
+            const LS_SKIP   = 'prep_skipStockMode';
+            const LS_VALIDATE_LBL = 'prep_validateProdIntLabel';
+
+            // --- GLOBAL SCANNER HANDLER (ANTI-MANUAL & READONLY SUPPORT) ---
+            let scanBuffer = "";
+            let lastKeyTime = Date.now();
+            const SCAN_INTERVAL = 100; 
+
+            window.addEventListener('keydown', function (e) {
+                const currentTime = Date.now();
+
+                // In manual mode, let individual input fields handle their own key events
+                if (manualMode) return;
+                
+                // Ignore keydown events if the target is not a cyber-field input, or is a textarea/select
+                if (e.target.tagName === "INPUT" && !$(e.target).hasClass('cyber-field')) return;
+                if (e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+                // Ignore keydown events if any modal is currently open
+                if ($('.modal.show').length > 0) return;
+
+                if (currentTime - lastKeyTime > SCAN_INTERVAL) {
+                    scanBuffer = "";
+                }
+                lastKeyTime = currentTime;
+
+                if (e.keyCode === 13) { // Enter key
+                    if (scanBuffer.length > 0) {
+                        processScanResult(scanBuffer);
+                        scanBuffer = "";
+                    }
+                    e.preventDefault(); // Prevent form submission or other default behavior
+                    return;
+                }
+
+                // Only append printable characters
+                if (e.key.length === 1) {
+                    scanBuffer += e.key;
+                    // Prevent karakter scanner masuk langsung ke input field
+                    // Semua field scan bersifat readonly — karakter hanya boleh masuk via processScanResult
+                    e.preventDefault();
+                }
+            });
+
+            function processScanResult(code) {
+                code = code.trim();
+                const codeUpper = code.toUpperCase();
+                const tag = $('#tagInput').val().trim();
+                const label = $('#labelInput').val().trim();
+                const kanban = $('#kanbanInput').val().trim();
+
+                // Target logic: VIN -> Label -> Kanban
+                if (!tag) {
+                    // --- VIN VALIDATION (Must have X) ---
+                    if (!manualMode && !codeUpper.endsWith('X')) {
+                        logNGScan('Preparation', code, '', '', 'KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)');
+                        showScannerToast("KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)", "danger");
+                        return;
+                    }
+                    $('#tagInput').val(code).addClass('active-scan');
+                    setTimeout(() => $('#tagInput').removeClass('active-scan'), 500);
+                    performLookup();
+                } else if (!label) {
+                    // --- LABEL VALIDATION (Must NOT have X) ---
+                    if (!manualMode && codeUpper.endsWith('X')) {
+                        logNGScan('Preparation', $('#tagInput').val().trim(), code, '', 'KODE TIDAK VALID: Label tidak boleh mengandung suffix X');
+                        showScannerToast("KODE TIDAK VALID: Label tidak boleh mengandung suffix X", "danger");
+                        resetLabelOnly();
+                        return;
+                    }
+                    // --- VALIDASI VIN-IN-LABEL: Label harus mengandung kode VIN ---
+                    const currentTagRaw = $('#tagInput').val().trim().toUpperCase();
+                    const vinNormalized = currentTagRaw.replace(/X$/, '').replace(/LB$/, '').replace(/^LB/, '');
+                    if (vinNormalized && vinNormalized.length >= 4 && !codeUpper.includes(vinNormalized)) {
+                        logNGScan('Preparation', $('#tagInput').val().trim(), code, '', `Label tidak mengandung VIN: ${vinNormalized}`);
+                        showScannerToast(`❌ LABEL TIDAK VALID! Label harus mengandung kode VIN: "${vinNormalized}". Scan ulang label yang benar.`, "danger");
+                        resetLabelOnly();
+                        return;
+                    }
+                    $('#labelInput').val(code).addClass('active-scan');
+                    setTimeout(() => $('#labelInput').removeClass('active-scan'), 500);
+                    performLookup();
+                } else if (!kanban) {
+                    $('#kanbanInput').val(code).addClass('active-scan');
+                    setTimeout(() => $('#kanbanInput').removeClass('active-scan'), 500);
+                    checkAndAdvance();
+                }
+            }
+
+            // --- SCANNER HANDLERS ---
+            $('.btn-scan-trigger').click(function() {
+                if (isReadOnly) return; // Role User: tidak bisa scan
+                activeInputId = $(this).data('target');
+                $('#scannerModalLabel').text("MEMINDAI: " + (activeInputId || "ITEM").toUpperCase());
+                scannerModal.show();
+            });
+
+            $(scannerModalEl).on('shown.bs.modal', function () {
+                initScanner();
+            });
+
+            $(scannerModalEl).on('hidden.bs.modal', function () {
+                stopScanner();
+                // Ensure focus is definitely not on the modal trigger if possible, though we handled it in onDetected
+            });
+
+            async function initScanner() {
+                try {
+                    const config = { 
+                        fps: 25, 
+                        aspectRatio: 1.0, 
+                        qrbox: { width: 250, height: 250 },
+                        showTorchButtonIfSupported: true,
+                        videoConstraints: {
+                            facingMode: "environment",
+                            focusMode: "continuous",
+                            width: { min: 640, ideal: 1280, max: 1920 },
+                            height: { min: 480, ideal: 720, max: 1080 }
+                        }
+                    };
+                    
+                    if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+                    if (html5QrCode.isScanning) await html5QrCode.stop();
+
+                    $('#scanner-status').text("Mengakses Kamera...");
+                    await html5QrCode.start({ facingMode: "environment" }, config, onDetected);
+                    $('#scanner-status').text("Scanner Aktif");
+                } catch (err) {
+                    $('#scanner-status').text("Gagal: " + err);
+                    try {
+                         if (html5QrCode) await html5QrCode.start({ facingMode: "user" }, { fps: 20, qrbox: { width: 250, height: 250 } }, onDetected);
+                    } catch (e2) {
+                         showScannerToast("Tidak dapat mengakses kamera: " + e2, "danger");
+                    }
+                }
+            }
+
+            function onDetected(decodedText) {
+                // Validation for tagInput (VIN) must have 'X' suffix
+                if (activeInputId === 'tagInput') {
+                    if (!manualMode && !decodedText.trim().toUpperCase().endsWith('X')) {
+                        showScannerToast("KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)", "danger");
+                        $('#tagInput').val('');
+                        scannerModal.hide();
+                        return;
+                    }
+                    // Validation successful, keep X for visual
+                    decodedText = decodedText.trim();
+                }
+                
+                // Validation for Label: Must NOT end with 'X'
+                if (activeInputId === 'labelInput') {
+                    if (!manualMode && decodedText.trim().toUpperCase().endsWith('X')) {
+                        showScannerToast("KODE TIDAK VALID: Label tidak boleh mengandung suffix X", "danger");
+                        resetLabelOnly();
+                        scannerModal.hide();
+                        return;
+                    }
+                }
+                
+                // (Validation for Kanban suffix remains optional/flexible)
+
+                // Validasi VIN-in-Label saat scan kamera pada field Label
+                if (activeInputId === 'labelInput') {
+                    const scannedLabel = decodedText.trim().toUpperCase();
+                    const tagValForCam = $('#tagInput').val().trim().toUpperCase().replace(/X$/, '').replace(/LB$/, '').replace(/^LB/, '');
+                    if (!isLabelMatch(tagValForCam, scannedLabel)) {
+                        logNGScan('Preparation', $('#tagInput').val().trim(), decodedText.trim(), '', `Label tidak mengandung VIN: ${tagValForCam}`);
+                        showScannerToast(`❌ LABEL TIDAK VALID! Label harus mengandung kode VIN: "${tagValForCam}". Scan ulang label yang benar.`, "danger");
+                        scannerModal.hide();
+                        resetLabelOnly();
+                        return;
+                    }
+                }
+
+                // FIX ARIA HIDDEN: Focus OUT of the modal immediately.
+                if (activeInputId) {
+                    const $input = $(`#${activeInputId}`);
+                    $input.val(decodedText).addClass('active-scan');
+                    $input.prop('disabled', false).focus(); // Ensure it's enabled before focusing
+                } else {
+                    $('#tagInput').focus();
+                }
+                
+                // Delay hiding to let the focus event propagate
+                setTimeout(() => {
+                    scannerModal.hide();
+                    performLookup();
+                }, 150);
+            }
+
+            async function stopScanner() {
+                if (html5QrCode && html5QrCode.isScanning) await html5QrCode.stop();
+            }
+
+            // --- INPUT LOGIC ---
+
+            function checkAndAdvance() {
+                const tag = $('#tagInput').val().trim();
+                const label = $('#labelInput').val().trim();
+                const kanban = $('#kanbanInput').val().trim();
+
+                if (!tag) { $('#tagInput').focus(); return; }
+                if (!label && !$('#labelInput').prop('disabled')) { $('#labelInput').focus(); return; }
+                if (!kanban && !$('#kanbanInput').prop('disabled')) { $('#kanbanInput').focus(); return; }
+
+                if (tag && label && kanban) {
+                    // Validasi kanban via server (performLookup) sebelum auto-save
+                    // performLookup akan panggil triggerPrepAutoSave() jika kanban valid
+                    // atau resetKanbanOnly() jika kanban tidak sesuai
+                    performLookup();
+                }
+            }
+
+            // ── CORE SAVE FUNCTION ──────────────────────────────────────────────────
+            // Dipanggil langsung oleh performLookup/checkAndAdvance (mode scan)
+            // atau oleh klik tombol (mode manual). Tidak bergantung pada state tombol.
+            function doSave() {
+                if (isReadOnly) return;
+
+                // Baca langsung dari DOM saat save agar tidak bergantung pada state variable
+                const _tdEl = document.getElementById('targetDateInput');
+                const _tdVal = _tdEl ? _tdEl.value : '';
+                const _todayStr = new Date().toISOString().split('T')[0];
+                // Selalu kirim tanggal — default hari ini jika operator tidak pilih / lupa pilih tanggal
+                const _effectiveTargetDate = _tdVal || _todayStr;
+
+                const data = {
+                    Tag: $('#tagInput').val().trim(),
+                    Label: $('#labelInput').val().trim(),
+                    Kanban: $('#kanbanInput').val().trim(),
+                    SkipStockValidation: skipStockMode,
+                    ManifestNumber: currentManifestNumber || null,
+                    DockName: selectedDock ? selectedDock.dockName : null,
+                    DockCycle: selectedDock ? selectedDock.cycle : null,
+                    DockCustomerId: selectedDock ? selectedDock.customerId : null,
+                    TargetDate: _effectiveTargetDate,
+                    Rack: lockedRackInfo ? lockedRackInfo.rack : null,
+                    Column: lockedRackInfo ? lockedRackInfo.noRack : null
+                };
+
+                if (isTwoPointCheck) {
+                    data.Kanban = 'TWO-POINT-CHECK';
+                }
+
+                if (!data.Tag || !data.Label || !data.Kanban) return;
+
+                // Validasi client-side label: label harus mengandung kode VIN (mendukung relaksasi MS-series)
+                const tagNormDs = data.Tag.toUpperCase().replace(/X$/, '').replace(/LB$/, '').replace(/^LB/, '');
+                if (!isLabelMatch(tagNormDs, data.Label)) {
+                    logNGScan('Preparation', data.Tag, data.Label, data.Kanban, `Label tidak mengandung VIN: ${tagNormDs}`);
+                    showScannerToast(`❌ LABEL TIDAK VALID! Label harus mengandung kode VIN: "${tagNormDs}". Scan ulang label yang benar.`, "danger");
+                    resetLabelOnly();
+                    return;
+                }
+
+                if (manualMode) {
+                    // ── Mode manual: blocking ajax (user klik tombol manual) ──
+                    if (isSubmitting) return;
+                    isSubmitting = true;
+                    const $btn = $('#btnSavePreparation');
+                    $btn.prop('disabled', true);
+                    $('#prepLoadingIndicator').show();
+
+                    $.ajax({
+                        url: '@Url.Action("Save", "PreparationWorkflow")',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(data),
+                        success: function (res) {
+                            isSubmitting = false;
+                            $btn.prop('disabled', false);
+                            $('#prepLoadingIndicator').hide();
+                            if (res.success) {
+                                if (res.isPending) {
+                                    var notif = document.getElementById('pendingSaveNotif');
+                                    notif.style.display = 'block';
+                                    clearTimeout(notif._autoHide);
+                                    notif._autoHide = setTimeout(function() { notif.style.display = 'none'; }, 5000);
+                                } else {
+                                    showScannerToast(res.message, res.isAlreadyComplete ? "warning" : "success");
+                                    if (res.scheduleDetails) {
+                                        $('#progressTargetName').text(res.scheduleDetails.customerName);
+                                        $('#progressPercentTotal').text(Math.round(res.scheduleDetails.totalPercent) + '%');
+                                        $('#progressDetailArea').fadeIn();
+                                        setTimeout(() => $('#progressDetailArea').fadeOut(), 3000);
+                                    }
+                                }
+                                resetInputs();
+                            } else {
+                                logNGScan('Preparation', data.Tag, data.Label, data.Kanban, res.message || 'Server error (Manual Mode)');
+                                showScannerToast(res.message, "danger");
+                                if (res.message) {
+                                    if (res.message.includes('sudah pernah di-scan')) resetLabelAndKanban();
+                                    else if (res.message.includes('KANBAN') || res.message.includes('Kanban')) resetKanbanOnly();
+                                    else if (res.message.includes('LABEL') || res.message.includes('Label')) resetLabelOnly();
+                                    else resetInputs();
+                                } else resetInputs();
+                            }
+                        },
+                        error: function() {
+                            isSubmitting = false;
+                            $btn.prop('disabled', false);
+                            $('#prepLoadingIndicator').hide();
+                            logNGScan('Preparation', data.Tag, data.Label, data.Kanban, "Connection Error (Manual Save)");
+                            showScannerToast("Connection Error", "danger");
+                        }
+                    });
+                } else {
+                    // ── Mode scan: masukkan ke queue, RESET FORM LANGSUNG ──
+                    // Operator bisa langsung scan item berikutnya tanpa menunggu response server
+                    ScanQueue.push(data);
+                    resetInputs(); // Reset segera → siap scan item berikutnya
+                }
+            }
+
+            function triggerPrepAutoSave() {
+                doSave();
+            }
+
+            $('#tagInput, #labelInput, #kanbanInput').on('change keypress', function(e) {
+                // Prevent duplicate trigger if Enter is pressed (Internal Scanner)
+                if(e.type === 'change' && $(this).data('last-event') === 'keypress') {
+                    $(this).data('last-event', '');
+                    return;
+                }
+                if(e.type === 'keypress') {
+                    $(this).data('last-event', 'keypress');
+                    if(e.which !== 13) return;
+                }
+                
+                const id = $(this).attr('id');
+                if (id === 'kanbanInput') {
+                    checkAndAdvance();
+                } else {
+                    performLookup();
+                }
+            });
+
+            function resetInputs() {
+                const isFastMode = $('#fastScanMode').is(':checked');
+                
+                // Restore state base on selected dock
+                isTwoPointCheck = (selectedDock && selectedDock.isTwoPointCheck) ? true : false;
+                
+                if (isTwoPointCheck) {
+                    $('#kanbanInput').parent().parent().hide();
+                    $('#kanbanInput').val('TWO-POINT-CHECK');
+                } else {
+                    $('#kanbanInput').parent().parent().show();
+                    $('#kanbanInput').val('');
+                }
+
+                $('#idStatusSection').slideUp();
+                $('#tagInput, #labelInput').val('').removeClass('active-scan');
+                if (!isTwoPointCheck) $('#kanbanInput').removeClass('active-scan');
+
+                if (manualMode) {
+                    // Manual mode: semua field tetap editable & enabled
+                    $('#tagInput, #labelInput, #kanbanInput').prop('readonly', false).prop('disabled', false);
+                    $('.btn-scan-trigger').prop('disabled', false);
+                    $('#btnSavePreparation').text('SIMPAN DATA').show();
+                    currentScheduleId = null;
+                    currentManifestNumber = null;
+                    $('#tagInput').focus();
+                    return;
+                }
+
+                // Mode scan: restore readonly & sembunyikan tombol save
+                $('#tagInput, #labelInput, #kanbanInput').prop('readonly', true);
+                $('#btnSavePreparation').hide().text('SIMPAN DATA');
+                if (!isFastMode) {
+                    $('#labelInput, #kanbanInput, .btn-scan-trigger[data-target="labelInput"], .btn-scan-trigger[data-target="kanbanInput"]').prop('disabled', true);
+                } else {
+                    $('#labelInput, #kanbanInput, .btn-scan-trigger').prop('disabled', false);
+                }
+                
+                currentScheduleId = null;
+                currentManifestNumber = null;
+                $('#tagInput').focus();
+            }
+
+            // Reset hanya kanban (untuk error kanban saja)
+            // Berlaku untuk SEMUA mode: scan cepat, scan biasa, manual, semua role
+            function resetKanbanOnly() {
+                $('#kanbanInput').val('').removeClass('active-scan');
+                // Enable field agar scanner bisa input, tapi TETAP readonly di scan mode (cegah ketik manual)
+                $('#kanbanInput').prop('disabled', false);
+                if (manualMode) {
+                    $('#kanbanInput').prop('readonly', false);
+                }
+                // Focus kembali untuk scan kanban berikutnya
+                setTimeout(() => $('#kanbanInput').focus(), 100);
+            }
+
+            // Reset hanya label (untuk error label — tag & kanban tetap)
+            // Berlaku untuk SEMUA mode: scan cepat, scan biasa, manual, semua role
+            function resetLabelOnly() {
+                $('#labelInput').val('').removeClass('active-scan');
+                // Enable field agar scanner bisa input, tapi TETAP readonly di scan mode (cegah ketik manual)
+                $('#labelInput').prop('disabled', false);
+                $('.btn-scan-trigger[data-target="labelInput"]').prop('disabled', false);
+                if (manualMode) {
+                    $('#labelInput').prop('readonly', false);
+                }
+                setTimeout(() => $('#labelInput').focus(), 100);
+            }
+
+            // Reset Label dan Kanban (digunakan saat error label duplikat)
+            function resetLabelAndKanban() {
+                $('#labelInput').val('').removeClass('active-scan');
+                $('#labelInput').prop('disabled', false);
+                $('.btn-scan-trigger[data-target="labelInput"]').prop('disabled', false);
+                
+                if (!isTwoPointCheck) {
+                    $('#kanbanInput').val('').removeClass('active-scan');
+                    $('#kanbanInput').prop('disabled', false);
+                }
+                
+                if (manualMode) {
+                    $('#labelInput').prop('readonly', false);
+                    if (!isTwoPointCheck) $('#kanbanInput').prop('readonly', false);
+                }
+                setTimeout(() => $('#labelInput').focus(), 100);
+            }
+
+            function performLookup() {
+                const isFastMode = $('#fastScanMode').is(':checked');
+                let tag = $('#tagInput').val().trim();
+                const label = $('#labelInput').val().trim();
+                const kanban = $('#kanbanInput').val().trim();
+
+                if (!tag) return;
+
+                // Validation for External Scanner: Must end with 'X' — dilewati di manual mode
+                if (!manualMode && tag && !label && !kanban) {
+                    if (!tag.toUpperCase().endsWith('X') && tag.length > 5) {
+                         showScannerToast("KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)", "danger");
+                         $('#tagInput').val('').focus();
+                         return;
+                    }
+                }
+                
+                // Validation for Label: Must NOT end with 'X'
+                if (!manualMode && label && label.toUpperCase().endsWith('X')) {
+                    showScannerToast("KODE TIDAK VALID: Label tidak boleh mengandung suffix X", "danger");
+                    resetLabelOnly();
+                    return;
+                }
+                // (Validation for Kanban suffix remains optional/flexible)
+
+                $.ajax({
+                    url: '@Url.Action("LookupSchedule", "PreparationWorkflow")',
+                    type: 'GET',
+                    data: { 
+                        tag: tag, label: label, kanban: kanban, 
+                        skipStockValidation: skipStockMode, manifestNumber: null,
+                        dockCustomerId: selectedDock ? selectedDock.customerId : null,
+                        dockCycle: selectedDock ? selectedDock.cycle : null
+                    },
+                    success: function(res) {
+                        if (res.success) {
+                            if (res.found) {
+                                currentScheduleId = res.schedule.scheduleId;
+                                currentManifestNumber = res.schedule.scheduleNumber; // Simpan manifest untuk dikirim saat save
+                                $('#idStatusSection').slideDown();
+                                let foundHtml = `Ditemukan: ${res.schedule.customerName} <br><small class='text-warning fw-bold'>STOCK: ${res.item.currentStock || 0} BOX</small>`;
+                                if (res.item.externalPartNos && res.item.externalPartNos.length > 0) {
+                                    foundHtml += `<br><small class='text-info'>Kanban Ext: ${res.item.externalPartNos.map(p => `<span class='badge bg-info text-dark me-1'>${p}</span>`).join('')}</small>`;
+                                }
+                                $('#idStatusText').html(foundHtml);
+                                $('#idTargetInfo').text(res.schedule.scheduleNumber);
+                                
+                                // ── HANDLING TWO POINT CHECK ──
+                                isTwoPointCheck = res.isTwoPointCheck || false;
+                                if (isTwoPointCheck) {
+                                    $('#kanbanInput').parent().parent().hide(); // Sembunyikan field kanban
+                                    $('#kanbanInput').val('TWO-POINT-CHECK'); // Marker khusus
+                                } else {
+                                    $('#kanbanInput').parent().parent().show();
+                                }
+
+                                // Enable All
+                                $('#labelInput, #kanbanInput, .btn-scan-trigger').prop('disabled', false);
+
+                                // Auto Advance: Focus next field for External Scanner
+                                const delay = isFastMode ? 50 : 300;
+                                if (tag && label && (isTwoPointCheck || kanban)) {
+                                    triggerPrepAutoSave();
+                                } else if (tag && label) {
+                                    if (!isTwoPointCheck) setTimeout(() => $('#kanbanInput').focus(), delay);
+                                } else if (tag) {
+                                    setTimeout(() => $('#labelInput').focus(), delay);
+                                }
+
+                            } else if (res.item) {
+                                // Partial Match / Step
+                                isTwoPointCheck = res.isTwoPointCheck || false;
+                                if (isTwoPointCheck) {
+                                    $('#kanbanInput').parent().parent().hide();
+                                    $('#kanbanInput').val('TWO-POINT-CHECK');
+                                } else {
+                                    $('#kanbanInput').parent().parent().show();
+                                }
+                                
+                                // Handle Specific Validation Failures (Kanban mismatch) — tetap blokir
+                                if (res.message && (res.message.includes("tidak sesuai") || res.message.includes("tidak cocok") || res.message.includes("TIDAK VALID") || res.message.includes("KANBAN"))) {
+                                    logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), $('#kanbanInput').val().trim(), res.message);
+                                    showScannerToast(res.message, "danger");
+                                    if (res.step === 'kanban') {
+                                        resetKanbanOnly(); // Smart reset: kanban only, keep tag & label
+                                    }
+                                    return; 
+                                }
+
+                                $('#idStatusSection').slideDown();
+                                $('#idStatusText').html(`Item: ${res.item.itemName} <br><small class='text-warning fw-bold'>STOCK: ${res.item.currentStock || 0} BOX</small>`);
+                                $('#idTargetInfo').text(res.item.vin);
+
+                                // Tampilkan external PartNo dari ItemMappings (jika ada)
+                                if (res.item.externalPartNos && res.item.externalPartNos.length > 0) {
+                                    const extBadges = res.item.externalPartNos.map(p => `<span class='badge bg-warning text-dark me-1'>${p}</span>`).join('');
+                                    $('#idStatusText').append(`<br><small class='text-warning'>Kanban expected: ${extBadges}</small>`);
+                                    // Update placeholder kanban agar user tahu apa yang di-scan
+                                    const hintCodes = res.item.externalPartNos.join(' / ');
+                                    $('#kanbanInput').attr('placeholder', `Scan kanban (${hintCodes})`);
+                                } else {
+                                    $('#kanbanInput').attr('placeholder', 'Scan Kanban');
+                                }
+
+                                // --- STEP FINAL: semua field terisi tapi jadwal tidak ditemukan ---
+                                // Auto-save sebagai PENDING langsung tanpa perlu klik tombol
+                                if (res.step === 'final') {
+                                    $('#idStatusText').append(`<br><span class='badge bg-warning text-dark mt-1'><i class='bi bi-clock-history me-1'></i>JADWAL BELUM ADA — menyimpan sebagai PENDING...</span>`);
+                                    if (manualMode) {
+                                        // Mode manual: tampilkan tombol, user klik sendiri
+                                        $('#btnSavePreparation').text('💾 Simpan Sebagai PENDING').show();
+                                    } else {
+                                        // Mode scan: simpan otomatis ke queue, reset form langsung
+                                        const delayPending = isFastMode ? 50 : 300;
+                                        setTimeout(() => doSave(), delayPending);
+                                    }
+                                    return;
+                                }
+
+                                // ── CARD LOKASI: tampilkan/update berdasarkan rack info dari server ──
+                                // Hanya saat VIN baru di-scan (label masih kosong)
+                                if (!label && res.rackLocations && res.rackLocations.length > 0) {
+                                    const proceed = handleLocationCard(res.rackLocations);
+                                    if (!proceed) return; // multi-rack: label akan di-enable setelah user pilih rak dari modal
+                                }
+
+                                // Always enable Label if Tag is valid
+                                $('#labelInput, .btn-scan-trigger[data-target="labelInput"]').prop('disabled', false);
+
+                                // Focus next field for External Scanner
+                                const delay = isFastMode ? 50 : 300;
+                                if (label) {
+                                    if (isTwoPointCheck) {
+                                        triggerPrepAutoSave();
+                                    } else {
+                                        $('#kanbanInput, .btn-scan-trigger[data-target="kanbanInput"]').prop('disabled', false);
+                                        setTimeout(() => $('#kanbanInput').focus(), delay);
+                                    }
+                                } else {
+                                    setTimeout(() => $('#labelInput').focus(), delay);
+                                }
+                            } else {
+                                // Tidak found, tidak ada item — bisa jadi validasi error dari server
+                                // (mis: label tidak mengandung VIN, step:"label")
+                                if (res.message) {
+                                    if (res.step === 'label') {
+                                        logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), '', res.message);
+                                        resetLabelOnly(); // Smart reset: keep tag & kanban
+                                    } else if (res.step === 'kanban') {
+                                        logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), $('#kanbanInput').val().trim(), res.message);
+                                        resetKanbanOnly(); // Smart reset: keep tag & label
+                                    } else {
+                                        // TAG tidak dikenal — reset semua
+                                        logNGScan('Preparation', $('#tagInput').val().trim(), '', '', res.message);
+                                        resetInputs();
+                                        $('#tagInput').val('');
+                                    }
+                                    showScannerToast(res.message, "danger");
+                                } else {
+                                    resetInputs();
+                                    $('#tagInput').val('');
+                                }
+                            }
+                        } else {
+                            // Server menolak (success: false) — Smart reset berdasarkan jenis error
+                            if (res.message) {
+                                showScannerToast(res.message, "danger");
+                                if (res.message.includes('KANBAN') || res.message.includes('Kanban')) {
+                                    // Error kanban → reset hanya kanban
+                                    logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), $('#kanbanInput').val().trim(), res.message);
+                                    resetKanbanOnly();
+                                } else if (res.message.includes('LABEL') || res.message.includes('Label')) {
+                                    // Error label → reset label & kanban
+                                    logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), '', res.message);
+                                    resetLabelOnly();
+                                } else {
+                                    // Error kritis (TAG/VIN tidak dikenal, STOCK HABIS, dll) → reset semua
+                                    logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), $('#kanbanInput').val().trim(), res.message);
+                                    resetInputs();
+                                    $('#tagInput').val('');
+                                }
+                            } else {
+                                resetInputs();
+                                $('#tagInput').val('');
+                            }
+                        }
+                    },
+                    error: function() {
+                         logNGScan('Preparation', $('#tagInput').val().trim(), $('#labelInput').val().trim(), $('#kanbanInput').val().trim(), "Gagal menghubungi server (Lookup Error)");
+                         showScannerToast("Gagal menghubungi server.", "danger");
+                         resetInputs();
+                         $('#tagInput').val(''); // --- AUTO RESET ---
+                    }
+                });
+            }
+
+            $('#btnSavePreparation').click(function () {
+                doSave();
+            });
+
+            // Error Modal (untuk danger) — MANUAL CLOSE ONLY (tidak auto-close)
+            let scanBlocked = false;
+            const $errModal = $('<div class="modal fade" id="scanErrorModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index:2100"><div class="modal-dialog modal-dialog-centered"><div class="modal-content" style="background:#1e293b;border:2px solid #ef4444;border-radius:12px;"><div class="modal-body text-center py-4 px-4"><div style="font-size:3rem;color:#ef4444;" class="mb-3"><i class="bi bi-x-circle-fill"></i></div><h5 class="fw-bold text-white mb-3" id="scanErrorTitle">SCAN TIDAK VALID</h5><p class="text-white-50 mb-3" id="scanErrorMsg"></p><button type="button" class="btn btn-danger px-5 py-2 fw-bold" id="btnCloseScanError"><i class="bi bi-check-lg me-2"></i>Tutup</button></div></div></div></div>');
+            $('body').append($errModal);
+            const scanErrorModal = new bootstrap.Modal(document.getElementById('scanErrorModal'));
+            $('#btnCloseScanError').on('click', function() {
+                scanErrorModal.hide();
+            });
+            document.getElementById('scanErrorModal').addEventListener('hidden.bs.modal', function() {
+                scanBlocked = false;
+                
+                const errMsg = $('#scanErrorMsg').text() || '';
+                
+                // Jika error adalah label duplikat/pernah discan: reset Label & Kanban, lalu fokus ke Label
+                if (errMsg.includes('sudah pernah di-scan')) {
+                    $('#labelInput').val('').removeClass('active-scan').prop('disabled', false);
+                    if (!isTwoPointCheck) {
+                        $('#kanbanInput').val('').removeClass('active-scan').prop('disabled', false);
+                    }
+                    if (manualMode) {
+                        $('#labelInput').prop('readonly', false);
+                        if (!isTwoPointCheck) $('#kanbanInput').prop('readonly', false);
+                    }
+                    setTimeout(() => $('#labelInput').focus(), 100);
+                } 
+                // Jika error spesifik Kanban: fokus kembali ke Kanban
+                else if (errMsg.includes('KANBAN') || errMsg.includes('Kanban') || errMsg.includes('kanban')) {
+                    setTimeout(() => $('#kanbanInput').focus(), 100);
+                } 
+                // Jika error spesifik Label: fokus kembali ke Label
+                else if (errMsg.includes('LABEL') || errMsg.includes('Label') || errMsg.includes('label')) {
+                    setTimeout(() => $('#labelInput').focus(), 100);
+                } 
+                // Default: kembali ke awal (Tag)
+                else {
+                    setTimeout(() => $('#tagInput').focus(), 100);
+                }
+            });
+
+            // Notification Helper
+            function showScannerToast(message, type = 'primary') {
+                if (type === 'danger') {
+                    // Tampilkan error modal — scan diblokir
+                    scanBlocked = true;
+                    $('#scanErrorMsg').text(message);
+                    $(document.activeElement).blur(); // FIX aria-hidden warning
+                    scanErrorModal.show();
+                    return;
+                }
+                // Use high-contrast global toast for success/warning/info
+                if (window.showScanToast) {
+                    window.showScanToast(message, type, 3500);
+                    return;
+                }
+                // Fallback ke Bootstrap toast
+                const $toast = $('#scannerToast');
+                $toast.removeClass('bg-primary bg-success bg-danger bg-warning');
+                $toast.addClass('bg-' + type);
+                $('#scannerToastBody').text(message);
+                const toast = new bootstrap.Toast($toast[0], { delay: 3000, autohide: true });
+                toast.show();
+            }
+
+            function logNGScan(module, tag, label, kanban, reason) {
+                fetch('@Url.Action("LogNG", "PreparationWorkflow")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        Module: module, 
+                        Tag: tag, 
+                        Label: label, 
+                        Kanban: kanban, 
+                        Reason: reason 
+                    })
+                }).catch(() => {}); // silent — jangan block UI
+            }
+
+            // Global click to refocus for external scanners
+            $(document).click(function(e) {
+                if (!$(e.target).closest('input, button, select, textarea').length) {
+                    // Cek jika dock sudah dipilih
+                    if (typeof selectedDock !== 'undefined' && selectedDock) {
+                        if ($('#kanbanInput').is(':visible') && !$('#kanbanInput').prop('disabled')) {
+                            $('#kanbanInput').focus();
+                        } else if ($('#labelInput').is(':visible') && !$('#labelInput').prop('disabled')) {
+                            $('#labelInput').focus();
+                        } else {
+                            $('#tagInput').focus();
+                        }
+                    } else if ($('#dockSelect').is(':visible')) {
+                        // Jika belum ada dock, fokus ke dropdown dock
+                        $('#dockSelect').focus();
+                    }
+                }
+            });
+
+            // Visual feedback for focus
+            $('input').on('focus', function() {
+                $(this).closest('.custom-cyber-input-group').addClass('selected-glow');
+            }).on('blur', function() {
+                $(this).closest('.custom-cyber-input-group').removeClass('selected-glow');
+            });
+
+            // --- FLOATING BUTTON & SCHEDULE MODAL LOGIC ---
+            const scheduleModal = new bootstrap.Modal(document.getElementById('scheduleModal'));
+            
+            $('#btnShowSchedule').click(function() {
+                scheduleModal.show();
+                loadScheduleList();
+            });
+
+            // Filter Event Listeners
+            let filterTimeout;
+            $('#filterSchedDate, #filterSchedVin').on('input change', function() {
+                clearTimeout(filterTimeout);
+                filterTimeout = setTimeout(loadScheduleList, 500);
+            });
+
+            function loadScheduleList() {
+                const date = $('#filterSchedDate').val();
+                const vin = $('#filterSchedVin').val();
+
+                $('#scheduleListBody').html(`
+                    <tr>
+                        <td colspan="7" class="text-center py-5">
+                            <div class="spinner-border text-yellow" role="status"></div>
+                            <div class="mt-2">Memuat data...</div>
+                        </td>
+                    </tr>
+                `);
+
+                $.ajax({
+                    url: '@Url.Action("GetSchedulesJson", "PreparationWorkflow")',
+                    type: 'GET',
+                    data: { filterDate: date, vin: vin },
+                    success: function(data) {
+                        let html = '';
+                        let countPrep = 0;
+                        let countWait = 0;
+                        let countComp = 0;
+
+                        if (data && data.length > 0) {
+                            data.forEach(item => {
+                                let statusClass = 'bg-secondary';
+                                let statusText = item.status || 'Waiting';
+                                
+                                if (statusText === 'Completed') {
+                                    statusClass = 'bg-success';
+                                    countComp++;
+                                } else if (statusText === 'Preparing') {
+                                    statusClass = 'bg-warning text-dark';
+                                    countPrep++;
+                                } else {
+                                    statusClass = 'bg-secondary';
+                                    countWait++;
+                                }
+
+                                // Kanban Fraction Display
+                                let actual = item.totalKanbanActual || 0;
+                                let target = item.totalKanbanTarget || 0;
+                                let progressClass = 'bg-info text-dark';
+                                if (actual >= target && target > 0) progressClass = 'bg-success text-white';
+
+                                html += `
+                                    <tr>
+                                        <td class="p-2">
+                                            <small class="fw-bold text-info">${item.scheduleNumber}</small>
+                                        </td>
+                                        <td class="p-2">
+                                            <small class="fw-bold">${item.customerName}</small><br>
+                                            <small class="text-muted"><i class="bi bi-geo-alt"></i> ${item.dock}</small>
+                                        </td>
+                                        <td class="p-2">
+                                            <span class="text-warning fw-bold">${item.viNs || '-'}</span>
+                                        </td>
+                                        <td class="p-2 text-center">
+                                            <small>${item.qtyPcs || 0} Pcs</small><br>
+                                            <small class="text-muted">${item.qtyLot || '-'} /lot</small>
+                                        </td>
+                                        <td class="p-2 text-center">
+                                            <span class="badge ${progressClass}" style="min-width:45px; font-size:0.75rem;">${actual.toFixed(0)} / ${target.toFixed(0)}</span>
+                                        </td>
+                                        <td class="p-2 text-center">
+                                            <span class="badge ${statusClass}" style="font-size: 0.7rem;">${statusText}</span>
+                                        </td>
+                                    </tr>
+                                `;
+                            });
+                        } else {
+                            html = '<tr><td colspan="6" class="text-center py-4 text-muted fst-italic">Tidak ada jadwal ditemukan.</td></tr>';
+                        }
+                        $('#scheduleListBody').html(html);
+
+                        // Update Modal Indicators
+                        $('#modal-prep-count').text(countPrep);
+                        $('#modal-wait-count').text(countWait);
+                        $('#modal-done-count').text(countComp);
+
+                    },
+                    error: function() {
+                        $('#scheduleListBody').html('<tr><td colspan="6" class="text-center py-4 text-danger">Gagal memuat data.</td></tr>');
+                    }
+                });
+            }
+            // --- RESTORE TOGGLE STATE dari localStorage ---
+            // fastScanMode: default ON (null = belum pernah disimpan → anggap ON)
+            const savedFast = localStorage.getItem(LS_FAST);
+            if (savedFast === null || savedFast === '1') {
+                $('#fastScanMode').prop('checked', true);
+                $('#labelInput, #kanbanInput, .btn-scan-trigger').prop('disabled', false);
+                setTimeout(() => $('#tagInput').focus(), 100);
+            } else {
+                $('#fastScanMode').prop('checked', false);
+            }
+
+            // skipStockMode: restore dari server Session (sumber kebenaran) — Admin aktifkan, semua role ikut
+            // Nilai dari ViewData["SkipStockActive"] sudah di-render di indicator banner (show/hide oleh server)
+            // Sync variable JS dan checkbox Admin agar konsisten
+            const serverSkipActive = @(skipStockActive ? "true" : "false");
+            if (serverSkipActive) {
+                skipStockMode = true;
+                localStorage.setItem(LS_SKIP, '1');
+                $('#skipStockMode').prop('checked', true);
+                // Indicator sudah tampil dari server-side render (style display:block)
+            } else if (localStorage.getItem(LS_SKIP) === '1') {
+                // localStorage bilang aktif tapi server bilang tidak → ikut server (reset localStorage)
+                localStorage.setItem(LS_SKIP, '0');
+            }
+
+            // validateProdIntLabelMode: restore dari server Session
+            const serverValidateProdIntActive = @(ViewData["ValidateProdIntLabelActive"] is bool va && va ? "true" : "false");
+            validateProdIntLabelMode = serverValidateProdIntActive;
+            if (serverValidateProdIntActive) {
+                localStorage.setItem(LS_VALIDATE_LBL, '1');
+                $('#validateProdIntLabelMode').prop('checked', true);
+            } else {
+                localStorage.setItem(LS_VALIDATE_LBL, '0');
+                $('#validateProdIntLabelMode').prop('checked', false);
+            }
+
+            // manualInputMode: default OFF
+            // SECURITY: Hanya restore manual mode jika user adalah Admin.
+            // Jika bukan Admin, paksa clear localStorage agar tidak bisa aktif dari sisa sesi Admin sebelumnya.
+            const isAdminUser = @(ViewData["IsAdmin"] is bool isAdminJs && isAdminJs ? "true" : "false");
+            if (!isAdminUser) {
+                // Non-admin: pastikan manual mode SELALU off & hapus dari localStorage
+                localStorage.removeItem(LS_MANUAL);
+                manualMode = false;
+            } else if (localStorage.getItem(LS_MANUAL) === '1') {
+                $('#manualInputMode').prop('checked', true);
+                manualMode = true;
+                $('#manualModeIndicator').show();
+                $('#fastScanMode').prop('disabled', true).closest('.form-check').css('opacity', 0.4);
+                $('#tagInput, #labelInput, #kanbanInput').prop('readonly', false).prop('disabled', false);
+                $('.btn-scan-trigger').prop('disabled', false);
+                $('#btnSavePreparation').show();
+                $('#tagInput').attr('placeholder', 'Ketik Barcode Rak...');
+                $('#labelInput').attr('placeholder', 'Ketik Barcode Label...');
+                $('#kanbanInput').attr('placeholder', 'Ketik Barcode Kanban...');
+                setTimeout(() => $('#tagInput').focus(), 100);
+            }
+
+            $('#fastScanMode').change(function() {
+                const checked = $(this).is(':checked');
+                localStorage.setItem(LS_FAST, checked ? '1' : '0');
+                if (checked) {
+                    $('#labelInput, #kanbanInput, .btn-scan-trigger').prop('disabled', false);
+                    // Fokus ke tagInput agar scanner langsung bisa scan
+                    setTimeout(() => $('#tagInput').focus(), 50);
+                } else {
+                    // Reset if turned off and inputs are empty
+                    if (!$('#tagInput').val()) resetInputs();
+                }
+            });
+
+            // --- MANUAL INPUT MODE (Admin Only) ---
+            $('#manualInputMode').change(function() {
+                // SECURITY: Double-check server-side role (checkbox tidak muncul untuk non-Admin, tapi guard tetap diperlukan)
+                if (!isAdminUser) {
+                    $(this).prop('checked', false);
+                    localStorage.removeItem(LS_MANUAL);
+                    return;
+                }
+                manualMode = $(this).is(':checked');
+                localStorage.setItem(LS_MANUAL, manualMode ? '1' : '0');
+                if (manualMode) {
+                    $('#manualModeIndicator').slideDown();
+                    // Nonaktifkan fastScanMode saat manual mode aktif
+                    $('#fastScanMode').prop('disabled', true).closest('.form-check').css('opacity', 0.4);
+                    // Hapus readonly & enable semua field
+                    $('#tagInput, #labelInput, #kanbanInput').prop('readonly', false).prop('disabled', false);
+                    $('.btn-scan-trigger').prop('disabled', false);
+                    // Tampilkan tombol simpan selalu
+                    $('#btnSavePreparation').show();
+                    // Update placeholder hint
+                    $('#tagInput').attr('placeholder', 'Ketik Barcode Rak...');
+                    $('#labelInput').attr('placeholder', 'Ketik Barcode Label...');
+                    $('#kanbanInput').attr('placeholder', 'Ketik Barcode Kanban...');
+                    $('#tagInput').focus();
+                } else {
+                    $('#manualModeIndicator').slideUp();
+                    $('#fastScanMode').prop('disabled', false).closest('.form-check').css('opacity', 1);
+                    // Kembalikan placeholder asli
+                    $('#tagInput').attr('placeholder', 'Scan Barcode Rak...');
+                    $('#labelInput').attr('placeholder', 'Scan Barcode Label...');
+                    $('#kanbanInput').attr('placeholder', 'Scan Barcode Kanban...');
+                    // Reset ke mode scan
+                    resetInputs();
+                }
+            });
+
+            // --- SKIP STOCK VALIDATION MODE (Admin Only toggle — berlaku untuk semua role via Session server) ---
+            $('#skipStockMode').change(function() {
+                skipStockMode = $(this).is(':checked');
+                localStorage.setItem(LS_SKIP, skipStockMode ? '1' : '0');
+                // Simpan ke server Session agar role Preparation pun ikut bypass
+                $.ajax({
+                    url: '@Url.Action("SetSkipStockMode", "PreparationWorkflow")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ active: skipStockMode })
+                });
+                if (skipStockMode) {
+                    $('#skipStockIndicator').slideDown();
+                } else {
+                    $('#skipStockIndicator').slideUp();
+                }
+            });
+
+            // --- VALIDASI LABEL PROD INT MODE (Admin Only toggle) ---
+            $('#validateProdIntLabelMode').change(function() {
+                validateProdIntLabelMode = $(this).is(':checked');
+                localStorage.setItem(LS_VALIDATE_LBL, validateProdIntLabelMode ? '1' : '0');
+                $.ajax({
+                    url: '@Url.Action("SetValidateProdIntLabelMode", "PreparationWorkflow")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ active: validateProdIntLabelMode })
+                });
+            });
+
+            // --- TANGGAL JADWAL SCAN KE DEPAN (TargetDate) ---
+            (function initTargetDate() {
+                const PREP_TARGET_DATE_KEY = 'prep_targetDate';
+                function updateTargetDateUI(val) {
+                    const todayVal = new Date().toISOString().split('T')[0];
+                    const isFuture = val && val > todayVal;
+                    const isPast   = val && val < todayVal;
+                    selectedTargetDate = (val && val !== todayVal) ? val : null;
+                    sessionStorage.setItem(PREP_TARGET_DATE_KEY, val || todayVal);
+                    $('#badgeTodayDate').toggle(!isFuture && !isPast);
+                    $('#badgePastDate').toggle(!!isPast);
+                    $('#badgeFutureDate').toggle(!!isFuture);
+                    $('#pastDateNote').toggle(!!isPast);
+                    $('#futureDateNote').toggle(!!isFuture);
+                }
+                $('#targetDateInput').on('change', function() { updateTargetDateUI($(this).val()); });
+                // Default ke hari ini; restore dari sessionStorage hanya jika nilainya >= hari ini
+                // (past date di sessionStorage diabaikan agar default selalu Hari Ini)
+                const todayVal = new Date().toISOString().split('T')[0];
+                const h2 = new Date(); h2.setDate(h2.getDate() - 2);
+                const h2Str = h2.toISOString().split('T')[0]; // dipakai oleh min attribute via Razor
+                const saved = sessionStorage.getItem(PREP_TARGET_DATE_KEY);
+                const initVal = (saved && saved >= todayVal) ? saved : todayVal;
+                $('#targetDateInput').val(initVal);
+                updateTargetDateUI(initVal);
+            })();
+
+            // --- FOCUS RECOVERY ---
+            setInterval(function() {
+                if (typeof manualMode !== 'undefined' && manualMode) return;
+                if ($('.modal.show').length > 0) return;
+                const $focused = $(document.activeElement);
+                
+                // Jangan tarik fokus jika user sedang klik dropdown atau tombol
+                if ($focused.is('select') || $focused.is('button') || $focused.is('textarea')) return;
+
+                if (!$focused.hasClass('cyber-field') && !$focused.is('input[type=text]')) {
+                    // Jika dock sudah dipilih, fokus ke input scan
+                    if (typeof selectedDock !== 'undefined' && selectedDock) {
+                        $('#tagInput').focus();
+                    } else if ($('#dockSelect').is(':visible')) {
+                        // Jika dock belum dipilih, fokus ke dropdown dock
+                        $('#dockSelect').focus();
+                    }
+                }
+            }, 800);
+
+            // ================================================================
+            // PENDING SYNC SYSTEM
+            // Badge + tombol Synchronize: cocokkan pending scan ke jadwal delay
+            // berdasarkan Part No (VIN/CustomerPartNumber/ItemMappings).
+            // ================================================================
+
+            // Refresh badge & banner pending count
+            async function refreshPendingBanner() {
+                try {
+                    const res = await fetch('/PreparationSchedule/GetPendingCount');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const total = data.total || 0;
+
+                    const banner = document.getElementById('pendingBanner');
+                    if (!banner) return;
+
+                    if (total > 0) {
+                        banner.style.display = 'block';
+                        const elTotal = document.getElementById('pendingTotalCount');
+                        if (elTotal) elTotal.textContent = total;
+                        const elModalTotal = document.getElementById('modalPendingTotal');
+                        if (elModalTotal) elModalTotal.textContent = total;
+                    } else {
+                        banner.style.display = 'none';
+                    }
+                } catch (e) {
+                    console.warn('refreshPendingBanner error:', e);
+                }
+            }
+
+            async function loadPendingList(page = 1) {
+                document.getElementById('pendingListLoading').style.display = 'block';
+                document.getElementById('pendingListEmpty').style.display = 'none';
+                document.getElementById('pendingListTableWrap').style.display = 'none';
+
+                // Refresh count juga
+                await refreshPendingBanner();
+
+                try {
+                    const pageSize = 20;
+                    // Baca filter tanggal dari input
+                    const dateFrom = (document.getElementById('pendingDateFrom')?.value || '').trim();
+                    const dateTo   = (document.getElementById('pendingDateTo')?.value   || '').trim();
+                    let url = `@Url.Action("GetPendingPreparations", "PreparationWorkflow")?page=${page}&pageSize=${pageSize}`;
+                    if (dateFrom) url += `&dateFrom=${encodeURIComponent(dateFrom)}`;
+                    if (dateTo)   url += `&dateTo=${encodeURIComponent(dateTo)}`;
+                    url += `&_t=${Date.now()}`;
+
+                    // Ambil data pending records dengan server-side pagination
+                    const res = await fetch(url);
+                    const resData = await res.json();
+
+                    const records = resData.items || [];
+                    const realTotal = resData.total || 0;
+                    const totalPages = resData.totalPages || 1;
+
+                    // Ambil data preview (siapa yang bisa di-sync)
+                    const countRes = await fetch('/PreparationSchedule/GetPendingCount');
+                    const countData = await countRes.json();
+
+                    document.getElementById('pendingListLoading').style.display = 'none';
+
+                    if (!records || records.length === 0) {
+                        document.getElementById('pendingListEmpty').style.display = 'block';
+                        return;
+                    }
+
+                    const start = (page - 1) * pageSize;
+
+                    // Build table rows
+                    let html = '';
+                    records.forEach((r, i) => {
+                        // Remark from kanban: if "TWO-POINT-CHECK" then show 2PC badge
+                        const kanbanDisplay = r.kanban === 'TWO-POINT-CHECK'
+                            ? `<span class='badge bg-info text-dark'>2-Point</span>`
+                            : `<code style='color:#a5f3fc;font-size:0.8rem;'>${escHtml(r.kanban)}</code>`;
+
+                        html += `<tr>
+                            <td class='text-center'><input type="checkbox" class="form-check-input pending-item-check" value="${r.preparationId}"></td>
+                            <td class='text-white-50 small'>${start + i + 1}</td>
+                            <td class='text-white-50 small'>${escHtml(r.createdDate)}</td>
+                            <td><span class='badge bg-primary bg-opacity-25 text-primary' style='font-size:0.72rem;'>${escHtml(r.dockName || '-')}</span></td>
+                            <td><span class='text-warning-emphasis small'>${escHtml(r.dockCycle || '-')}</span></td>
+                            <td><code style='color:#86efac;'>${escHtml(r.tag)}</code></td>
+                            <td><span class='text-white-50 small' style='font-size:0.78rem;'>${escHtml(r.label.substring(0, 30))}${r.label.length > 30 ? '\u2026' : ''}</span></td>
+                            <td>${kanbanDisplay}</td>
+                            <td class='small'>
+                                <span style='color:#facc15;font-weight:600;'>${escHtml(r.deliveryDate)}</span>
+                                ${r.targetDate ? `<br><span class='badge bg-warning text-dark' style='font-size:0.65rem;padding:2px 6px;'><i class='bi bi-clock-history me-1'></i>Pre-scan</span>` : ''}
+                            </td>
+                            <td class='text-white-50 small'>${escHtml(r.createdBy)}</td>
+                        </tr>`;
+                    });
+
+                    document.getElementById('pendingListBody').innerHTML = html;
+                    
+                    // Attach check logic
+                    $('#checkAllPending').prop('checked', false).off('change').on('change', function() {
+                        $('.pending-item-check').prop('checked', $(this).is(':checked'));
+                    });
+                    
+                    $('.pending-item-check').off('change').on('change', function() {
+                        if ($('.pending-item-check:not(:checked)').length === 0) {
+                            $('#checkAllPending').prop('checked', true);
+                        } else {
+                            $('#checkAllPending').prop('checked', false);
+                        }
+                    });
+                    document.getElementById('pendingListTableWrap').style.display = 'block';
+
+                    // Render pagination jika lebih dari 1 halaman
+                    const paginationEl = document.getElementById('pendingListPagination');
+                    const pageInfoEl   = document.getElementById('pendingListPageInfo');
+                    if (paginationEl) {
+                        if (totalPages > 1) {
+                            const end = Math.min(start + records.length, realTotal);
+                            if (pageInfoEl) pageInfoEl.textContent = `Menampilkan ${start + 1}–${end} dari ${realTotal} data`;
+
+                            let btns = `<button onclick="loadPendingList(${page - 1})" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:0.75rem;"${page <= 1 ? ' disabled' : ''}><i class="bi bi-chevron-left"></i></button>`;
+                            let pStart = Math.max(1, page - 2);
+                            let pEnd   = Math.min(totalPages, pStart + 4);
+                            pStart = Math.max(1, pEnd - 4);
+                            for (let p = pStart; p <= pEnd; p++) {
+                                const active = p === page ? 'btn-warning text-dark' : 'btn-outline-warning';
+                                btns += `<button onclick="loadPendingList(${p})" class="btn btn-sm ${active} py-0 px-2" style="font-size:0.75rem;">${p}</button>`;
+                            }
+                            btns += `<button onclick="loadPendingList(${page + 1})" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:0.75rem;"${page >= totalPages ? ' disabled' : ''}><i class="bi bi-chevron-right"></i></button>`;
+                            const pageBtnsEl = document.getElementById('pendingListPageBtns');
+                            if (pageBtnsEl) pageBtnsEl.innerHTML = btns;
+                            paginationEl.style.display = 'flex';
+                        } else {
+                            paginationEl.style.display = 'none';
+                        }
+                    }
+
+                } catch (e) {
+                    document.getElementById('pendingListLoading').style.display = 'none';
+                    document.getElementById('pendingListBody').innerHTML =
+                        '<tr><td colspan="6" class="text-center text-danger py-4">Gagal memuat data: ' + e.message + '</td></tr>';
+                    document.getElementById('pendingListTableWrap').style.display = 'block';
+                }
+            }
+
+            function escHtml(str) {
+                if (!str) return '-';
+                return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            }
+
+            // Jalankan Sync
+            async function doSyncByPartNo(btnEl) {
+                if (btnEl) {
+                    btnEl.disabled = true;
+                    btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Syncing...';
+                }
+                try {
+                    const res = await fetch('/PreparationSchedule/SyncPendingNow', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const data = await res.json();
+
+                    if (data.success) {
+                        _toast('success', `✅ ${data.message}`);
+                        // Reload pending list jika modal terbuka
+                        if (document.getElementById('pendingModal').classList.contains('show')) {
+                            await loadPendingList();
+                        } else {
+                            await refreshPendingBanner();
+                        }
+                        loadScheduleList(); // Refresh jadwal table
+                    } else {
+                        _toast('warning', `⚠️ ${data.message}`);
+                        await refreshPendingBanner();
+                    }
+                } catch (e) {
+                    _toast('danger', 'Sync gagal: ' + e.message);
+                } finally {
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Synchronize ke Jadwal Delay';
+                    }
+                }
+            }
+
+            // Event: tombol Sync di banner
+            const btnSyncBanner = document.getElementById('btnSyncByPartNo');
+            if (btnSyncBanner) {
+                btnSyncBanner.addEventListener('click', function() {
+                    doSyncByPartNo(this);
+                });
+            }
+
+            // Event: tombol Sync di modal (Selected)
+            const btnSyncSelected = document.getElementById('btnSyncSelectedPending');
+            if (btnSyncSelected) {
+                btnSyncSelected.addEventListener('click', async function() {
+                    const checkedIds = $('.pending-item-check:checked').map(function() {
+                        return parseInt($(this).val());
+                    }).get();
+
+                    const manifest = $('#pendingManifestInput').val().trim();
+
+                    if (checkedIds.length === 0) {
+                        showScannerToast("Pilih minimal satu item pending untuk disync.", "warning");
+                        return;
+                    }
+
+                    if (!manifest) {
+                        showScannerToast("Silakan isi No Manifest terlebih dahulu.", "warning");
+                        $('#pendingManifestInput').focus();
+                        return;
+                    }
+
+                    const btnEl = this;
+                    btnEl.disabled = true;
+                    btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Syncing...';
+
+                    try {
+                        const res = await fetch('@Url.Action("SyncSelectedPending", "PreparationWorkflow")', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ preparationIds: checkedIds, manifestNumber: manifest })
+                        });
+                        const data = await res.json();
+
+                        if (data.success) {
+                            showScannerToast(`Berhasil sync ${data.synced} item ke manifest ${manifest}`, "success");
+                            $('#pendingManifestInput').val(''); // Clear input
+                            if (document.getElementById('pendingModal').classList.contains('show')) {
+                                await loadPendingList(1);
+                            } else {
+                                await refreshPendingBanner();
+                            }
+                            loadScheduleList(); // Refresh jadwal table
+                        } else {
+                            showScannerToast(data.message || "Gagal sinkronisasi.", "danger");
+                        }
+                    } catch (e) {
+                        showScannerToast('Sync gagal: ' + e.message, "danger");
+                    } finally {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i> Sync Sekarang';
+                    }
+                });
+            }
+
+            // Event: link "Lihat detail" pending
+            const linkShowPending = document.getElementById('linkShowPendingList');
+            if (linkShowPending) {
+                linkShowPending.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const modal = new bootstrap.Modal(document.getElementById('pendingModal'));
+                    modal.show();
+                });
+            }
+
+            // Load pending list saat modal dibuka
+            document.getElementById('pendingModal').addEventListener('show.bs.modal', function() {
+                loadPendingList();
+            });
+
+            // SignalR: refresh pending banner saat ada update
+            connection.on("pendingCountUpdated", function(data) {
+                refreshPendingBanner();
+            });
+
+            // Initial load pending banner
+            refreshPendingBanner();
+
+            // Initial load of indicators
+            loadScheduleList();
+
+            // =====================================================================
+            // DOCK SELECTION LOGIC
+            // =====================================================================
+            async function initDockSelection() {
+                try {
+                    const res = await fetch('@Url.Action("GetAvailableDocks", "PreparationWorkflow")');
+                    const docks = await res.json();
+                    const $sel = $('#dockSelect');
+
+                    if (!docks || docks.length === 0) {
+                        $sel.html('<option value="">-- Tidak ada dock tersedia --</option>');
+                        return;
+                    }
+
+                    let opts = '<option value="">-- Pilih Dock untuk Preparation --</option>';
+                    docks.forEach(d => {
+                        opts += `<option value="${d.customerId}" data-name="${escapeAttr(d.dockName)}" data-cycle="${escapeAttr(d.cycle)}" data-prep="${d.startPrepTime || 0}" data-tpc="${d.isTwoPointCheck ? '1' : '0'}">${d.dockDisplay}</option>`;
+                    });
+                    $sel.html(opts);
+
+                    // Auto-select if only 1 dock
+                    if (docks.length === 1) {
+                        $sel.val(docks[0].customerId);
+                        applyDockSelection($sel);
+                    } else {
+                        // Restore pilihan dock dari sesi sebelumnya (localStorage)
+                        const savedDockId = localStorage.getItem('prep_selected_dock_id');
+                        if (savedDockId) {
+                            const $opt = $sel.find(`option[value="${savedDockId}"]`);
+                            if ($opt.length > 0) {
+                                $sel.val(savedDockId);
+                                applyDockSelection($sel);
+                            } else {
+                                // Dock tidak ada lagi di daftar, hapus dari storage
+                                localStorage.removeItem('prep_selected_dock_id');
+                            }
+                        }
+                    }
+                } catch(e) {
+                    $('#dockSelect').html('<option value="">-- Gagal memuat dock --</option>');
+                    console.warn('GetAvailableDocks error:', e);
+                }
+            }
+
+            $('#dockSelect').on('change', function() {
+                applyDockSelection($(this));
+            });
+
+            $('#btnChangeDock').on('click', function() {
+                selectedDock = null;
+                localStorage.removeItem('prep_selected_dock_id');
+                $('#dockSelect').val('').show().trigger('focus');
+                $('#dockSelectedBar').hide();
+                disableScanInputs();
+            });
+
+            function applyDockSelection($sel) {
+                const val = $sel.val();
+                if (!val) {
+                    selectedDock = null;
+                    localStorage.removeItem('prep_selected_dock_id');
+                    $('#dockSelectedBar').hide();
+                    disableScanInputs();
+                    return;
+                }
+                // Simpan pilihan dock agar bertahan saat refresh
+                localStorage.setItem('prep_selected_dock_id', val);
+                const $opt = $sel.find('option:selected');
+                selectedDock = {
+                    customerId: parseInt(val),
+                    dockName: $opt.data('name'),
+                    cycle: $opt.data('cycle'),
+                    startPrepTime: parseInt($opt.data('prep') || 0),
+                    isTwoPointCheck: String($opt.data('tpc')) === '1'
+                };
+                
+                // --- IMMEDIATE UI SWAP FOR TWO POINT CHECK ---
+                isTwoPointCheck = selectedDock.isTwoPointCheck;
+                if (isTwoPointCheck) {
+                    $('#kanbanInput').parent().parent().hide();
+                    $('#kanbanInput').val('TWO-POINT-CHECK');
+                } else {
+                    $('#kanbanInput').parent().parent().show();
+                    $('#kanbanInput').val('');
+                }
+
+                $('#dockConfirmName').text(selectedDock.dockName);
+                const cycleText = (selectedDock.cycle && selectedDock.cycle !== '-') ? `Cycle: ${selectedDock.cycle}` : '';
+                const prepText = selectedDock.startPrepTime > 0 ? ` | Start Prep: ${formatPrepMinutes(selectedDock.startPrepTime)}` : '';
+                $('#dockConfirmCycle').text(cycleText + prepText);
+                $('#dockSelectedBar').show();
+                $sel.hide();
+                enableScanInputs();
+            }
+
+            function enableScanInputs() {
+                $('#scanInputsSection').css({ opacity: '1', 'pointer-events': 'auto' });
+                resetInputs(); // Sekarang berada di scope yang sama
+            }
+
+            function disableScanInputs() {
+                $('#scanInputsSection').css({ opacity: '0.4', 'pointer-events': 'none' });
+            }
+
+            function formatPrepMinutes(mins) {
+                if (!mins || mins <= 0) return '';
+                const h = Math.floor(mins / 60);
+                const m = mins % 60;
+                return h > 0 ? `${h}:${String(m).padStart(2,'0')}` : `${m}:00`;
+            }
+
+            function escapeAttr(str) {
+                if (!str) return '';
+                return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            }
+
+            // Jalankan inisialisasi dock
+            initDockSelection();
+        });
+    </script>
+}

@@ -1,0 +1,398 @@
+@model IEnumerable<DeliveryControl.Models.DeliveryItem>
+@{
+    ViewData["Title"] = "Monitoring Preparation";
+}
+
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div>
+                <h1 class="display-5 fw-bold mb-2" style="color: #f59e0b;">
+                    <i class="bi bi-speedometer2"></i> Monitoring Antrean Preparation
+                </h1>
+                <p class="text-white-50 mb-0">Halaman monitoring persiapan barang (Read Only)</p>
+            </div>
+            <div class="d-flex gap-3 align-items-center">
+                <div id="signalr-status" class="realtime-status-badge status-connecting">
+                    <div class="status-pulse"></div>
+                    <i class="bi bi-circle-fill status-icon"></i>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <!-- Filter Tanggal Compact -->
+                <div class="d-flex align-items-center gap-1" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:4px 10px;">
+                    <i class="bi bi-calendar-event text-white-50" style="font-size:0.85rem;"></i>
+                    <input type="date" id="dashboardDateFilter" 
+                           value="@(ViewBag.SelectedDate ?? DateTime.Today.ToString("yyyy-MM-dd"))"
+                           style="background:transparent; border:none; color:#fff; font-size:0.85rem; outline:none; width:130px; cursor:pointer;"
+                           title="Filter tanggal dashboard">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@{
+    var pendingCount = (int)(ViewBag.PendingPrepCount ?? 0);
+}
+
+@* ─── PENDING ALERT BAR (Read Only) ─── *@
+<div id="pendingAlertBar" class="mb-3" style="@(pendingCount > 0 ? "" : "display:none;")">
+    <div style="
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 18px;
+        background: linear-gradient(90deg, rgba(245,158,11,0.15) 0%, rgba(15,23,42,0.8) 100%);
+        border: 1px solid rgba(245,158,11,0.45);
+        border-radius: 10px;
+        color: #fde68a;
+        font-size: 0.88rem;
+        box-shadow: 0 0 12px rgba(245,158,11,0.1);
+    ">
+        <i class="bi bi-clock-history" style="font-size:1.1rem;color:#f59e0b;"></i>
+        <div class="flex-grow-1">
+            <strong id="pendingCountDisplay" style="color:#f59e0b;font-size:1.1rem;">@pendingCount</strong>
+            &nbsp;preparation <strong style="color:#fde68a;">PENDING</strong>
+            &mdash; belum terikat jadwal.
+            <a href="javascript:void(0)" class="ms-2 fw-bold" style="color:#f59e0b;text-decoration:none;border-bottom:1px dashed #f59e0b;" data-bs-toggle="modal" data-bs-target="#pendingPrepModalReadOnly">
+                <i class="bi bi-list-ul"></i> Lihat daftar
+            </a>
+        </div>
+        <span class="badge" style="background:rgba(245,158,11,0.25);color:#f59e0b;border:1px solid rgba(245,158,11,0.4);font-size:0.75rem;">
+            <i class="bi bi-eye"></i> Read Only
+        </span>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="cyber-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-list-check me-2" style="color: var(--warning-orange);"></i>
+                        Daftar Antrean Preparation
+                    </h5>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="manualRefresh()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <span class="badge bg-primary" style="font-size: 0.9rem;">
+                        <i class="bi bi-clock-history"></i> Live
+                    </span>
+                </div>
+            </div>
+            
+            <!-- Summary Stats Cards -->
+            <div class="card-body bg-dark border-bottom border-secondary py-2">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center p-2 rounded" style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3);">
+                            <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center me-3" style="width: 35px; height: 35px;">
+                                <i class="bi bi-hourglass-split fs-6 text-dark"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 ms-small text-uppercase fw-bold" style="font-size: 0.7rem;">Items Preparing</div>
+                                <div class="h4 mb-0 fw-bold text-warning" id="count-preparing">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center p-2 rounded" style="background: rgba(108, 117, 125, 0.1); border: 1px solid rgba(108, 117, 125, 0.3);">
+                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3" style="width: 35px; height: 35px;">
+                                <i class="bi bi-pause-fill fs-6 text-white"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 ms-small text-uppercase fw-bold" style="font-size: 0.7rem;">Items Waiting</div>
+                                <div class="h4 mb-0 fw-bold text-white" id="count-waiting">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="d-flex align-items-center p-2 rounded" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <div class="rounded-circle bg-success d-flex align-items-center justify-content-center me-3" style="width: 35px; height: 35px;">
+                                <i class="bi bi-check-all fs-6 text-white"></i>
+                            </div>
+                            <div>
+                                <div class="text-white-50 ms-small text-uppercase fw-bold" style="font-size: 0.7rem;">Items Completed</div>
+                                <div class="h4 mb-0 fw-bold text-success" id="count-completed">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 78vh; overflow-y: auto;">
+                    <table class="table table-dark table-hover mb-0 align-middle">
+                        <thead class="table-dark" style="position: sticky; top: 0; z-index: 100; background-color: #212529;">
+                            <tr class="text-uppercase text-secondary small">
+                                <th>MANIFESTING</th>
+                                <th>DOCK</th>
+                                <th>NAMA CUSTOMER</th>
+                                <th>ROUTE</th>
+                                <th>CYCLE</th>
+                                <th>PART NO / VIN</th>
+                                <th class="text-center">QTY/LOT</th>
+                                <th class="text-center">QTY (PCS)</th>
+                                <th class="text-center">KBN PREP</th>
+                                <th class="text-center">STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prepTableBody" style="font-size: 0.85rem;">
+                            @await Html.PartialAsync("_PrepTableDirectPartial", Model)
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ─── MODAL PENDING PREPARATIONS (Read Only) ─── *@
+<div class="modal fade" id="pendingPrepModalReadOnly" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="background:#0d1b35;border:1px solid #f59e0b;border-radius:12px;color:#fff;">
+            <div class="modal-header" style="border-bottom:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.1);">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <i class="bi bi-clock-history text-warning"></i>
+                    <span>Daftar Preparation <span class="text-warning">PENDING</span></span>
+                    <span class="badge bg-warning text-dark ms-1" id="pendingModalCountBadge">0</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="px-3 py-2" style="background:rgba(245,158,11,0.06);border-bottom:1px solid rgba(245,158,11,0.15);font-size:0.8rem;color:#fcd34d;">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Data ini belum terikat ke jadwal manapun (Read Only). Hubungi Admin untuk sinkronisasi jadwal.
+                </div>
+                <div style="max-height:450px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0" style="color:#cbd5e1;font-size:0.85rem;">
+                        <thead style="position:sticky;top:0;z-index:10;">
+                            <tr style="background:#1a2a4a;border-bottom:2px solid #f59e0b;">
+                                <th class="px-3 py-2 text-secondary">#</th>
+                                <th class="px-3 py-2 text-secondary">Waktu Scan</th>
+                                <th class="px-3 py-2 text-secondary">VIN / TAG</th>
+                                <th class="px-3 py-2 text-secondary">Label</th>
+                                <th class="px-3 py-2 text-secondary">Kanban</th>
+                                <th class="px-3 py-2 text-secondary">Operator</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pendingPrepModalBody">
+                            <tr><td colspan="6" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm me-2"></div>Memuat data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid rgba(245,158,11,0.3);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/signalr.min.js"></script>
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/deliveryHub")
+            .withAutomaticReconnect()
+            .build();
+
+        function updateSignalRStatus(status) {
+            const badge = document.getElementById('signalr-status');
+            const icon = badge.querySelector('.status-icon');
+            const text = badge.querySelector('.status-text');
+            
+            badge.className = 'realtime-status-badge ' + 'status-' + status;
+            
+            if (status === 'live') {
+                text.innerText = 'Live';
+            } else if (status === 'connecting') {
+                text.innerText = 'Connecting...';
+            } else if (status === 'reconnecting') {
+                text.innerText = 'Reconnecting...';
+            } else {
+                text.innerText = 'Offline';
+            }
+        }
+
+        connection.on("ReceiveDashboardUpdate", function () {
+            manualRefresh();
+        });
+
+        // Handler deliveryUpdated — update antrean preparation
+        connection.on("deliveryUpdated", function (data) {
+            const action = (data && data.action) ? data.action.toLowerCase() : '';
+            const createDeleteActions = ['create', 'delete', 'deleteitem', 'bulk_create', 'import', 'smartimport'];
+            if (createDeleteActions.includes(action)) {
+                // Jadwal berubah — refresh tabel utama
+                manualRefresh();
+            }
+            // Untuk scan, cukup update count via endpoint
+            if (!createDeleteActions.includes(action)) {
+                fetchPendingAndUpdate();
+            }
+        });
+
+        // Handler pendingCountUpdated — angka pending langsung dari event
+        connection.on("pendingCountUpdated", function (data) {
+            if (data && typeof data.count === 'number') {
+                updatePendingUI(data.count);
+            }
+        });
+
+        // Fetch pending count + data tabel dari server
+        function fetchPendingAndUpdate() {
+            fetch('/PreparationSchedule/GetPendingCount')
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d && typeof d.count === 'number') updatePendingUI(d.count); })
+                .catch(() => {});
+
+            fetch('/PreparationWorkflow/GetPendingPreparations')
+                .then(r => r.ok ? r.json() : null)
+                .then(rows => { if (rows) renderPendingTable(rows); })
+                .catch(() => {});
+        }
+
+        // Update semua elemen yang menampilkan pending count
+        function updatePendingUI(count) {
+            document.getElementById('pendingCountDisplay').textContent = count;
+            document.getElementById('pendingModalCountBadge').textContent = count;
+            const bar = document.getElementById('pendingAlertBar');
+            if (count > 0) {
+                bar.style.display = '';
+            } else {
+                bar.style.display = 'none';
+                // Tutup modal jika sedang terbuka tapi data kosong
+                const modalEl = document.getElementById('pendingPrepModalReadOnly');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+        }
+
+        // Render baris tabel pending di modal
+        function renderPendingTable(rows) {
+            const tbody = document.getElementById('pendingPrepModalBody');
+            if (!rows || rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-white-50 py-3"><i class="bi bi-check-circle-fill text-success me-1"></i> Tidak ada pending</td></tr>';
+                return;
+            }
+            tbody.innerHTML = rows.map((r, i) => `
+                <tr>
+                    <td class="px-3" style="color:#64748b;">${i + 1}</td>
+                    <td style="color:#94a3b8;white-space:nowrap;">${r.createdDate}</td>
+                    <td><code style="color:#67e8f9;font-weight:bold;">${r.tag ?? '-'}</code></td>
+                    <td style="color:#e2e8f0;">${r.label ?? '-'}</td>
+                    <td style="color:#fde68a;">${r.kanban ?? '-'}</td>
+                    <td><span class="badge" style="background:rgba(139,92,246,0.15);color:#c4b5fd;border:1px solid rgba(139,92,246,0.3);">${r.createdBy ?? '-'}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        connection.onreconnecting(error => {
+            updateSignalRStatus('reconnecting');
+        });
+
+        connection.onreconnected(connectionId => {
+            updateSignalRStatus('live');
+        });
+
+        connection.onclose(error => {
+            updateSignalRStatus('disconnected');
+        });
+
+        async function start() {
+            try {
+                await connection.start();
+                updateSignalRStatus('live');
+            } catch (err) {
+                updateSignalRStatus('disconnected');
+                setTimeout(start, 5000);
+            }
+        };
+
+        start().then(() => {
+            // Load initial pending data saat halaman dibuka
+            fetchPendingAndUpdate();
+        });
+
+        function manualRefresh() {
+            const tbody = document.getElementById('prepTableBody');
+            fetch('@Url.Action("GetPrepTableData", "Home")')
+                .then(response => response.text())
+                .then(html => {
+                    tbody.innerHTML = html;
+                    updateSummaryStats();
+                })
+                .catch(err => console.error('Refresh error:', err));
+        }
+
+        function updateSummaryStats() {
+            const rows = document.querySelectorAll('#prepTableBody tr');
+            let preparing = 0;
+            let waiting = 0;
+            let completed = 0;
+
+            rows.forEach(row => {
+                const statusBadge = row.querySelector('.status-badge');
+                if (statusBadge) {
+                    const status = statusBadge.innerText.trim();
+                    if (status === 'Preparing') preparing++;
+                    else if (status === 'Waiting') waiting++;
+                    else if (status === 'Completed') completed++;
+                }
+            });
+
+            document.getElementById('count-preparing').innerText = preparing;
+            document.getElementById('count-waiting').innerText = waiting;
+            document.getElementById('count-completed').innerText = completed;
+        }
+
+        // Initialize stats on load
+        document.addEventListener('DOMContentLoaded', updateSummaryStats);
+
+        setInterval(manualRefresh, 60000);
+
+        document.getElementById('dashboardDateFilter').addEventListener('change', function() {
+            window.location.href = '@Url.Action("PreparationDashboard", "Home")?date=' + this.value;
+        });
+    </script>
+}
+
+<style>
+    .realtime-status-badge {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    .status-connecting { background: rgba(108, 117, 125, 0.2); border-color: #adb5bd; color: #adb5bd; }
+    .status-live { background: rgba(16, 185, 129, 0.2); border-color: #34d399; color: #34d399; }
+    .status-reconnecting { background: rgba(245, 158, 11, 0.2); border-color: #fbbf24; color: #fbbf24; }
+    .status-disconnected { background: rgba(239, 68, 68, 0.2); border-color: #f87171; color: #f87171; }
+
+    .status-pulse {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 20px;
+        animation: pulse-ring 2s infinite;
+        opacity: 0;
+        left: 0;
+    }
+    .status-live .status-pulse { background: rgba(16, 185, 129, 0.3); }
+
+    @@keyframes pulse-ring {
+        0% { transform: scale(1); opacity: 0.5; }
+        100% { transform: scale(1.1); opacity: 0; }
+    }
+</style>

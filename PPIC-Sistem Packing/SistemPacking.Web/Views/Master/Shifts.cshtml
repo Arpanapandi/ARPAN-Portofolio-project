@@ -1,0 +1,210 @@
+@model IEnumerable<SistemPacking.Web.Models.Shift>
+@{
+    ViewData["Title"] = "Master Shift";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">Shift</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-clock"></i> Master Shift</h2>
+    <div>
+        <a href="/Master/DownloadTemplateShift" class="btn btn-outline-info me-2">
+            <i class="bi bi-download me-1"></i>Template
+        </a>
+        <button class="btn btn-outline-success me-2" onclick="$('#importModal').modal('show')">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import
+        </button>
+        <a href="/Master/ExportShifts" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Export
+        </a>
+        <button class="btn btn-danger d-none" id="btnBulkDelete" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="shiftsTable" style="width: 100%;">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="checkAll">
+                    </th>
+                    <th>Shift Name</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in Model)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input chk-item" type="checkbox" value="@s.Id">
+                        </td>
+                        <td class="fw-semibold">@s.ShiftName</td>
+                        <td>@s.StartTime.ToString(@"hh\:mm")</td>
+                        <td>@s.EndTime.ToString(@"hh\:mm")</td>
+                        <td>
+                            @if (s.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger">Nonaktif</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Master Shift</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pilih File Excel (.xlsx) <span class="text-danger">*</span></label>
+                        <input type="file" id="importFile" name="file" class="form-control" accept=".xlsx" required />
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnImport" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i> Upload & Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#shiftsTable').DataTable({
+            pageLength: 20,
+            scrollY: 'calc(100vh - 350px)',
+            scrollCollapse: true,
+            language: { url: '/js/id.json' },
+            columnDefs: [
+                { targets: 0, orderable: false, className: 'text-center' }
+            ]
+        });
+
+        // Check All logic
+        $('#checkAll').change(function () {
+            $('.chk-item').prop('checked', $(this).prop('checked'));
+            toggleBulkDeleteBtn();
+        });
+
+        $('#shiftsTable tbody').on('change', '.chk-item', function () {
+            if (!$(this).prop('checked')) {
+                $('#checkAll').prop('checked', false);
+            }
+            toggleBulkDeleteBtn();
+        });
+    });
+
+    function toggleBulkDeleteBtn() {
+        var selected = $('.chk-item:checked').length;
+        if (selected > 0) {
+            $('#selectedCount').text(selected);
+            $('#btnBulkDelete').removeClass('d-none');
+        } else {
+            $('#btnBulkDelete').addClass('d-none');
+        }
+    }
+
+    function bulkDelete() {
+        var selected = [];
+        $('.chk-item:checked').each(function () {
+            selected.push(parseInt($(this).val()));
+        });
+
+        if (selected.length === 0) return;
+
+        Swal.fire({
+            title: 'Hapus ' + selected.length + ' data?',
+            text: "Data yang dihapus tidak dapat dikembalikan!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/BulkDeleteShifts',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: { 'RequestVerificationToken': $('[name="__RequestVerificationToken"]').val() },
+                    data: JSON.stringify(selected),
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire('Terhapus!', res.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    function doImport() {
+        var file = $('#importFile')[0].files[0];
+        if (!file) {
+            Swal.fire('Error', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').val());
+
+        $('#btnImport').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Loading...');
+
+        $.ajax({
+            url: '/Master/ImportShifts',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    Swal.fire('Berhasil', res.message, 'success').then(() => location.reload());
+                } else {
+                    var errorMsg = res.message + "<br><br>" + (res.errors ? res.errors.join('<br>') : '');
+                    Swal.fire({
+                        title: 'Import Gagal', 
+                        html: errorMsg, 
+                        icon: 'error',
+                        customClass: { htmlContainer: 'text-start' }
+                    });
+                }
+            },
+            error: function () {
+                Swal.fire('Error', 'Gagal menghubungi server', 'error');
+            },
+            complete: function () {
+                $('#btnImport').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload & Import');
+            }
+        });
+    }
+</script>
+@Html.AntiForgeryToken()
+}

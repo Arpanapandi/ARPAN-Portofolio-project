@@ -1,0 +1,14 @@
+C:\OEE SYSTEM\OeeSystem.csproj : warning NU1603: OeeSystem depends on ClosedXML (>= 0.102.4) but ClosedXML 0.102.4 was not found. An approximate best match of ClosedXML 0.104.0 was resolved.
+C:\OEE SYSTEM\OeeSystem.csproj : warning NU1603: OeeSystem depends on ClosedXML (>= 0.102.4) but ClosedXML 0.102.4 was not found. An approximate best match of ClosedXML 0.104.0 was resolved.
+C:\OEE SYSTEM\Views\Admin\EditMachine.cshtml(38,133): error RZ1030: TagHelper attributes must be well-formed. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Views\Admin\EditMachine.cshtml(38,127): error CS1525: Invalid expression term ';' [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Views\Admin\EditMachine.cshtml(38,127): error CS1026: ) expected [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\OperatorController.cs(29,39): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\OperatorController.cs(229,35): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\AdminController.cs(269,49): warning CS0168: The variable 'ex' is declared but never used [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\OperatorController.cs(280,39): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\HomeController.cs(202,39): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\AdminController.cs(520,30): warning CS0168: The variable 'ex' is declared but never used [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\OperationController.cs(235,35): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\HomeController.cs(657,39): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]
+C:\OEE SYSTEM\Controllers\MachineController.cs(91,39): warning CS8602: Dereference of a possibly null reference. [C:\OEE SYSTEM\OeeSystem.csproj]

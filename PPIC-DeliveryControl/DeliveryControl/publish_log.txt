@@ -1,0 +1,4 @@
+  Determining projects to restore...
+  Restored C:\DeliveryControl\DeliveryControl\DeliveryControl.csproj (in 301 ms).
+  DeliveryControl -> C:\DeliveryControl\DeliveryControl\bin\Release\net8.0\DeliveryControl.dll
+  DeliveryControl -> C:\DeliveryControl\DeliveryControl\Delivery\

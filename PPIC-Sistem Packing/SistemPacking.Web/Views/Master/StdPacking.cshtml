@@ -1,0 +1,287 @@
+@{
+    ViewData["Title"] = "Master STD Packing";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">STD Packing</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-images"></i> Master STD Packing</h2>
+    <div>
+        <button class="btn btn-primary" onclick="showZipModal()">
+            <i class="bi bi-cloud-arrow-up me-1"></i>Upload ZIP
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="stdPackingTable">
+            <thead>
+                <tr>
+                    <th width="5%">No</th>
+                    <th width="15%">Item Code</th>
+                    <th>SPIS</th>
+                    <th>SPPS</th>
+                    <th width="15%">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Data loaded via AJAX -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Upload ZIP -->
+<div class="modal fade" id="zipModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-zip me-2"></i>Upload STD Packing (ZIP)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-info-circle me-1"></i> Petunjuk:</h6>
+                    <ul class="mb-0 small ps-3">
+                        <li>Dalam zip, buat folder <strong>SPIS</strong> dan/atau <strong>SPPS</strong>.</li>
+                        <li>Nama file = <strong>Item Code</strong> (misal: <code>ITEM001.jpg</code>).</li>
+                    </ul>
+                </div>
+                <form id="formZip">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">File ZIP <span class="text-danger">*</span></label>
+                        <input type="file" id="zipFile" class="form-control" accept=".zip" required />
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="btnUploadZip">
+                    <i class="bi bi-upload me-1"></i>Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Single -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit Gambar</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formEdit">
+                    <input type="hidden" id="editItemCode" />
+                    <div class="mb-3">
+                        <label class="form-label">Tipe Gambar</label>
+                        <select id="editType" class="form-select">
+                            <option value="SPIS">SPIS</option>
+                            <option value="SPPS">SPPS</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Pilih Gambar <span class="text-danger">*</span></label>
+                        <input type="file" id="editFile" class="form-control" accept=".jpg,.jpeg,.png" required />
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="btnUploadEdit">
+                    <i class="bi bi-save me-1"></i>Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Preview -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewTitle">Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="previewImage" src="" class="img-fluid rounded border" alt="Preview" style="max-height: 70vh;" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    let table;
+    $(document).ready(function () {
+        table = $('#stdPackingTable').DataTable({
+            ajax: {
+                url: '/Master/GetStdPackingList',
+                dataSrc: ''
+            },
+            columns: [
+                { 
+                    data: null, 
+                    render: function (data, type, row, meta) { return meta.row + 1; }
+                },
+                { 
+                    data: 'itemCode',
+                    render: function(data) { return `<span class="fw-semibold text-primary">${data}</span>`; }
+                },
+                { 
+                    data: 'spis',
+                    render: function(data) {
+                        if(data) return `<img src="${data}?t=${new Date().getTime()}" alt="SPIS" class="img-thumbnail" style="height:40px; cursor:pointer;" onclick="showPreview('${data}', 'SPIS')" />`;
+                        return `<span class="text-muted fst-italic">Kosong</span>`;
+                    }
+                },
+                { 
+                    data: 'spps',
+                    render: function(data) {
+                        if(data) return `<img src="${data}?t=${new Date().getTime()}" alt="SPPS" class="img-thumbnail" style="height:40px; cursor:pointer;" onclick="showPreview('${data}', 'SPPS')" />`;
+                        return `<span class="text-muted fst-italic">Kosong</span>`;
+                    }
+                },
+                {
+                    data: null,
+                    render: function (data, type, row) {
+                        return `
+                            <button class="btn btn-sm btn-outline-info" onclick="showPreviewCombo('${row.spis}', '${row.spps}', '${row.itemCode}')" title="Detail"><i class="bi bi-eye"></i></button>
+                            <button class="btn btn-sm btn-outline-primary" onclick="showEdit('${row.itemCode}')" title="Edit"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteItem('${row.itemCode}')" title="Delete"><i class="bi bi-trash"></i></button>
+                        `;
+                    }
+                }
+            ]
+        });
+
+        // ZIP Upload
+        $('#btnUploadZip').click(function () {
+            var file = $('#zipFile')[0].files[0];
+            if (!file) return Swal.fire('Peringatan', 'Pilih file ZIP!', 'warning');
+
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').val());
+
+            var $btn = $(this);
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Mengupload...');
+
+            $.ajax({
+                url: '/Master/UploadStdPackingZip',
+                type: 'POST',
+                data: formData,
+                processData: false, contentType: false,
+                success: function (res) {
+                    if (res.success) {
+                        $('#zipModal').modal('hide');
+                        Swal.fire('Berhasil', res.message + `<br>SPIS: ${res.spisCount}, SPPS: ${res.sppsCount}`, 'success');
+                        table.ajax.reload(null, false);
+                    } else {
+                        Swal.fire('Gagal', res.message, 'error');
+                    }
+                },
+                error: function () { Swal.fire('Error', 'Kesalahan server', 'error'); },
+                complete: function () { $btn.prop('disabled', false).html('<i class="bi bi-upload me-1"></i>Upload'); }
+            });
+        });
+
+        // Edit Single Upload
+        $('#btnUploadEdit').click(function () {
+            var file = $('#editFile')[0].files[0];
+            if (!file) return Swal.fire('Peringatan', 'Pilih file gambar!', 'warning');
+            
+            var itemCode = $('#editItemCode').val();
+            var type = $('#editType').val();
+
+            var formData = new FormData();
+            formData.append('itemCode', itemCode);
+            formData.append('type', type);
+            formData.append('file', file);
+            formData.append('__RequestVerificationToken', $('input[name="__RequestVerificationToken"]').val());
+
+            var $btn = $(this);
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Master/UploadSingleStdPacking',
+                type: 'POST',
+                data: formData,
+                processData: false, contentType: false,
+                success: function (res) {
+                    if (res.success) {
+                        $('#editModal').modal('hide');
+                        Swal.fire('Berhasil', res.message, 'success');
+                        table.ajax.reload(null, false);
+                    } else {
+                        Swal.fire('Gagal', res.message, 'error');
+                    }
+                },
+                error: function () { Swal.fire('Error', 'Kesalahan server', 'error'); },
+                complete: function () { $btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i>Simpan'); }
+            });
+        });
+    });
+
+    function showZipModal() {
+        $('#zipFile').val('');
+        $('#zipModal').modal('show');
+    }
+
+    function showEdit(itemCode) {
+        $('#editItemCode').val(itemCode);
+        $('#editFile').val('');
+        $('#editModal').modal('show');
+    }
+
+    function showPreview(url, title) {
+        $('#previewTitle').text('Preview ' + title);
+        $('#previewImage').attr('src', url + '?t=' + new Date().getTime());
+        $('#previewModal').modal('show');
+    }
+
+    function showPreviewCombo(spis, spps, itemCode) {
+        // If clicking detail, show whichever is available or default to SPIS
+        let url = spis !== 'null' ? spis : spps;
+        if(url && url !== 'null') {
+            showPreview(url, 'Detail ' + itemCode);
+        } else {
+            Swal.fire('Info', 'Tidak ada gambar untuk di-preview', 'info');
+        }
+    }
+
+    function deleteItem(itemCode) {
+        Swal.fire({
+            title: 'Hapus Gambar?',
+            text: "Ini akan menghapus SPIS & SPPS untuk " + itemCode,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post('/Master/DeleteStdPacking', {
+                    itemCode: itemCode,
+                    __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val()
+                }, function (res) {
+                    if (res.success) {
+                        Swal.fire('Terhapus!', res.message, 'success');
+                        table.ajax.reload(null, false);
+                    } else {
+                        Swal.fire('Gagal', res.message, 'error');
+                    }
+                });
+            }
+        });
+    }
+</script>
+@Html.AntiForgeryToken()
+}

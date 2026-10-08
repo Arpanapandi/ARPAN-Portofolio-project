@@ -1,0 +1,211 @@
+diff --git a/Views/Stock/Index.cshtml b/Views/Stock/Index.cshtml
+index 28df4ce..1c392dc 100644
+--- a/Views/Stock/Index.cshtml
++++ b/Views/Stock/Index.cshtml
+@@ -56,7 +56,8 @@
+                 <span>Template Excel</span>
+             </button>
+ 
+-            @if (Context.Session.GetString("Role") == "Admin")
++            @{ var _role = Context.Session.GetString("Role"); }
++            @if (_role == "Admin" || _role == "Super Admin")
+             {
+                 <button id="btnAdjustStock" class="btn-custom-orange" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;padding:6px 14px;border-radius:8px;font-size:0.82rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                     <i class="bi bi-sliders"></i>
+@@ -156,7 +157,7 @@
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 50px;">NO</th>
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 120px;">LOKASI RAK</th>
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 100px;">PROD. PLANT</th>
+-                                <th class="bg-dark-blue text-white text-center" style="min-width: 80px;">RAK</th>
++                                <th class="bg-dark-blue text-white text-center" style="min-width: 80px; display:none;">RAK</th>
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 120px;">LABEL</th>
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 60px;">ACT</th>
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 150px;">LEVEL STOCK</th>
+@@ -169,16 +170,25 @@
+                                 <th class="bg-yellow text-dark text-center" style="min-width: 80px;">ROP 2D</th>
+                                 <th class="bg-info text-white text-center" style="min-width: 80px;">MAX 3D</th>
+                                 <th class="bg-dark-blue text-white text-center" style="min-width: 160px;">REMARK</th>
++                                @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
++                                {
++                                    <th class="bg-dark-blue text-white text-center" style="min-width: 70px;">AKSI</th>
++                                }
+                             </tr>
+                         </thead>
+                         <tbody>
+                             @foreach (var record in Model.StockDetails)
+                             {
+-                                <tr class="stock-row" data-status="@record.Status">
++                                <tr class="stock-row"
++                                    data-status="@record.Status"
++                                    data-item-id="@(record.ItemId ?? 0)"
++                                    data-search="@((record.ItemName + " " + record.VIN + " " + record.Label + " " + record.Customer).ToLower())"
++                                    style="cursor:pointer;"
++                                    onclick="showRackDetail(@(record.ItemId ?? 0), event)">
+                                     <td class="text-center">@record.No</td>
+                                     <td class="fw-bold text-primary">@record.ItemName</td>
+                                     <td class="text-center"><span class="badge @(record.Plant == "Molded" ? "bg-primary" : record.Plant == "Hose" ? "bg-info text-dark" : "bg-warning text-dark") smaller">@record.Plant</span></td>
+-                                    <td class="text-center fw-bold">@record.RackInfo</td>
++                                    <td style="display:none;">@record.RackInfo</td>
+                                     <td class="text-center"><span class="text-primary fw-bold" style="font-size: 0.8rem;">@record.Label</span></td>
+                                     <td class="text-center">
+                                         <div class="d-flex flex-column align-items-center">
+@@ -234,7 +244,30 @@
+                                         {
+                                             <span style="color:#f59e0b;"><i class="bi bi-pencil-square"></i> @record.AdjustNote</span>
+                                         }
++                                        else if (record.RackBreakdown.Count > 1)
++                                        {
++                                            <span class="badge-rack-count" onclick="showRackDetail(@(record.ItemId ?? 0), event)" title="Klik untuk lihat detail semua lokasi rak">
++                                                <i class="bi bi-geo-alt-fill"></i> @record.RackBreakdown.Count lok.
++                                            </span>
++                                        }
+                                     </td>
++                                    @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
++                                    {
++                                        <td class="text-center" onclick="event.stopPropagation()">
++                                            <button class="btn btn-xs btn-outline-warning"
++                                                    onclick="editStockFromRow(this)"
++                                                    data-id="@record.ItemId"
++                                                    data-vin="@record.VIN"
++                                                    data-name="@record.ItemName"
++                                                    data-plant="@record.Plant"
++                                                    data-rack="@(record.RackBreakdown.Count == 1 ? record.RackBreakdown[0].Rack : "")"
++                                                    data-norack="@(record.RackBreakdown.Count == 1 ? record.RackBreakdown[0].Column.ToString() : "")"
++                                                    data-current-stock="@record.CurrentStock"
++                                                    title="Edit / Adjust Stock">
++                                                <i class="bi bi-pencil-fill"></i>
++                                            </button>
++                                        </td>
++                                    }
+                                 </tr>
+                             }
+                             @if (!Model.StockDetails.Any())
+@@ -575,6 +608,48 @@
+         50% { opacity: 0.4; }
+         100% { opacity: 1; }
+     }
++
++    .btn-rack-detail {
++        background: rgba(56,189,248,0.1);
++        border: 1px solid rgba(56,189,248,0.35);
++        border-radius: 6px;
++        color: #38bdf8;
++        font-size: 0.75rem;
++        font-weight: 600;
++        padding: 3px 8px;
++        cursor: pointer;
++        display: inline-flex;
++        align-items: center;
++        gap: 4px;
++        transition: background 0.2s, border-color 0.2s;
++        white-space: nowrap;
++    }
++    .btn-rack-detail:hover {
++        background: rgba(56,189,248,0.22);
++        border-color: #38bdf8;
++        color: #fff;
++    }
++    .badge-rack-count {
++        background: rgba(56,189,248,0.12);
++        border: 1px solid rgba(56,189,248,0.3);
++        border-radius: 5px;
++        color: #38bdf8;
++        font-size: 0.72rem;
++        font-weight: 600;
++        padding: 2px 7px;
++        cursor: pointer;
++        display: inline-flex;
++        align-items: center;
++        gap: 4px;
++        transition: background 0.2s;
++    }
++    .badge-rack-count:hover {
++        background: rgba(56,189,248,0.25);
++        color: #fff;
++    }
++    .stock-row:hover td {
++        background: rgba(56,189,248,0.04) !important;
++    }
+ </style>
+ 
+ <!-- ===== MANUAL ADJUST STOCK MODAL ===== -->
+@@ -832,3 +907,79 @@
+ </script>
+ 
+ <partial name="_ClearDataModal" />
++
++<!-- ===== RACK DETAIL MODAL ===== -->
++<div id="rackDetailModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.65);align-items:center;justify-content:center;">
++    <div style="background:#1e293b;border-radius:14px;padding:28px 30px;width:100%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.6);color:#e2e8f0;position:relative;">
++        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
++            <i class="bi bi-geo-alt-fill" style="font-size:1.3rem;color:#38bdf8;"></i>
++            <h5 id="rackDetailTitle" style="margin:0;font-weight:700;color:#f1f5f9;">Detail Lokasi Rak</h5>
++            <button id="btnCloseRackDetail" style="margin-left:auto;background:none;border:none;color:#94a3b8;font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>
++        </div>
++        <div id="rackDetailBody">
++            <div class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Memuat data...</div>
++        </div>
++    </div>
++</div>
++
++<script>
++window.showRackDetail = function(itemId, event) {
++    if (event) event.stopPropagation();
++    if (!itemId || itemId <= 0) return;
++    var modal = document.getElementById('rackDetailModal');
++    var body  = document.getElementById('rackDetailBody');
++    var title = document.getElementById('rackDetailTitle');
++    modal.style.display = 'flex';
++    body.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Memuat data...</div>';
++    title.textContent = 'Detail Lokasi Rak';
++
++    fetch('/Stock/GetRackDetail?itemId=' + itemId)
++        .then(r => r.json())
++        .then(function(data) {
++            if (!data.success) {
++                body.innerHTML = '<div class="text-center py-3 text-danger"><i class="bi bi-x-circle"></i> ' + (data.message || 'Gagal memuat data.') + '</div>';
++                return;
++            }
++            title.textContent = 'Lokasi Rak — ' + data.vin;
++            var levelColor = data.levelStock < 1.5 ? '#ef4444' : data.levelStock < 2.0 ? '#f59e0b' : data.levelStock <= 3.0 ? '#10b981' : '#38bdf8';
++            var html = '<div style="background:#0f172a;border-radius:8px;padding:12px 16px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.82rem;">' +
++                '<div><span style="color:#64748b;">Item</span><br><span style="color:#7dd3fc;font-weight:600;">' + data.itemName + '</span></div>' +
++                '<div><span style="color:#64748b;">Customer</span><br><span style="color:#e2e8f0;">' + data.customer + '</span></div>' +
++                '<div><span style="color:#64748b;">Plant</span><br><span style="color:#e2e8f0;">' + data.plant + '</span></div>' +
++                '<div><span style="color:#64748b;">Level Stock</span><br><span style="color:' + levelColor + ';font-weight:700;">' + data.levelStock + ' D</span></div>' +
++                '<div><span style="color:#64748b;">Total Stock</span><br><span style="color:#f1f5f9;font-weight:700;">' + data.totalStock + ' box</span></div>' +
++                '<div><span style="color:#64748b;">Min / ROP / Max</span><br><span style="color:#e2e8f0;">' + data.min + ' / ' + data.rop + ' / ' + data.max + '</span></div>' +
++                '</div>';
++
++            if (data.breakdown && data.breakdown.length > 0) {
++                html += '<table style="width:100%;border-collapse:collapse;font-size:0.83rem;">' +
++                    '<thead><tr style="background:#0f172a;color:#94a3b8;">' +
++                    '<th style="padding:8px 10px;text-align:left;">Lokasi RAK</th>' +
++                    '<th style="padding:8px 10px;text-align:center;">Jumlah Box</th>' +
++                    '<th style="padding:8px 10px;text-align:center;">Aktivitas Terakhir</th>' +
++                    '</tr></thead><tbody>';
++                data.breakdown.forEach(function(r) {
++                    html += '<tr style="border-bottom:1px solid #1e293b;">' +
++                        '<td style="padding:9px 10px;"><span style="background:rgba(56,189,248,0.15);border:1px solid rgba(56,189,248,0.3);border-radius:5px;padding:3px 10px;color:#38bdf8;font-weight:600;">' + r.label + '</span></td>' +
++                        '<td style="padding:9px 10px;text-align:center;font-weight:700;color:#f1f5f9;">' + r.stock + '</td>' +
++                        '<td style="padding:9px 10px;text-align:center;color:#94a3b8;font-size:0.78rem;">' + r.lastActivity + '</td>' +
++                        '</tr>';
++                });
++                html += '</tbody></table>';
++            } else {
++                html += '<div class="text-center py-3 text-muted"><i class="bi bi-inbox"></i> Tidak ada stok di lokasi manapun.</div>';
++            }
++            body.innerHTML = html;
++        })
++        .catch(function() {
++            body.innerHTML = '<div class="text-center py-3 text-danger"><i class="bi bi-x-circle"></i> Terjadi kesalahan koneksi.</div>';
++        });
++};
++
++document.getElementById('btnCloseRackDetail').addEventListener('click', function() {
++    document.getElementById('rackDetailModal').style.display = 'none';
++});
++document.getElementById('rackDetailModal').addEventListener('click', function(e) {
++    if (e.target === this) this.style.display = 'none';
++});
++</script>

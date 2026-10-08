@@ -1,0 +1,586 @@
+@model DeliveryControl.Models.ViewModels.DelayChartViewModel
+
+@using System.Globalization
+
+@{
+    ViewData["Title"] = "Delay Chart - Total Delay per Jam";
+    var selectedDate = Model.SelectedDate.ToString("yyyy-MM-dd");
+    var maxPickupDelay = Model.PickupHourlyData.Any() ? Model.PickupHourlyData.Max(h => h.TotalDelayMinutes) : 0;
+    if (maxPickupDelay <= 0) { maxPickupDelay = 1; } // hindari pembagi 0
+    var maxDockDelay = Model.DockInHourlyData.Any() ? Model.DockInHourlyData.Max(h => h.TotalDelayMinutes) : 0;
+    if (maxDockDelay <= 0) { maxDockDelay = 1; } // hindari pembagi 0
+
+    var maxPickupOnTime = Model.OnTimePickupHourlyData.Any() ? Model.OnTimePickupHourlyData.Max(h => h.TotalCount) : 0;
+    if (maxPickupOnTime <= 0) { maxPickupOnTime = 1; }
+    var maxDockOnTime = Model.OnTimeDockInHourlyData.Any() ? Model.OnTimeDockInHourlyData.Max(h => h.TotalCount) : 0;
+    if (maxDockOnTime <= 0) { maxDockOnTime = 1; }
+}
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="mb-1"><i class="bi bi-bar-chart"></i> Grafik Delay per Jam</h2>
+        <p class="text-muted mb-0">Total durasi delay (menit) terhadap jam (00:00 - 23:59) dengan badge customer yang mengalami delay (Pickup & Dock In).</p>
+    </div>
+    <div class="col-md-4 text-end d-flex gap-2 justify-content-end align-items-center mt-2 mt-md-0">
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="bi bi-table"></i> Tampilan Tabel
+        </a>
+        <a asp-action="GanttChart" class="btn btn-outline-primary">
+            <i class="bi bi-bar-chart-line"></i> Gantt Chart
+        </a>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="DelayChart" method="get" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label"><i class="bi bi-calendar"></i> Tanggal</label>
+                <input type="date" class="form-control" name="date" value="@selectedDate" />
+            </div>
+            <div class="col-md-7">
+                <label class="form-label"><i class="bi bi-building"></i> Customer</label>
+                <select class="form-select" name="customerId">
+                    <option value="">-- Semua Customer --</option>
+                    @foreach (var item in (IEnumerable<SelectListItem>)ViewData["Customers"]!)
+                    {
+                        <option value="@item.Value" selected="@(item.Value == (ViewData["CustomerId"]?.ToString()))">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+</div>
+</div>
+
+@if ((Model.PickupHourlyData == null || !Model.PickupHourlyData.Any() || Model.PickupHourlyData.All(h => h.TotalDelayMinutes <= 0))
+    && (Model.DockInHourlyData == null || !Model.DockInHourlyData.Any() || Model.DockInHourlyData.All(h => h.TotalDelayMinutes <= 0)))
+{
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle-fill"></i> Tidak ada delay pada tanggal yang dipilih.
+    </div>
+}
+else
+{
+    <!-- Delay Truck-In -->
+    <div class="cyber-card delay-chart-card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-graph-up-arrow me-2" style="color: var(--primary-blue);"></i>
+                    Delay Truck-In per Jam (@Model.SelectedDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")))
+                </h5>
+                <small class="text-muted">
+                    Sumbu X: Jam 00:00 - 23:59, Sumbu Y: Total delay Truck-In (menit) terhadap STD Pickup.
+                </small>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-stretch">
+                <div class="col-lg-10 col-xl-10">
+                    <div class="delay-chart-wrapper">
+                        <div class="delay-chart-y-axis">
+                            <span>@maxPickupDelay menit</span>
+                            <span>@(maxPickupDelay / 2) menit</span>
+                            <span>0</span>
+                        </div>
+                        <div class="delay-chart-bars">
+                            @foreach (var h in (Model.PickupHourlyData ?? Enumerable.Empty<DeliveryControl.Models.ViewModels.DelayChartHourData>()).OrderBy(x => x.Hour))
+                            {
+                                var heightPercent = (double)h.TotalDelayMinutes / maxPickupDelay * 100.0;
+                                var hasDelay = h.TotalDelayMinutes > 0;
+                                var orderedDetails = h.CustomerDetails.OrderByDescending(cd => cd.DelayMinutes).ToList();
+                                <div class="delay-bar-column">
+                                    <div class="delay-bar-container" title="@($"{h.Hour:D2}:00 - {h.TotalDelayMinutes} menit")">
+                                        <div class="delay-bar stacked @((hasDelay ? "has-delay" : ""))"
+                                             style="height:@heightPercent.ToString("0.##", CultureInfo.InvariantCulture)%">
+                                            @if (hasDelay)
+                                            {
+                                                foreach (var detail in orderedDetails)
+                                                {
+                                                    <div class="delay-bar-segment segment-pickup-@((orderedDetails.IndexOf(detail) % 5))"
+                                                         style="flex-grow:@detail.DelayMinutes">
+                                                        <span class="segment-badge badge bg-danger">@detail.CustomerName</span>
+                                                        <span class="segment-value">@detail.DelayMinutes</span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="delay-hour-label">@h.Hour.ToString("D2"):00</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-xl-2">
+                    <div class="total-delay-card total-delay-pickup h-100 d-flex flex-column justify-content-center">
+                        <div class="total-delay-title">
+                            <i class="bi bi-stopwatch-fill me-1"></i> Total Delay Truck-In Hari Ini
+                        </div>
+                        <div class="total-delay-value">
+                            @Model.TotalPickupDelayMinutes <span class="unit">menit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3 text-muted" style="font-size:0.85rem;">
+                <i class="bi bi-info-circle"></i> Tinggi batang merepresentasikan jumlah total menit delay Truck-In pada jam tersebut. Badge merah di bawah masing-masing jam menunjukkan customer yang mengalami delay Truck-In pada jam terkait (berdasarkan STD Pickup).
+            </div>
+        </div>
+    </div>
+
+    <!-- Delay Dock In -->
+    <div class="cyber-card delay-chart-card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-door-open me-2" style="color: #0ea5e9;"></i>
+                    Delay Dock In per Jam (@Model.SelectedDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")))
+                </h5>
+                <small class="text-muted">
+                    Sumbu X: Jam 00:00 - 23:59, Sumbu Y: Total delay Dock In (menit) terhadap STD Enter Dock.
+                </small>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-stretch">
+                <div class="col-lg-10 col-xl-10">
+                    <div class="delay-chart-wrapper">
+                        <div class="delay-chart-y-axis">
+                            <span>@maxDockDelay menit</span>
+                            <span>@(maxDockDelay / 2) menit</span>
+                            <span>0</span>
+                        </div>
+                        <div class="delay-chart-bars">
+                            @foreach (var h in (Model.DockInHourlyData ?? Enumerable.Empty<DeliveryControl.Models.ViewModels.DelayChartHourData>()).OrderBy(x => x.Hour))
+                            {
+                                var heightPercent = (double)h.TotalDelayMinutes / maxDockDelay * 100.0;
+                                var hasDelay = h.TotalDelayMinutes > 0;
+                                var orderedDetails = h.CustomerDetails.OrderByDescending(cd => cd.DelayMinutes).ToList();
+                                <div class="delay-bar-column">
+                                    <div class="delay-bar-container" title="@($"{h.Hour:D2}:00 - {h.TotalDelayMinutes} menit")">
+                                        <div class="delay-bar stacked dock-bar @((hasDelay ? "has-delay" : ""))"
+                                             style="height:@heightPercent.ToString("0.##", CultureInfo.InvariantCulture)%">
+                                            @if (hasDelay)
+                                            {
+                                                foreach (var detail in orderedDetails)
+                                                {
+                                                    <div class="delay-bar-segment segment-dock-@((orderedDetails.IndexOf(detail) % 5))"
+                                                         style="flex-grow:@detail.DelayMinutes">
+                                                        <span class="segment-badge badge bg-danger">@detail.CustomerName</span>
+                                                        <span class="segment-value">@detail.DelayMinutes</span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="delay-hour-label">@h.Hour.ToString("D2"):00</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-xl-2">
+                    <div class="total-delay-card total-delay-dock h-100 d-flex flex-column justify-content-center">
+                        <div class="total-delay-title">
+                            <i class="bi bi-stopwatch-fill me-1"></i> Total Delay Dock In Hari Ini
+                        </div>
+                        <div class="total-delay-value">
+                            @Model.TotalDockInDelayMinutes <span class="unit">menit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3 text-muted" style="font-size:0.85rem;">
+                <i class="bi bi-info-circle"></i> Tinggi batang merepresentasikan jumlah total menit delay Dock In pada jam tersebut. Badge biru di bawah masing-masing jam menunjukkan customer yang mengalami delay Dock In pada jam terkait (berdasarkan STD Enter Dock).
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= ON TIME TRUCK-IN ================= -->
+    <div class="cyber-card delay-chart-card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-graph-up-arrow me-2" style="color: #22c55e;"></i>
+                    On Time Truck-In per Jam (@Model.SelectedDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")))
+                </h5>
+                <small class="text-muted">
+                    Sumbu X: Jam 00:00 - 23:59, Sumbu Y: Total menit lebih cepat (advance) terhadap STD Pickup.
+                </small>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-stretch">
+                <div class="col-lg-10 col-xl-10">
+                    <div class="delay-chart-wrapper">
+                        <div class="delay-chart-y-axis">
+                            <span>@maxPickupOnTime menit</span>
+                            <span>@(maxPickupOnTime / 2) menit</span>
+                            <span>0</span>
+                        </div>
+                        <div class="delay-chart-bars">
+                            @foreach (var h in (Model.OnTimePickupHourlyData ?? Enumerable.Empty<DeliveryControl.Models.ViewModels.DelayChartViewModel.OnTimeChartHourData>()).OrderBy(x => x.Hour))
+                            {
+                                var heightPercent = (double)h.TotalCount / maxPickupOnTime * 100.0;
+                                var hasData = h.TotalCount > 0;
+                                var orderedDetails = h.CustomerDetails.OrderByDescending(cd => cd.DelayMinutes).ToList();
+                                <div class="delay-bar-column">
+                                    <div class="delay-bar-container" title="@($"{h.Hour:D2}:00 - {h.TotalCount} menit lebih cepat")">
+                                        <div class="delay-bar stacked ontime-bar @((hasData ? "has-delay" : ""))"
+                                             style="height:@heightPercent.ToString("0.##", CultureInfo.InvariantCulture)%">
+                                            @if (hasData)
+                                            {
+                                                foreach (var detail in orderedDetails)
+                                                {
+                                                    <div class="delay-bar-segment segment-onpickup-@((orderedDetails.IndexOf(detail) % 5))"
+                                                         style="flex-grow:@detail.DelayMinutes">
+                                                        <span class="segment-badge badge bg-success">@detail.CustomerName</span>
+                                                        <span class="segment-value">@detail.DelayMinutes</span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="delay-hour-label">@h.Hour.ToString("D2"):00</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-xl-2">
+                    <div class="total-delay-card total-ontime-card h-100 d-flex flex-column justify-content-center">
+                        <div class="total-delay-title">
+                            <i class="bi bi-check-circle-fill me-1"></i> Total Advance Truck-In Hari Ini
+                        </div>
+                        <div class="total-delay-value">
+                            @Model.TotalOnTimePickupCount <span class="unit">menit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3 text-muted" style="font-size:0.85rem;">
+                <i class="bi bi-info-circle"></i> Tinggi batang merepresentasikan total menit lebih cepat (advance) Truck-In pada jam tersebut. Badge hijau di tiap segmen menunjukkan customer dan jumlah menit advance terkait.
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= ON TIME DOCK IN ================= -->
+    <div class="cyber-card delay-chart-card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0 fw-bold">
+                    <i class="bi bi-door-open me-2" style="color: #22c55e;"></i>
+                    On Time Dock In per Jam (@Model.SelectedDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")))
+                </h5>
+                <small class="text-muted">
+                    Sumbu X: Jam 00:00 - 23:59, Sumbu Y: Total menit lebih cepat (advance) Dock In terhadap STD Enter Dock.
+                </small>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 align-items-stretch">
+                <div class="col-lg-10 col-xl-10">
+                    <div class="delay-chart-wrapper">
+                        <div class="delay-chart-y-axis">
+                            <span>@maxDockOnTime menit</span>
+                            <span>@(maxDockOnTime / 2) menit</span>
+                            <span>0</span>
+                        </div>
+                        <div class="delay-chart-bars">
+                            @foreach (var h in (Model.OnTimeDockInHourlyData ?? Enumerable.Empty<DeliveryControl.Models.ViewModels.DelayChartViewModel.OnTimeChartHourData>()).OrderBy(x => x.Hour))
+                            {
+                                var heightPercent = (double)h.TotalCount / maxDockOnTime * 100.0;
+                                var hasData = h.TotalCount > 0;
+                                var orderedDetails = h.CustomerDetails.OrderByDescending(cd => cd.DelayMinutes).ToList();
+                                <div class="delay-bar-column">
+                                    <div class="delay-bar-container" title="@($"{h.Hour:D2}:00 - {h.TotalCount} menit lebih cepat")">
+                                        <div class="delay-bar stacked ontime-bar @((hasData ? "has-delay" : ""))"
+                                             style="height:@heightPercent.ToString("0.##", CultureInfo.InvariantCulture)%">
+                                            @if (hasData)
+                                            {
+                                                foreach (var detail in orderedDetails)
+                                                {
+                                                    <div class="delay-bar-segment segment-ondock-@((orderedDetails.IndexOf(detail) % 5))"
+                                                         style="flex-grow:@detail.DelayMinutes">
+                                                        <span class="segment-badge badge bg-success">@detail.CustomerName</span>
+                                                        <span class="segment-value">@detail.DelayMinutes</span>
+                                                    </div>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="delay-hour-label">@h.Hour.ToString("D2"):00</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-xl-2">
+                    <div class="total-delay-card total-ontime-card h-100 d-flex flex-column justify-content-center">
+                        <div class="total-delay-title">
+                            <i class="bi bi-check-circle-fill me-1"></i> Total Advance Dock In Hari Ini
+                        </div>
+                        <div class="total-delay-value">
+                            @Model.TotalOnTimeDockInCount <span class="unit">menit</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3 text-muted" style="font-size:0.85rem;">
+                <i class="bi bi-info-circle"></i> Tinggi batang merepresentasikan total menit lebih cepat (advance) Dock In pada jam tersebut. Badge hijau di tiap segmen menunjukkan customer dan jumlah menit advance terkait.
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .delay-chart-card {
+        border-radius: 12px;
+        border: 2px solid rgba(59, 130, 246, 0.3);
+        background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.8);
+    }
+
+    .delay-chart-wrapper {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding: 1rem 1rem 1.25rem 0.75rem;
+        overflow-x: auto;
+    }
+
+    .delay-chart-y-axis {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: flex-end;
+        height: 260px;
+        padding-right: 0.5rem;
+        border-right: 1px solid rgba(148, 163, 184, 0.5);
+        margin-right: 0.5rem;
+        color: #9ca3af;
+        font-size: 0.75rem;
+    }
+
+    .delay-chart-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .delay-bar-column {
+        min-width: 40px;
+        text-align: center;
+        font-size: 0.7rem;
+        color: #d1d5db;
+    }
+
+    .delay-bar-container {
+        height: 260px;
+        background: linear-gradient(to top, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.3));
+        border-radius: 6px;
+        border: 1px solid rgba(31, 41, 55, 0.8);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 2px 4px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .delay-bar {
+        width: 100%;
+        max-width: 28px;
+        border-radius: 4px 4px 0 0;
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.95), rgba(185, 28, 28, 0.95));
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+        position: relative;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        overflow: visible; /* izinkan badge keluar dari batang */
+    }
+
+    .delay-bar.has-delay {
+        box-shadow: 0 6px 15px rgba(239, 68, 68, 0.6);
+    }
+
+    .delay-bar:hover {
+        transform: translateY(-3px);
+        filter: brightness(1.1);
+        box-shadow: 0 10px 25px rgba(248, 113, 113, 0.9);
+    }
+
+    .delay-bar-segment {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding-top: 1px;
+    }
+
+    .segment-badge {
+        font-size: 0.55rem;
+        padding: 0.05rem 0.25rem;
+        white-space: nowrap; /* biarkan teks melebar keluar batang jika kepanjangan */
+        margin-bottom: 1px;
+    }
+
+    .segment-value {
+        display: block;
+        width: 100%;
+        text-align: center;
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    }
+
+    .segment-pickup-0 { background: rgba(248, 113, 113, 0.95); }
+    .segment-pickup-1 { background: rgba(239, 68, 68, 0.95); }
+    .segment-pickup-2 { background: rgba(220, 38, 38, 0.95); }
+    .segment-pickup-3 { background: rgba(190, 24, 93, 0.95); }
+    .segment-pickup-4 { background: rgba(251, 113, 133, 0.95); }
+
+    /* Dock In Delay gunakan palet merah yang sama dengan Pickup */
+    .segment-dock-0 { background: rgba(248, 113, 113, 0.95); }
+    .segment-dock-1 { background: rgba(239, 68, 68, 0.95); }
+    .segment-dock-2 { background: rgba(220, 38, 38, 0.95); }
+    .segment-dock-3 { background: rgba(190, 24, 93, 0.95); }
+    .segment-dock-4 { background: rgba(251, 113, 133, 0.95); }
+
+    .delay-customers-top {
+        min-height: 24px;
+        margin-bottom: 4px;
+    }
+
+    .total-delay-card {
+        border-radius: 12px;
+        border: 1px solid rgba(248, 113, 113, 0.6);
+        background: radial-gradient(circle at top left, rgba(248, 113, 113, 0.2), rgba(15, 23, 42, 0.95));
+        padding: 0.75rem 0.9rem;
+        color: #fee2e2;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+    }
+
+    .total-delay-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        opacity: 0.85;
+        margin-bottom: 0.35rem;
+    }
+
+    .total-delay-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        line-height: 1.1;
+        color: #fecaca;
+    }
+
+    .total-delay-value .unit {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-left: 0.25rem;
+        opacity: 0.9;
+    }
+
+    /* ON TIME (Hijau) */
+    .ontime-bar {
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+
+    .segment-onpickup-0 { background: rgba(22, 163, 74, 0.95); }
+    .segment-onpickup-1 { background: rgba(34, 197, 94, 0.95); }
+    .segment-onpickup-2 { background: rgba(52, 211, 153, 0.95); }
+    .segment-onpickup-3 { background: rgba(16, 185, 129, 0.95); }
+    .segment-onpickup-4 { background: rgba(5, 150, 105, 0.95); }
+
+    .segment-ondock-0 { background: rgba(22, 163, 74, 0.95); }
+    .segment-ondock-1 { background: rgba(34, 197, 94, 0.95); }
+    .segment-ondock-2 { background: rgba(52, 211, 153, 0.95); }
+    .segment-ondock-3 { background: rgba(16, 185, 129, 0.95); }
+    .segment-ondock-4 { background: rgba(5, 150, 105, 0.95); }
+
+    .total-ontime-card {
+        border-color: rgba(34, 197, 94, 0.7);
+        background: radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), rgba(15, 23, 42, 0.95));
+        color: #dcfce7;
+    }
+
+    .delay-value {
+        position: absolute;
+        top: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        white-space: nowrap;
+    }
+
+    .delay-hour-label {
+        margin-top: 4px;
+        font-weight: 600;
+        color: #9ca3af;
+    }
+
+    .delay-customers {
+        margin-top: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .delay-customer-badge {
+        font-size: 0.6rem;
+        font-weight: 600;
+        padding: 0.15rem 0.35rem;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        max-width: 80px;
+        align-self: center;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar-track {
+        background: #111827;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar-thumb {
+        background: #4b5563;
+        border-radius: 999px;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+    }
+
+    @@media (max-width: 768px) {
+        .delay-bar-column {
+            min-width: 32px;
+        }
+
+        .delay-customer-badge {
+            max-width: 60px;
+        }
+    }
+</style>
+
+

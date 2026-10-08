@@ -1,0 +1,981 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="row mb-3 align-items-center">
+    <div class="col-md-6">
+        <h2 class="mb-0">Dashboard OEE</h2>
+        <div class="text-secondary small">
+            @Model.CurrentTime.ToString("dddd, dd MMM yyyy HH:mm") • @Model.CurrentShiftName
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <!-- SignalR Status Indicator -->
+        <div class="mb-2">
+            <small class="text-secondary">Status: </small>
+            <span id="signalr-status">
+                <span class="badge bg-secondary">Connecting...</span>
+            </span>
+        </div>
+        <form method="get" action="@Url.Action("Index", "Home")" id="filterForm">
+            <div class="d-flex gap-2 justify-content-end flex-wrap">
+                <div class="input-group" style="max-width: 200px;">
+                    <label class="input-group-text" for="plantId">
+                        <i class="fa-solid fa-building me-1"></i>PLANT:
+                    </label>
+                    <select class="form-select" id="plantId" name="plantId" onchange="handlePlantChange();">
+                        <option value="">-- Semua Plant --</option>
+                        @foreach (var plant in Model.Plants)
+                        {
+                            if (Model.SelectedPlantId == plant.Id)
+                            {
+                                <option value="@plant.Id" selected>@plant.Name</option>
+                            }
+                            else
+                            {
+                                <option value="@plant.Id">@plant.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="input-group" style="max-width: 200px;">
+                    <label class="input-group-text" for="machineId">
+                        <i class="fa-solid fa-cog me-1"></i>Mesin:
+                    </label>
+                    <select class="form-select" id="machineId" name="machineId" onchange="submitForm();">
+                        <option value="">-- Semua Mesin --</option>
+                        @foreach (var machine in Model.MachineOptions)
+                        {
+                            if (Model.SelectedMachineId == machine.Id)
+                            {
+                                <option value="@machine.Id" data-plant-id="@machine.PlantId" selected>@machine.Name</option>
+                            }
+                            else
+                            {
+                                <option value="@machine.Id" data-plant-id="@machine.PlantId">@machine.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="input-group" style="max-width: 300px;">
+                    <label class="input-group-text" for="shiftId">
+                        <i class="fa-solid fa-clock me-1"></i>Shift:
+                    </label>
+                    <select class="form-select" id="shiftId" name="shiftId" onchange="submitForm();">
+                        <option value="">-- Pilih Shift --</option>
+                        @foreach (var shift in Model.Shifts)
+                        {
+                            if (Model.SelectedShiftId == shift.Id)
+                            {
+                                <option value="@shift.Id" selected>
+                                    @shift.Name (@shift.StartTime.ToString(@"hh\:mm") - @shift.EndTime.ToString(@"hh\:mm"))
+                                </option>
+                            }
+                            else
+                            {
+                                <option value="@shift.Id">
+                                    @shift.Name (@shift.StartTime.ToString(@"hh\:mm") - @shift.EndTime.ToString(@"hh\:mm"))
+                                </option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card kpi-card border-primary">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">OEE</div>
+                        <div class="kpi-value text-primary">@Model.Oee.ToString("0")%</div>
+                    </div>
+                    <i class="fa-solid fa-chart-line fa-2x text-primary opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card border-success">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">Availability</div>
+                        <div class="kpi-value text-success">@Model.Availability.ToString("0")%</div>
+                    </div>
+                    <i class="fa-solid fa-clock fa-2x text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card border-warning">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">Performance</div>
+                        <div class="kpi-value text-warning">@Model.Performance.ToString("0")%</div>
+                    </div>
+                    <i class="fa-solid fa-gauge-high fa-2x text-warning opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card border-info">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">Quality</div>
+                        <div class="kpi-value text-info">@Model.Quality.ToString("0")%</div>
+                    </div>
+                    <i class="fa-solid fa-check-circle fa-2x text-info opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Machines Section - Full Width -->
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-0 d-flex justify-content-between align-items-center" style="padding: 1rem 1.25rem;">
+                <span>Machines</span>
+            </div>
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="row g-3">
+                    @foreach (var m in Model.Machines)
+                    {
+                        var statusClass = m.Status switch
+                        {
+                            MachineStatus.Aktif => "status-running",
+                            MachineStatus.TidakAktif => "status-down",
+                            _ => "status-idle"
+                        };
+                        var statusText = m.Status == MachineStatus.Aktif ? "Aktif" : "Tidak Aktif";
+                        <div class="col-lg-3 col-md-6">
+                            <div class="card machine-card h-100">
+                                <div class="card-body" style="padding: 1.25rem;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <strong>@m.MachineName</strong>
+                                        <span class="status-badge @statusClass">
+                                            @statusText
+                                        </span>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(m.ProductImageUrl))
+                                    {
+                                        @* ✅ Gunakan API endpoint dengan fallback ke ProductImageUrl langsung *@
+                                        <div class="text-center mb-2 d-flex justify-content-center align-items-center" style="min-height: 200px;">
+                                            <img src="/api/machines/@m.MachineId/image" 
+                                                 alt="@(m.ProductName ?? m.MachineName)" 
+                                                 class="img-fluid rounded" 
+                                                 style="max-width: 200px; max-height: 200px; object-fit: contain;" 
+                                                 onerror="this.onerror=null; this.src='@m.ProductImageUrl'; this.onerror=function(){this.style.display='none'; this.nextElementSibling.style.display='block';};" />
+                                            <div style="display: none; color: #9ca3af; font-size: 0.875rem;">
+                                                <i class="fa-solid fa-image"></i> Image not found
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-center mb-2 d-flex justify-content-center align-items-center" style="min-height: 200px; color: #9ca3af;">
+                                            <div>
+                                                <i class="fa-solid fa-image fa-2x mb-2"></i>
+                                                <div class="small">No image</div>
+                                            </div>
+                                        </div>
+                                    }
+                                    <div class="small text-secondary">
+                                        Line: @m.LineId
+                                    </div>
+                                    <div class="small">
+                                        Product: @(m.ProductName ?? "-")
+                                    </div>
+                                    <div class="small">
+                                        WO: @(m.WorkOrderNumber ?? "-")
+                                    </div>
+                                    <div class="mt-2 d-grid gap-2">
+                                        <a asp-controller="Machine" asp-action="OeeDetail" asp-route-id="@m.MachineId" asp-route-shiftId="@Model.SelectedShiftId" class="btn btn-sm btn-primary">
+                                            <i class="fa-solid fa-chart-line me-1"></i> OEE Detail
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section - Hourly Production and Downtime Reasons -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header border-0 d-flex justify-content-between align-items-center" style="padding: 1rem 1.25rem;">
+                <span>Hourly Production</span>
+                <div class="spinner-border spinner-border-sm text-primary d-none" id="hourlyChartLoading" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 1.25rem; min-height: 200px;">
+                <canvas id="hourlyChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header border-0 d-flex justify-content-between align-items-center" style="padding: 1rem 1.25rem;">
+                <span>Top 5 Downtime Reasons</span>
+                <div class="spinner-border spinner-border-sm text-danger d-none" id="downtimeChartLoading" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+            <div class="card-body" style="padding: 1.25rem; min-height: 200px;">
+                <canvas id="downtimeChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Machine State Timeline Section -->
+<div class="row g-3 mb-4" style="margin-top: 0.5rem;">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header border-0 d-flex justify-content-between align-items-center" style="padding: 1rem 1.25rem;">
+                <span><i class="fa-solid fa-timeline me-2"></i>Machine State Timeline</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
+                    <i class="fa-solid fa-rotate me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body" style="padding-top: 1.5rem;">
+                @foreach (var timeline in Model.MachineStateTimelines)
+                {
+                    <div class="mb-4">
+                        <h6 class="mb-3">@timeline.MachineName</h6>
+                        <div style="height: 250px; position: relative;">
+                            <canvas id="machineStateChart_@timeline.MachineId"></canvas>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // ========== SIGNALR REAL-TIME UPDATE ==========
+        let connection;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+        let reconnectTimer = null;
+        let fallbackRefreshTimer = null;
+
+        // Initialize SignalR connection
+        function initializeSignalR() {
+            console.log('🚀 Initializing SignalR connection...');
+
+            if (typeof signalR === 'undefined') {
+                console.error('❌ SignalR library not loaded!');
+                updateConnectionStatus('disconnected');
+                startFallbackRefresh();
+                return;
+            }
+
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl("/oeeHub")
+                .withAutomaticReconnect({
+                    nextRetryDelayInMilliseconds: retryContext => {
+                        if (retryContext.elapsedMilliseconds < 2000) return 0;
+                        if (retryContext.elapsedMilliseconds < 5000) return 2000;
+                        if (retryContext.elapsedMilliseconds < 10000) return 5000;
+                        return 10000;
+                    }
+                })
+                .build();
+
+            // Connection event handlers
+            connection.onclose(async (error) => {
+                console.log('❌ SignalR connection closed');
+                updateConnectionStatus('disconnected');
+                
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    console.log(`🔄 Attempting to reconnect (${reconnectAttempts}/${maxReconnectAttempts})...`);
+                } else {
+                    console.log('⚠️ Max reconnect attempts reached. Using fallback refresh.');
+                    startFallbackRefresh();
+                }
+            });
+
+            connection.onreconnecting((error) => {
+                console.log('🔄 SignalR reconnecting...');
+                updateConnectionStatus('reconnecting');
+            });
+
+            connection.onreconnected((connectionId) => {
+                console.log('✅ SignalR reconnected!');
+                reconnectAttempts = 0;
+                updateConnectionStatus('connected');
+                stopFallbackRefresh();
+                // Refresh data setelah reconnect
+                refreshDashboardData();
+            });
+
+            // Event handler untuk OEE update
+            connection.on("OeeUpdated", function (data) {
+                console.log('🔔 OEE Update Received:', data);
+                
+                // Show toast notification
+                showToast(data.Message || 'Data OEE telah diperbarui', data.Type || 'info');
+                
+                // Refresh dashboard data
+                refreshDashboardData();
+            });
+
+            // Start connection
+            connection.start()
+                .then(() => {
+                    console.log('✅ SignalR connection started successfully!');
+                    console.log('✅ SignalR Connected! Connection ID:', connection.connectionId);
+                    updateConnectionStatus('connected');
+                    reconnectAttempts = 0;
+                })
+                .catch((err) => {
+                    console.error('❌ SignalR connection error:', err);
+                    updateConnectionStatus('disconnected');
+                    startFallbackRefresh();
+                });
+        }
+
+        // Update connection status indicator
+        function updateConnectionStatus(status) {
+            const statusEl = document.getElementById('signalr-status');
+            if (!statusEl) return;
+
+            // Simpan status ke localStorage
+            localStorage.setItem('signalr-status', status);
+
+            switch (status) {
+                case 'connected':
+                    statusEl.innerHTML = '<span class="badge bg-success">🟢 Live</span>';
+                    break;
+                case 'reconnecting':
+                    statusEl.innerHTML = '<span class="badge bg-warning">🟡 Reconnecting...</span>';
+                    break;
+                case 'disconnected':
+                    statusEl.innerHTML = '<span class="badge bg-danger">🔴 Disconnected</span>';
+                    break;
+            }
+        }
+
+        // Load saved status from localStorage
+        function loadSavedStatus() {
+            const savedStatus = localStorage.getItem('signalr-status');
+            if (savedStatus) {
+                updateConnectionStatus(savedStatus);
+            }
+        }
+
+        // Refresh dashboard data via AJAX
+        function refreshDashboardData() {
+            // Get current filter values
+            const shiftId = document.getElementById('shiftId')?.value || '';
+            const plantId = document.getElementById('plantId')?.value || '';
+            const machineId = document.getElementById('machineId')?.value || '';
+
+            // Build query string
+            const params = new URLSearchParams();
+            if (shiftId) params.append('shiftId', shiftId);
+            if (plantId) params.append('plantId', plantId);
+            if (machineId) params.append('machineId', machineId);
+
+            // Fetch updated statistics
+            fetch(`/Home/GetDashboardStatistics?${params.toString()}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('📊 Statistics updated:', data);
+                    
+                    // Update OEE cards
+                    updateOeeCards(data);
+                    
+                    // Refresh charts
+                    loadHourlyProductionChart();
+                    loadDowntimeReasonsChart();
+                })
+                .catch(error => {
+                    console.error('❌ Error fetching dashboard data:', error);
+                });
+        }
+
+        // Update OEE cards
+        function updateOeeCards(data) {
+            // Defensive: Check if data exists
+            if (!data || typeof data !== 'object') {
+                console.warn('updateOeeCards: Invalid data', data);
+                return;
+            }
+            
+            // Update OEE card
+            const oeeCards = document.querySelectorAll('.kpi-card');
+            if (oeeCards.length >= 4) {
+                try {
+                    // OEE card (first card)
+                    const oeeCard = oeeCards[0]?.querySelector('.kpi-value');
+                    if (oeeCard) {
+                        const oeeValue = data.Oee ?? 0;
+                        oeeCard.textContent = oeeValue.toFixed(0) + '%';
+                    }
+                    
+                    // Availability card (second card)
+                    const availCard = oeeCards[1]?.querySelector('.kpi-value');
+                    if (availCard) {
+                        const availValue = data.Availability ?? 0;
+                        availCard.textContent = availValue.toFixed(0) + '%';
+                    }
+                    
+                    // Performance card (third card)
+                    const perfCard = oeeCards[2]?.querySelector('.kpi-value');
+                    if (perfCard) {
+                        const perfValue = data.Performance ?? 0;
+                        perfCard.textContent = perfValue.toFixed(0) + '%';
+                    }
+                    
+                    // Quality card (fourth card)
+                    const qualCard = oeeCards[3]?.querySelector('.kpi-value');
+                    if (qualCard) {
+                        const qualValue = data.Quality ?? 0;
+                        qualCard.textContent = qualValue.toFixed(0) + '%';
+                    }
+                } catch (error) {
+                    console.error('Error updating OEE cards:', error);
+                }
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            // Create toast element
+            const toast = document.createElement('div');
+            const alertClass = type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info';
+            toast.className = `alert alert-${alertClass} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+
+            document.body.appendChild(toast);
+
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+
+        // Fallback: periodic refresh jika SignalR tidak connected
+        function startFallbackRefresh() {
+            if (fallbackRefreshTimer) return;
+            
+            console.log('⏰ Starting fallback periodic refresh (60s interval)');
+            fallbackRefreshTimer = setInterval(() => {
+                if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
+                    console.log('🔄 Fallback refresh triggered');
+                    refreshDashboardData();
+                }
+            }, 60000); // 60 seconds
+        }
+
+        function stopFallbackRefresh() {
+            if (fallbackRefreshTimer) {
+                clearInterval(fallbackRefreshTimer);
+                fallbackRefreshTimer = null;
+                console.log('⏹️ Fallback refresh stopped');
+            }
+        }
+
+        // Initialize SignalR when page loads
+        document.addEventListener('DOMContentLoaded', function () {
+            // Load saved status first
+            loadSavedStatus();
+            
+            // Update machine dropdown berdasarkan plant yang dipilih (jika ada)
+            updateMachineDropdown();
+            
+            // Load charts
+            loadHourlyProductionChart();
+            loadDowntimeReasonsChart();
+            
+            // Then initialize SignalR connection
+            initializeSignalR();
+
+            // Cleanup on page unload
+            window.addEventListener('beforeunload', () => {
+                if (connection) {
+                    connection.stop();
+                }
+                stopFallbackRefresh();
+            });
+        });
+
+        // Simpan semua machine options untuk filtering
+        const allMachineOptions = [];
+        @foreach (var machine in Model.MachineOptions)
+        {
+            <text>
+            allMachineOptions.push({
+                id: '@machine.Id',
+                name: '@Html.Raw(machine.Name.Replace("'", "\\'"))',
+                plantId: @machine.PlantId
+            });
+            </text>
+        }
+
+        // Fungsi untuk handle perubahan plant
+        function handlePlantChange() {
+            // Update dropdown mesin terlebih dahulu
+            updateMachineDropdown();
+            // Reset machine selection karena plant berubah
+            document.getElementById('machineId').value = '';
+            // Submit form untuk refresh data
+            submitForm();
+        }
+
+        // Fungsi untuk update dropdown mesin berdasarkan plant yang dipilih
+        function updateMachineDropdown() {
+            const plantId = document.getElementById('plantId')?.value || '';
+            const machineSelect = document.getElementById('machineId');
+            
+            if (!machineSelect) {
+                console.error('Machine select element not found');
+                return;
+            }
+            
+            const currentValue = machineSelect.value;
+            
+            // Reset dropdown mesin
+            machineSelect.innerHTML = '<option value="">-- Semua Mesin --</option>';
+            
+            // Konversi plantId ke number untuk perbandingan yang benar
+            const plantIdNum = plantId ? parseInt(plantId, 10) : null;
+            
+            console.log('Updating machine dropdown - PlantId:', plantId, 'PlantIdNum:', plantIdNum, 'Total machines:', allMachineOptions.length);
+            
+            // Filter dan tambahkan mesin berdasarkan plant yang dipilih
+            let filteredCount = 0;
+            allMachineOptions.forEach(machine => {
+                if (!plantIdNum || machine.plantId === plantIdNum) {
+                    const option = document.createElement('option');
+                    option.value = machine.id;
+                    option.textContent = machine.name;
+                    option.setAttribute('data-plant-id', machine.plantId);
+                    if (currentValue && currentValue === machine.id) {
+                        option.selected = true;
+                    }
+                    machineSelect.appendChild(option);
+                    filteredCount++;
+                }
+            });
+            
+            console.log('Filtered machines count:', filteredCount);
+        }
+
+        // Fungsi untuk submit form dengan mempertahankan semua filter
+        function submitForm() {
+            document.getElementById('filterForm').submit();
+        }
+
+        // Chart instances
+        let hourlyChart = null;
+        let downtimeChart = null;
+
+        // Fungsi untuk load dan update hourly production chart
+        function loadHourlyProductionChart() {
+            const shiftId = document.getElementById('shiftId')?.value || '';
+            const plantId = document.getElementById('plantId')?.value || '';
+            const machineId = document.getElementById('machineId')?.value || '';
+
+            const params = new URLSearchParams();
+            if (shiftId) params.append('shiftId', shiftId);
+            if (plantId) params.append('plantId', plantId);
+            if (machineId) params.append('machineId', machineId);
+
+            const loadingEl = document.getElementById('hourlyChartLoading');
+            if (loadingEl) loadingEl.classList.remove('d-none');
+
+            fetch(`/Home/GetHourlyProductionData?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Defensive: Check if data exists
+                    if (!data || typeof data !== 'object') {
+                        console.warn('Invalid hourly production data:', data);
+                        if (loadingEl) loadingEl.classList.add('d-none');
+                        return;
+                    }
+                    
+                    console.log('📊 Hourly Production Data:', data);
+                    
+                    const ctx = document.getElementById('hourlyChart');
+                    if (!ctx) {
+                        if (loadingEl) loadingEl.classList.add('d-none');
+                        return;
+                    }
+
+                    // Destroy chart jika sudah ada
+                    if (hourlyChart) {
+                        try {
+                            hourlyChart.destroy();
+                        } catch (error) {
+                            console.warn('Error destroying hourly chart:', error);
+                        }
+                    }
+
+                    try {
+                        hourlyChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: data.Labels ?? [],
+                                datasets: [{
+                                    label: 'Output',
+                                    data: data.Output ?? [],
+                                borderColor: '#22c55e',
+                                backgroundColor: 'rgba(34,197,94,.2)',
+                                tension: 0.25,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { 
+                                legend: { 
+                                    display: false 
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return 'Output: ' + context.parsed.y;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: { 
+                                    ticks: { color: '#9ca3af' },
+                                    grid: { color: '#23293a' }
+                                },
+                                y: { 
+                                    ticks: { color: '#9ca3af' },
+                                    grid: { color: '#23293a' },
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                        });
+                    } catch (chartError) {
+                        console.error('Error creating hourly chart:', chartError);
+                    }
+
+                    if (loadingEl) loadingEl.classList.add('d-none');
+                })
+                .catch(error => {
+                    console.error('❌ Error loading hourly production data:', error);
+                    if (loadingEl) loadingEl.classList.add('d-none');
+                });
+        }
+
+        // Fungsi untuk load dan update downtime reasons chart
+        function loadDowntimeReasonsChart() {
+            const shiftId = document.getElementById('shiftId')?.value || '';
+            const plantId = document.getElementById('plantId')?.value || '';
+            const machineId = document.getElementById('machineId')?.value || '';
+
+            const params = new URLSearchParams();
+            if (shiftId) params.append('shiftId', shiftId);
+            if (plantId) params.append('plantId', plantId);
+            if (machineId) params.append('machineId', machineId);
+
+            const loadingEl = document.getElementById('downtimeChartLoading');
+            if (loadingEl) loadingEl.classList.remove('d-none');
+
+            fetch(`/Home/GetDowntimeReasonsData?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Defensive: Check if data exists
+                    if (!data || typeof data !== 'object') {
+                        console.warn('Invalid downtime reasons data:', data);
+                        if (loadingEl) loadingEl.classList.add('d-none');
+                        return;
+                    }
+                    
+                    console.log('📊 Downtime Reasons Data:', data);
+                    
+                    const ctx = document.getElementById('downtimeChart');
+                    if (!ctx) {
+                        if (loadingEl) loadingEl.classList.add('d-none');
+                        return;
+                    }
+
+                    // Destroy chart jika sudah ada
+                    if (downtimeChart) {
+                        try {
+                            downtimeChart.destroy();
+                        } catch (error) {
+                            console.warn('Error destroying downtime chart:', error);
+                        }
+                    }
+
+                    try {
+                        downtimeChart = new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: data.Labels ?? [],
+                                datasets: [{
+                                    label: 'Duration (minutes)',
+                                    data: data.Data ?? [],
+                                backgroundColor: '#ef4444'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            indexAxis: 'y', // Horizontal bar chart
+                            plugins: { 
+                                legend: { 
+                                    display: false 
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.parsed.x + ' minutes';
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: { 
+                                    ticks: { color: '#9ca3af' },
+                                    grid: { color: '#23293a' },
+                                    beginAtZero: true
+                                },
+                                y: { 
+                                    ticks: { color: '#9ca3af' },
+                                    grid: { color: '#23293a' }
+                                }
+                            }
+                        }
+                        });
+                    } catch (chartError) {
+                        console.error('Error creating downtime chart:', chartError);
+                    }
+
+                    if (loadingEl) loadingEl.classList.add('d-none');
+                })
+                .catch(error => {
+                    console.error('❌ Error loading downtime reasons data:', error);
+                    if (loadingEl) loadingEl.classList.add('d-none');
+                });
+        }
+
+        // Machine State Timeline Charts
+        @if (Model.MachineStateTimelines != null && Model.MachineStateTimelines.Any())
+        {
+            @foreach (var timeline in Model.MachineStateTimelines)
+            {
+                <text>
+                (function() {
+                    try {
+                        const ctx = document.getElementById('machineStateChart_@timeline.MachineId');
+                        if (!ctx) {
+                            console.error('Canvas not found for machine @timeline.MachineId');
+                            return;
+                        }
+
+                        // Defensive: Safe serialization with fallbacks
+                        const timeLabels = @Html.Raw(Json.Serialize(timeline?.TimeLabels ?? new List<string>()));
+                        const segments = @Html.Raw(Json.Serialize(timeline?.StateData ?? new List<StateSegmentData>()));
+
+                        console.log('Machine @timeline.MachineId - TimeLabels:', timeLabels);
+                        console.log('Machine @timeline.MachineId - Segments:', segments);
+
+                        // Defensive: Check if timeLabels is valid array
+                        if (!timeLabels || !Array.isArray(timeLabels) || timeLabels.length === 0) {
+                            console.warn('No time labels for machine @timeline.MachineId');
+                            return;
+                        }
+
+                        // Fungsi untuk parse waktu HH:mm ke menit sejak start
+                        function timeToMinutes(timeStr) {
+                            if (!timeStr) return 0;
+                            const parts = timeStr.split(':');
+                            if (parts.length !== 2) return 0;
+                            const h = parseInt(parts[0]) || 0;
+                            const m = parseInt(parts[1]) || 0;
+                            return h * 60 + m;
+                        }
+
+                        // Buat array data untuk setiap interval 15 menit
+                        const runData = [];
+                        const stopData = [];
+                        const idleData = [];
+
+                        timeLabels.forEach((label, index) => {
+                            const currentStart = timeToMinutes(label);
+                            const currentEnd = index < timeLabels.length - 1 
+                                ? timeToMinutes(timeLabels[index + 1])
+                                : currentStart + 15;
+
+                            let runMinutes = 0;
+                            let stopMinutes = 0;
+                            let idleMinutes = 0;
+
+                            if (segments && segments.length > 0) {
+                                segments.forEach(seg => {
+                                    if (!seg || !seg.StartTime || !seg.EndTime) return;
+                                    
+                                    const segStart = timeToMinutes(seg.StartTime);
+                                    const segEnd = timeToMinutes(seg.EndTime);
+
+                                    // Cek overlap dengan interval saat ini
+                                    const overlapStart = Math.max(currentStart, segStart);
+                                    const overlapEnd = Math.min(currentEnd, segEnd);
+
+                                    if (overlapStart < overlapEnd) {
+                                        const overlapMinutes = overlapEnd - overlapStart;
+                                        const state = seg.State || '';
+                                        if (state === 'Run') {
+                                            runMinutes += overlapMinutes;
+                                        } else if (state === 'Stop') {
+                                            stopMinutes += overlapMinutes;
+                                        } else if (state === 'Idle') {
+                                            idleMinutes += overlapMinutes;
+                                        }
+                                    }
+                                });
+                            }
+
+                            runData.push(runMinutes);
+                            stopData.push(stopMinutes);
+                            idleData.push(idleMinutes);
+                        });
+
+                        console.log('Machine @timeline.MachineId - RunData:', runData);
+                        console.log('Machine @timeline.MachineId - StopData:', stopData);
+                        console.log('Machine @timeline.MachineId - IdleData:', idleData);
+
+                        new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: timeLabels,
+                                datasets: [
+                                    {
+                                        label: 'Run',
+                                        data: runData,
+                                        backgroundColor: '#22c55e',
+                                        borderWidth: 0
+                                    },
+                                    {
+                                        label: 'Stop',
+                                        data: stopData,
+                                        backgroundColor: '#ef4444',
+                                        borderWidth: 0
+                                    },
+                                    {
+                                        label: 'Idle',
+                                        data: idleData,
+                                        backgroundColor: '#f59e0b',
+                                        borderWidth: 0
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                    x: {
+                                        stacked: true,
+                                        ticks: {
+                                            color: '#9ca3af',
+                                            maxRotation: 45,
+                                            minRotation: 45,
+                                            autoSkip: true,
+                                            maxTicksLimit: 20
+                                        },
+                                        grid: {
+                                            color: '#23293a'
+                                        }
+                                    },
+                                    y: {
+                                        stacked: true,
+                                        beginAtZero: true,
+                                        max: 4,
+                                        ticks: {
+                                            color: '#9ca3af',
+                                            stepSize: 1,
+                                            callback: function(value) {
+                                                return value + ' min';
+                                            }
+                                        },
+                                        grid: {
+                                            color: '#23293a'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    legend: {
+                                        position: 'bottom',
+                                        labels: {
+                                            color: '#e4e6eb',
+                                            padding: 10,
+                                            usePointStyle: true
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                const value = context.parsed.y;
+                                                if (value > 0) {
+                                                    return context.dataset.label + ': ' + value.toFixed(1) + ' min';
+                                                }
+                                                return '';
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } catch (error) {
+                        console.error('Error creating chart for machine @timeline.MachineId:', error);
+                    }
+                })();
+                </text>
+            }
+        }
+        else
+        {
+            <text>
+            console.log('No machine state timelines available');
+            </text>
+        }
+    </script>
+}
+
+

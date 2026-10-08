@@ -1,0 +1,89 @@
+@model DeliveryControl.Models.DeliverySchedule
+
+@{
+    ViewData["Title"] = "Hapus Schedule";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-trash"></i> Hapus Delivery Schedule</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Delivery Schedule</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Hapus</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Konfirmasi Hapus</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Perhatian!</strong> Anda yakin ingin menghapus schedule ini?
+                    <br><br>
+                    <strong>Catatan:</strong> Semua delivery item yang terkait juga akan ikut terhapus!
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-3">Schedule Number</dt>
+                    <dd class="col-sm-9"><strong>@Model.ScheduleNumber</strong></dd>
+
+                    <dt class="col-sm-3">Customer</dt>
+                    <dd class="col-sm-9">
+                        <span class="badge bg-secondary">@(Model.Customer?.CustomerName ?? "-")</span>
+                    </dd>
+
+                    <dt class="col-sm-3">Tanggal Schedule</dt>
+                    <dd class="col-sm-9">@Model.ScheduledDate.ToString("dd MMM yyyy")</dd>
+
+                    <dt class="col-sm-3">ETD</dt>
+                    <dd class="col-sm-9">@(Model.ETD?.ToString("dd MMM yyyy HH:mm") ?? "-")</dd>
+
+                    <dt class="col-sm-3">Route</dt>
+                    <dd class="col-sm-9">@(Model.Route ?? "-")</dd>
+
+                    <dt class="col-sm-3">Driver</dt>
+                    <dd class="col-sm-9">@(Model.DriverName ?? "-")</dd>
+
+                    <dt class="col-sm-3">Kendaraan</dt>
+                    <dd class="col-sm-9">@(Model.VehicleNumber ?? "-")</dd>
+
+                    <dt class="col-sm-3">Status</dt>
+                    <dd class="col-sm-9">
+                        @{
+                            var badgeClass = Model.Status switch
+                            {
+                                "Scheduled" => "bg-primary",
+                                "In Progress" => "bg-warning",
+                                "Completed" => "bg-success",
+                                "Cancelled" => "bg-secondary",
+                                "Delayed" => "bg-danger",
+                                _ => "bg-info"
+                            };
+                        }
+                        <span class="badge @badgeClass">@Model.Status</span>
+                    </dd>
+                </dl>
+
+                <form asp-action="Delete" method="post">
+                    <input type="hidden" asp-for="ScheduleId" />
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Ya, Hapus Schedule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+

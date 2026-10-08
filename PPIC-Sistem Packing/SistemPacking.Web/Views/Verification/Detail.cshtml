@@ -1,0 +1,280 @@
+@model SistemPacking.Web.Models.VerificationDto
+@{
+    ViewData["Title"] = $"Verifikasi — {Model.OrderNo}";
+    var reasons = ViewBag.RejectReasons as IEnumerable<SistemPacking.Web.Models.ReasonReject> ?? Enumerable.Empty<SistemPacking.Web.Models.ReasonReject>();
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item"><a asp-controller="Verification" asp-action="Index">Verifikasi</a></li>
+    <li class="breadcrumb-item active">@Model.OrderNo</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title">
+        <i class="bi bi-patch-check"></i>
+        Verifikasi Order
+    </h2>
+    <a asp-controller="Verification" asp-action="Index" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
+    </a>
+</div>
+
+<!-- Order Info Header -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-3">
+                <div class="text-muted small">Order No</div>
+                <div class="fw-bold fs-5 text-primary">@Model.OrderNo</div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-muted small">Customer</div>
+                <div class="fw-semibold">@Model.CustomerName</div>
+            </div>
+            <div class="col-md-2">
+                <div class="text-muted small">Status</div>
+                <span class="badge bg-warning-subtle text-warning fs-6">@Model.Status</span>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small mb-1">Overall Progress</div>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="progress flex-grow-1" style="height:12px;">
+                        <div class="progress-bar @(Model.OverallProgress >= 100 ? "bg-success" : "bg-primary")"
+                             style="width:@Model.OverallProgress%"></div>
+                    </div>
+                    <span class="fw-bold @(Model.OverallProgress >= 100 ? "text-success" : "text-primary")">
+                        @Model.OverallProgress.ToString("N1")%
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Item Detail Table -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-list-check me-2 text-primary"></i>Detail Item Packing</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="verifTable">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Barcode</th>
+                                <th class="text-end">Target</th>
+                                <th class="text-end">Shopping</th>
+                                <th class="text-end">Actual</th>
+                                <th class="text-end">Delta</th>
+                                <th style="min-width:100px;">Progress</th>
+                                <th>Status Order</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var d in Model.Details)
+                            {
+                                var delta = d.ActualQty - d.TargetQty;
+                                var pct = d.TargetQty > 0 ? Math.Min(100m, d.ActualQty / d.TargetQty * 100m) : 0m;
+                                var isDone = d.ActualQty >= d.TargetQty;
+                                <tr class="@(isDone ? "" : "table-warning-subtle")">
+                                    <td>
+                                        <div class="fw-semibold" style="font-size:13px;">@d.ItemName</div>
+                                        <div class="text-muted" style="font-size:11px;">@d.ItemCode · @d.UOM</div>
+                                    </td>
+                                    <td><code style="font-size:11px;">@d.Barcode</code></td>
+                                    <td class="text-end fw-semibold">@d.TargetQty.ToString("N0")</td>
+                                    <td class="text-end">@d.ShoppingQty.ToString("N0")</td>
+                                    <td class="text-end fw-bold @(isDone ? "text-success" : "text-danger")">
+                                        @d.ActualQty.ToString("N0")
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="badge @(delta >= 0 ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger")">
+                                            @(delta >= 0 ? "+" : "")@delta.ToString("N0")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div class="progress flex-grow-1" style="height:7px;">
+                                                <div class="progress-bar @(isDone ? "bg-success" : "bg-danger")"
+                                                     style="width:@pct%"></div>
+                                            </div>
+                                            <small style="font-size:10px;">@pct.ToString("N0")%</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (isDone)
+                                        {
+                                            <span class="badge bg-success-subtle text-success">✅ Selesai</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger-subtle text-danger">❌ Kurang</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        <tfoot>
+                            <tr class="table-light fw-bold">
+                                <td colspan="2">TOTAL</td>
+                                <td class="text-end">@Model.Details.Sum(d => d.TargetQty).ToString("N0")</td>
+                                <td class="text-end">@Model.Details.Sum(d => d.ShoppingQty).ToString("N0")</td>
+                                <td class="text-end">@Model.Details.Sum(d => d.ActualQty).ToString("N0")</td>
+                                <td colspan="3"></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verification Action Panel -->
+    <div class="col-lg-4">
+        <div class="card sticky-top" style="top:80px;">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-check2-square me-2 text-primary"></i>Aksi Verifikasi</span>
+            </div>
+            <div class="card-body">
+                @if (Model.Status == "Pending" || Model.Status == "0")
+                {
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Catatan Leader</label>
+                        <textarea id="verificationNotes" class="form-control" rows="4"
+                                  placeholder="Tambahkan catatan (opsional)..."></textarea>
+                    </div>
+
+                    <div class="mb-3 d-none" id="rejectReasonGroup">
+                        <label class="form-label fw-semibold text-danger">Alasan Reject <span class="text-danger">*</span></label>
+                        <select class="form-select" id="rejectReasonSelect">
+                            <option value="">-- Pilih Alasan --</option>
+                            @foreach (var r in reasons)
+                            {
+                                <option value="@r.Id">@r.Description</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success btn-lg" id="approveBtn">
+                            <i class="bi bi-check-circle me-2"></i>APPROVE
+                        </button>
+                        <button class="btn btn-danger btn-lg" id="rejectBtn">
+                            <i class="bi bi-x-circle me-2"></i>REJECT
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        @if (Model.Status == "Approved")
+                        {
+                            <i class="bi bi-check-circle-fill text-success display-4"></i>
+                            <div class="fw-bold text-success mt-2 fs-5">APPROVED</div>
+                        }
+                        else if (Model.Status == "Rejected")
+                        {
+                            <i class="bi bi-x-circle-fill text-danger display-4"></i>
+                            <div class="fw-bold text-danger mt-2 fs-5">REJECTED</div>
+                            @if (!string.IsNullOrEmpty(Model.RejectReason))
+                            {
+                                <div class="text-muted small mt-1">Alasan: @Model.RejectReason</div>
+                            }
+                        }
+                        @if (!string.IsNullOrEmpty(Model.Notes))
+                        {
+                            <div class="mt-3 p-3 bg-light rounded text-start">
+                                <div class="fw-semibold mb-1 text-muted small">CATATAN</div>
+                                @Model.Notes
+                            </div>
+                        }
+                        @if (Model.VerifiedAt.HasValue)
+                        {
+                            <div class="text-muted small mt-2">
+                                <i class="bi bi-clock me-1"></i>@Model.VerifiedAt.Value.ToString("dd/MM/yyyy HH:mm")
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const orderId = @Model.OrderId;
+
+$('#rejectBtn').on('click', function () {
+    $('#rejectReasonGroup').removeClass('d-none');
+});
+
+$('#approveBtn').on('click', function () {
+    const notes = $('#verificationNotes').val();
+    Swal.fire({
+        title: 'Approve Order?',
+        text: `Anda akan menyetujui order ${@Html.Raw($"'{Model.OrderNo}'")}`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '✅ Ya, Approve',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#22c55e'
+    }).then(result => {
+        if (result.isConfirmed) {
+            $.post('/Verification/Approve', {
+                orderId, notes,
+                __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val()
+            }).done(r => {
+                if (r.success) {
+                    Swal.fire({ icon: 'success', title: 'Approved!', text: r.message, timer: 2000, showConfirmButton: false })
+                        .then(() => window.location.href = '/Verification');
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: r.message });
+                }
+            });
+        }
+    });
+});
+
+$(document).on('click', '#rejectBtn', function () {
+    if ($('#rejectReasonGroup').hasClass('d-none')) {
+        $('#rejectReasonGroup').removeClass('d-none');
+        $(this).text('Konfirmasi Reject');
+        return;
+    }
+
+    const notes = $('#verificationNotes').val();
+    const reasonId = $('#rejectReasonSelect').val();
+    if (!notes.trim()) { Swal.fire({ icon: 'warning', title: 'Catatan wajib diisi!' }); return; }
+
+    Swal.fire({
+        title: 'Reject Order?',
+        text: 'Order akan dikembalikan ke status Ready Packing.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '❌ Ya, Reject',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#ef4444'
+    }).then(result => {
+        if (result.isConfirmed) {
+            $.post('/Verification/Reject', {
+                orderId, notes, reasonId,
+                __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val()
+            }).done(r => {
+                if (r.success) {
+                    Swal.fire({ icon: 'success', title: 'Rejected', text: r.message, timer: 2000, showConfirmButton: false })
+                        .then(() => window.location.href = '/Verification');
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Gagal', text: r.message });
+                }
+            });
+        }
+    });
+});
+</script>
+@Html.AntiForgeryToken()
+}
+

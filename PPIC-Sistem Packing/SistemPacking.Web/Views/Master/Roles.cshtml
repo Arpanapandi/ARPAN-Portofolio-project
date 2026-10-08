@@ -1,0 +1,178 @@
+@model IEnumerable<SistemPacking.Web.Models.Role>
+@{
+    ViewData["Title"] = "Master Role";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">Role</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title"><i class="bi bi-shield-lock"></i> Master Role</h2>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Role Name</th>
+                    <th class="text-center">Manage Master</th>
+                    <th class="text-center">Manage Order</th>
+                    <th class="text-center">Shopping</th>
+                    <th class="text-center">Packing</th>
+                    <th class="text-center">Verify</th>
+                    <th class="text-center">View Report</th>
+                    <th class="text-center">Manage User</th>
+                    <th class="text-center">Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in Model)
+                {
+                    <tr>
+                        <td class="fw-semibold text-primary">@r.RoleName</td>
+                        <td class="text-center">@(r.CanManageMaster ? "✅" : "❌")</td>
+                        <td class="text-center">@(r.CanManageOrder ? "✅" : "❌")</td>
+                        <td class="text-center">@(r.CanShopping ? "✅" : "❌")</td>
+                        <td class="text-center">@(r.CanPacking ? "✅" : "❌")</td>
+                        <td class="text-center">@(r.CanVerify ? "✅" : "❌")</td>
+                        <td class="text-center">@(r.CanViewReport ? "✅" : "❌")</td>
+                        <td class="text-center">@(r.CanManageUser ? "✅" : "❌")</td>
+                        <td class="text-center">
+                            <button class="btn btn-xs btn-outline-primary" onclick="editRole(@r.Id, '@r.RoleName', @r.CanManageMaster.ToString().ToLower(), @r.CanManageOrder.ToString().ToLower(), @r.CanShopping.ToString().ToLower(), @r.CanPacking.ToString().ToLower(), @r.CanVerify.ToString().ToLower(), @r.CanViewReport.ToString().ToLower(), @r.CanManageUser.ToString().ToLower())">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Form -->
+<div class="modal fade" id="roleModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Edit Role</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="roleForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="Id" value="0" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Role Name <span class="text-danger">*</span></label>
+                        <input type="text" id="RoleName" class="form-control" required />
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanManageMaster">
+                                <label class="form-check-label" for="CanManageMaster">Manage Master</label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanManageOrder">
+                                <label class="form-check-label" for="CanManageOrder">Manage Order</label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanShopping">
+                                <label class="form-check-label" for="CanShopping">Shopping</label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanPacking">
+                                <label class="form-check-label" for="CanPacking">Packing</label>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanVerify">
+                                <label class="form-check-label" for="CanVerify">Verify</label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanViewReport">
+                                <label class="form-check-label" for="CanViewReport">View Report</label>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="CanManageUser">
+                                <label class="form-check-label" for="CanManageUser">Manage User</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const modal = new bootstrap.Modal(document.getElementById('roleModal'));
+
+    function editRole(id, name, master, order, shopping, packing, verify, report, user) {
+        $('#Id').val(id);
+        $('#RoleName').val(name);
+        $('#CanManageMaster').prop('checked', master);
+        $('#CanManageOrder').prop('checked', order);
+        $('#CanShopping').prop('checked', shopping);
+        $('#CanPacking').prop('checked', packing);
+        $('#CanVerify').prop('checked', verify);
+        $('#CanViewReport').prop('checked', report);
+        $('#CanManageUser').prop('checked', user);
+        modal.show();
+    }
+
+    $(document).ready(function () {
+        $('#saveBtn').click(function () {
+            if (!$('#RoleName').val()) {
+                showToast('warning', 'Role Name wajib diisi!');
+                return;
+            }
+
+            const data = {
+                Id: parseInt($('#Id').val()),
+                RoleName: $('#RoleName').val(),
+                CanManageMaster: $('#CanManageMaster').is(':checked'),
+                CanManageOrder: $('#CanManageOrder').is(':checked'),
+                CanShopping: $('#CanShopping').is(':checked'),
+                CanPacking: $('#CanPacking').is(':checked'),
+                CanVerify: $('#CanVerify').is(':checked'),
+                CanViewReport: $('#CanViewReport').is(':checked'),
+                CanManageUser: $('#CanManageUser').is(':checked')
+            };
+
+            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Master/SaveRole',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                headers: { "RequestVerificationToken": $('[name="__RequestVerificationToken"]').val() || '' },
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                        $('#saveBtn').prop('disabled', false).text('Simpan');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Terjadi kesalahan jaringan', 'error');
+                    $('#saveBtn').prop('disabled', false).text('Simpan');
+                }
+            });
+        });
+    });
+</script>
+}

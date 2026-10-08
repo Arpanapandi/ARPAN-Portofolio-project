@@ -1,0 +1,296 @@
+@model DeliveryControl.Models.User
+
+@{
+    ViewData["Title"] = "Edit User";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-pencil-square"></i> Edit User</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">User</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Form Edit User</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+                    <input type="hidden" asp-for="UserId" />
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    
+                    <div class="mb-3">
+                        <label asp-for="Username" class="form-label"></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person"></i></span>
+                            <input asp-for="Username" class="form-control" placeholder="Masukkan username" />
+                        </div>
+                        <span asp-validation-for="Username" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="FullName" class="form-label"></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
+                            <input asp-for="FullName" class="form-control" placeholder="Masukkan nama lengkap" />
+                        </div>
+                        <span asp-validation-for="FullName" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Email" class="form-label"></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                            <input asp-for="Email" class="form-control" type="email" placeholder="email@example.com" />
+                        </div>
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Password:</strong> Kosongkan jika tidak ingin mengubah password. Isi jika ingin mengubah password.
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Password" class="form-label">Password Baru (Opsional)</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                            <input asp-for="Password" class="form-control" type="password" placeholder="Kosongkan jika tidak ingin mengubah" />
+                        </div>
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="ConfirmPassword" class="form-label">Konfirmasi Password Baru</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+                            <input asp-for="ConfirmPassword" class="form-control" type="password" placeholder="Konfirmasi password baru" />
+                        </div>
+                        <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Role" class="form-label"></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-shield-check"></i></span>
+                            <select asp-for="Role" id="roleSelect" class="form-select" asp-items="ViewBag.Roles">
+                                <option value="">-- Pilih Role --</option>
+                            </select>
+                        </div>
+                        <span asp-validation-for="Role" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                            <label asp-for="IsActive" class="form-check-label">
+                                Status Aktif
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="dockAccessSection" style="display:none;">
+                        <div class="mt-4" id="dockAdminInfo" style="display:none;">
+                            <div class="alert alert-info">
+                                <i class="bi bi-shield-check me-2"></i>
+                                <strong>Admin:</strong> Memiliki akses ke semua dock secara otomatis.
+                            </div>
+                        </div>
+                        <div id="dockPickerSection">
+                        <div class="mt-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-grid-3x3 me-1"></i> Penugasan Dock
+                            </label>
+                            
+                            <!-- Checkbox Semua Dock -->
+                            <div class="mb-3 p-3" style="background:rgba(217,119,6,0.08);border:1.5px solid #d97706;border-radius:10px;">
+                                <div class="form-check">
+                                    <input asp-for="HasAllDockAccess" class="form-check-input" type="checkbox" id="hasAllDockAccess" />
+                                    <label class="form-check-label fw-semibold" for="hasAllDockAccess" style="color:#fbbf24;">
+                                        <i class="bi bi-infinity me-1"></i> Akses Semua Dock
+                                    </label>
+                                </div>
+                                <div class="text-muted small mt-1" style="font-size:.75rem;">
+                                    Jika dicentang, user ini akan otomatis memiliki akses ke semua dock termasuk dock baru yang ditambahkan.
+                                </div>
+                            </div>
+                            
+                            <div id="specificDockPicker" style="border:1.5px solid #d97706;border-radius:10px;overflow:hidden;">
+                                <!-- Header -->
+                                <div class="d-flex justify-content-between align-items-center px-3 py-2"
+                                     style="background:rgba(217,119,6,0.12);border-bottom:1px solid rgba(217,119,6,0.3);">
+                                    <span style="color:#fbbf24;font-size:.82rem;">
+                                        <i class="bi bi-info-circle me-1"></i> Pilih dock yang boleh diakses user ini
+                                    </span>
+                                    <div class="d-flex gap-3">
+                                        <a href="#" id="selectAllDocks" style="font-size:.82rem;color:#34d399;text-decoration:none;">Pilih Semua</a>
+                                        <a href="#" id="clearAllDocks"  style="font-size:.82rem;color:#f87171;text-decoration:none;">Batal Semua</a>
+                                    </div>
+                                </div>
+                                <!-- Search -->
+                                <div class="px-3 pt-2 pb-1" style="background:#0f1929;">
+                                    <input type="text" id="dockSearch"
+                                           class="form-control form-control-sm bg-dark text-white border-secondary"
+                                           placeholder="Cari nama dock, kode, atau cycle...">
+                                </div>
+                                <!-- Grid -->
+                                <div id="dockContainer" style="max-height:320px;overflow-y:auto;background:#0f1929;padding:10px 12px;">
+                                    <div class="row g-2" id="dockGrid">
+                                        @foreach (var dock in (IEnumerable<DeliveryControl.Models.Dock>)ViewBag.AllDocks)
+                                        {
+                                            var isChecked = ((IEnumerable<int>)ViewBag.UserDockIds).Contains(dock.DockId);
+                                            var subInfo   = string.Join(" · ", new[] { dock.Customer?.CustomerCode, dock.Customer?.Cycle, dock.Customer?.ETD }.Where(s => !string.IsNullOrEmpty(s)));
+                                            <div class="col-md-4 dock-item">
+                                                <label class="dock-card w-100"
+                                                       style="display:flex;align-items:flex-start;gap:8px;padding:8px 10px;
+                                                              border:1px solid #1e3a5f;border-radius:7px;cursor:pointer;
+                                                              background:@(isChecked?"rgba(59,130,246,0.12)":"transparent");transition:background .15s;">
+                                                    <input class="form-check-input mt-1 flex-shrink-0" type="checkbox"
+                                                           name="selectedDockIds" value="@dock.DockId"
+                                                           id="dock_@dock.DockId" @(isChecked ? "checked" : "")>
+                                                    <div style="min-width:0;">
+                                                        <div class="fw-semibold text-white text-truncate" style="font-size:.82rem;">@dock.DockName</div>
+                                                        <div class="text-muted text-truncate" style="font-size:.70rem;">@subInfo</div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2" style="font-size:.78rem;color:#fbbf24;">
+                                <i class="bi bi-info-circle me-1"></i> Wajib pilih minimal 1 dock untuk role Preparation, Leader, dan Driver.
+                            </div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Update
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Perhatian:</strong> Password hanya akan diupdate jika diisi.
+                </div>
+                <p class="small text-muted">
+                    Jika tidak ingin mengubah password, biarkan field password kosong.
+                </p>
+                <hr class="my-3" />
+                <p class="small text-muted">
+                    <strong>Role:</strong>
+                    <ul class="small">
+                        <li><strong>Admin:</strong> Akses penuh termasuk manajemen user</li>
+                        <li><strong>Leader:</strong> Portal Preparation + Stock Dashboard</li>
+                        <li><strong>Preparation:</strong> Preparation + Portal Preparation</li>
+                        <li><strong>Pulling:</strong> Pulling + Stock Dashboard</li>
+                        <li><strong>User:</strong> Jadwal Delivery + Portal Driver</li>
+                        <li><strong>Driver:</strong> Portal Driver (konfirmasi kedatangan & keberangkatan)</li>
+                    </ul>
+                </p>
+                <a asp-action="Index" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-arrow-left"></i> Kembali ke Daftar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+    $(document).ready(function () {
+        function handleRoleChange(selectedRole) {
+            // Admin, Leader, Preparation, Driver yang tampilkan dock section
+            // User, Pulling → tidak perlu dock
+            var rolesWithDock = ['Admin', 'Leader', 'Preparation', 'Driver'];
+
+            if (selectedRole === '' || !rolesWithDock.includes(selectedRole)) {
+                // User, Pulling, atau belum pilih → sembunyikan semua
+                $('#dockAccessSection').hide();
+                return;
+            }
+
+            $('#dockAccessSection').show();
+
+            if (selectedRole === 'Admin') {
+                // Admin: tampil info saja, tidak perlu pilih dock
+                $('#dockAdminInfo').show();
+                $('#dockPickerSection').hide();
+            } else {
+                // Leader & Preparation: tampil picker dock
+                $('#dockAdminInfo').hide();
+                $('#dockPickerSection').show();
+            }
+        }
+
+        // Trigger on change
+        $('#roleSelect').on('change', function() {
+            handleRoleChange($(this).val());
+        });
+
+        // Initialize on load with current role
+        handleRoleChange($('#roleSelect').val());
+
+        // Search filter
+        $('#dockSearch').on('keyup', function() {
+            var v = $(this).val().toLowerCase();
+            $('#dockGrid .dock-item').each(function() {
+                $(this).toggle($(this).text().toLowerCase().includes(v));
+            });
+        });
+
+        // Handle HasAllDockAccess checkbox
+        function toggleSpecificDockPicker() {
+            var hasAll = $('#hasAllDockAccess').is(':checked');
+            if (hasAll) {
+                $('#specificDockPicker').hide();
+            } else {
+                $('#specificDockPicker').show();
+            }
+        }
+        
+        $('#hasAllDockAccess').on('change', toggleSpecificDockPicker);
+        toggleSpecificDockPicker(); // Initialize on load
+
+        // Pilih Semua / Batal Semua
+        $('#selectAllDocks').on('click', function(e) {
+            e.preventDefault();
+            $('#dockGrid .dock-item:visible input[type=checkbox]').prop('checked', true).trigger('change');
+        });
+        $('#clearAllDocks').on('click', function(e) {
+            e.preventDefault();
+            $('#dockGrid input[type=checkbox]').prop('checked', false).trigger('change');
+        });
+
+        // Highlight card saat checked
+        $(document).on('change', '#dockGrid input[type=checkbox]', function() {
+            var card = $(this).closest('label.dock-card');
+            card.css('background', this.checked ? 'rgba(59,130,246,0.12)' : 'transparent');
+        });
+    });
+    </script>
+}

@@ -1,0 +1,160 @@
+@* Partial View: _ClearDataModal.cshtml
+   Dipakai di: Stock/Index, DeliverySchedules/Index, PreparationSchedule/Index, Preparation/Index
+   Cara pakai: <partial name="_ClearDataModal" />
+               showClearDataModal('Label Data', '/Controller/ClearData')
+*@
+
+<div class="modal fade" id="clearDataModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:460px;">
+        <div class="modal-content" style="background:#0d1b35;border:1px solid #3b2a2a;border-radius:14px;color:#fff;">
+            <div class="modal-header" style="border-bottom:1px solid #3b2a2a;padding:16px 20px;">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <span style="font-size:20px;">🗑️</span>
+                    <span class="text-danger">Konfirmasi Hapus Data</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <p id="clearModalDesc" class="mb-3" style="color:#c8d8e8;font-size:14px;line-height:1.6;"></p>
+
+                <!-- Info: apa yang AMAN (tidak terhapus) — diisi via showClearDataModal -->
+                <div id="clearModalSafeNote" style="display:none;margin-bottom:14px;padding:10px 14px;background:#052e16;border-left:4px solid #16a34a;border-radius:6px;font-size:13px;color:#86efac;"></div>
+
+                <div class="mb-4 p-3" style="background:#1c1010;border-left:4px solid #f44336;border-radius:6px;font-size:13px;color:#ffcdd2;">
+                    ⚠️ Tindakan ini <strong>tidak dapat dibatalkan</strong>. Semua data yang dipilih akan dihapus secara permanen.
+                </div>
+
+                <label style="font-size:13px;color:#ffb300;font-weight:600;display:block;margin-bottom:6px;">
+                    Ketik <strong style="color:#f44336;font-size:14px;">HAPUS</strong> untuk konfirmasi:
+                </label>
+                <input type="text" id="clearConfirmInput" autocomplete="off"
+                       style="width:100%;background:#0a1628;border:1px solid #2a3a5a;color:#fff;border-radius:8px;padding:10px 14px;font-size:15px;outline:none;transition:border 0.2s;"
+                       placeholder="Ketik HAPUS di sini..." />
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #3b2a2a;padding:14px 20px;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;">
+                    Batal
+                </button>
+                <button type="button" id="btnDoClear" class="btn btn-danger fw-bold" disabled
+                        style="border-radius:8px;padding:8px 22px;opacity:0.5;transition:opacity 0.2s;">
+                    <i class="bi bi-trash3-fill me-1"></i> Hapus Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var _clearUrl = null;
+    var _clearModal = null;
+
+    function getClearModal() {
+        if (!_clearModal) {
+            _clearModal = new bootstrap.Modal(document.getElementById('clearDataModal'));
+        }
+        return _clearModal;
+    }
+
+    /**
+     * Tampilkan modal konfirmasi hapus data
+     * label    - Nama data yang akan dihapus (contoh: "Data Preparation")
+     * url      - URL endpoint POST untuk hapus
+     * safeNote - (opsional) teks hijau yang menjelaskan data yang TIDAK ikut terhapus
+     */
+    window.showClearDataModal = function (label, url, safeNote) {
+        _clearUrl = url;
+
+        document.getElementById('clearModalDesc').innerHTML =
+            'Anda akan menghapus semua <strong style="color:#f44336;">' + label + '</strong>.<br>' +
+            'Pastikan Anda benar-benar yakin sebelum melanjutkan.';
+
+        // Tampilkan info "aman" jika ada
+        var safeEl = document.getElementById('clearModalSafeNote');
+        if (safeNote) {
+            safeEl.innerHTML = '✅ ' + safeNote;
+            safeEl.style.display = 'block';
+        } else {
+            safeEl.style.display = 'none';
+        }
+
+        var input = document.getElementById('clearConfirmInput');
+        var btn = document.getElementById('btnDoClear');
+        input.value = '';
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+
+        getClearModal().show();
+        setTimeout(function () { input.focus(); }, 400);
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var input = document.getElementById('clearConfirmInput');
+        var btn = document.getElementById('btnDoClear');
+
+        if (!input || !btn) return;
+
+        input.addEventListener('input', function () {
+            var ok = this.value.trim().toUpperCase() === 'HAPUS';
+            btn.disabled = !ok;
+            btn.style.opacity = ok ? '1' : '0.5';
+        });
+
+        // Fokus input: highlight border
+        input.addEventListener('focus', function () {
+            this.style.border = '1px solid #f44336';
+        });
+        input.addEventListener('blur', function () {
+            this.style.border = '1px solid #2a3a5a';
+        });
+
+        btn.addEventListener('click', function () {
+            if (!_clearUrl) return;
+
+            var self = this;
+            self.disabled = true;
+            self.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menghapus...';
+
+            // Ambil antiforgery token jika ada
+            var token = '';
+            var tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (tokenInput) token = tokenInput.value;
+
+            fetch(_clearUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({})
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                getClearModal().hide();
+                if (res.success) {
+                    if (window.showUpdateNotification) {
+                        window.showUpdateNotification(res.message || 'Data berhasil dihapus.', 'success', 5000);
+                    }
+                    setTimeout(function () { location.reload(); }, 1200);
+                } else {
+                    if (window.showUpdateNotification) {
+                        window.showUpdateNotification(res.message || 'Gagal menghapus data.', 'danger', 6000);
+                    }
+                    self.disabled = false;
+                    self.style.opacity = '1';
+                    self.innerHTML = '<i class="bi bi-trash3-fill me-1"></i> Hapus Sekarang';
+                }
+            })
+            .catch(function () {
+                getClearModal().hide();
+                if (window.showUpdateNotification) {
+                    window.showUpdateNotification('Terjadi kesalahan koneksi.', 'danger', 6000);
+                }
+                self.disabled = false;
+                self.style.opacity = '1';
+                self.innerHTML = '<i class="bi bi-trash3-fill me-1"></i> Hapus Sekarang';
+            });
+        });
+    });
+})();
+</script>

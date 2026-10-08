@@ -1,0 +1,122 @@
+@{
+    ViewData["Title"] = "Verifikasi";
+    var packingComplete = ViewBag.PackingCompleteOrders as IEnumerable<SistemPacking.Web.Models.OrderDto> ?? Enumerable.Empty<SistemPacking.Web.Models.OrderDto>();
+}
+@model IEnumerable<SistemPacking.Web.Models.VerificationDto>
+
+@section Breadcrumb {
+    <li class="breadcrumb-item active">Verifikasi</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title"><i class="bi bi-patch-check"></i>Leader Verification</h2>
+</div>
+
+@if (packingComplete.Any())
+{
+    <div class="alert alert-info mb-4" style="border-radius:12px; border-left:4px solid var(--info);">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-info-circle-fill text-info fs-5"></i>
+            <strong>@packingComplete.Count() Order Selesai Packing — Siap Disubmit</strong>
+        </div>
+        <div class="row g-2 mt-1">
+            @foreach (var o in packingComplete)
+            {
+                <div class="col-auto">
+                    <div class="d-flex align-items-center gap-2 p-2 bg-white rounded border">
+                        <span class="fw-semibold text-primary">@o.OrderNo</span>
+                        <small class="text-muted">@o.CustomerName</small>
+                        <button class="btn btn-sm btn-outline-primary submit-verif-btn" data-id="@o.Id" data-no="@o.OrderNo">
+                            <i class="bi bi-send me-1"></i>Submit
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title"><i class="bi bi-list-check me-2 text-primary"></i>Pending Verifikasi</span>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="verifTable">
+            <thead>
+                <tr>
+                    <th>Order No</th>
+                    <th>Customer</th>
+                    <th>Progress</th>
+                    <th>Status Order</th>
+                    <th>Leader</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!Model.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-2 d-block mb-2" style="opacity:0.3;"></i>
+                            Tidak ada order yang menunggu verifikasi
+                        </td>
+                    </tr>
+                }
+                @foreach (var v in Model)
+                {
+                    <tr>
+                        <td class="fw-semibold text-primary">@v.OrderNo</td>
+                        <td>@v.CustomerName</td>
+                        <td style="min-width:120px;">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height:8px;">
+                                    <div class="progress-bar bg-primary" style="width:@v.OverallProgress%"></div>
+                                </div>
+                                <small>@v.OverallProgress.ToString("N0")%</small>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-warning-subtle text-warning">@v.Status</span></td>
+                        <td>@v.LeaderName</td>
+                        <td>
+                            <a asp-controller="Verification" asp-action="Detail" asp-route-orderId="@v.OrderId"
+                               class="btn btn-sm btn-primary">
+                                <i class="bi bi-eye me-1"></i>Verifikasi
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$('.submit-verif-btn').on('click', function () {
+    const orderId = $(this).data('id');
+    const orderNo = $(this).data('no');
+    Swal.fire({
+        title: 'Submit Verifikasi?',
+        text: `Order ${orderNo} akan disubmit untuk verifikasi leader.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Submit',
+        confirmButtonColor: '#4f6ef7'
+    }).then(r => {
+        if (r.isConfirmed) {
+            $.post('/Verification/Submit', { orderId, __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val() })
+                .done(res => {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil!', text: res.message, timer: 2000, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'Gagal', text: res.message });
+                    }
+                });
+        }
+    });
+});
+</script>
+@Html.AntiForgeryToken()
+}
+

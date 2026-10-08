@@ -1,0 +1,1 @@
+const http = require('http'); http.get('http://localhost:5206/PreparationWorkflow/LookupSchedule?tag=NA3030&skipStockValidation=true', (res) => { let data = ''; res.on('data', chunk => data += chunk); res.on('end', () => console.log(data)); });

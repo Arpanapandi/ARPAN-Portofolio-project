@@ -1,0 +1,96 @@
+@model IEnumerable<DeliveryControl.Models.ScheduleTemplate>
+
+@{
+    ViewData["Title"] = "Template Jadwal";
+}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-file-earmark-diff"></i> Template Jadwal</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Tambah Template
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-3">Nama Template</th>
+                        <th>Customer</th>
+                        <th>Tipe File</th>
+                        <th>Jml. Mapping</th>
+                        <th>Status</th>
+                        <th>Tanggal Buat</th>
+                        <th class="text-end pe-3">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Any())
+                    {
+                        foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="ps-3 fw-bold text-info">@item.Name</td>
+                                <td>@item.CustomerName</td>
+                                <td>
+                                    @if (item.FileType == "Excel")
+                                    {
+                                        <span class="badge bg-success"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</span>
+                                    }
+                                    else if (item.FileType == "PDF")
+                                    {
+                                        <span class="badge bg-danger"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info text-dark"><i class="bi bi-image me-1"></i>Image</span>
+                                    }
+                                </td>
+                                <td><span class="badge bg-secondary">@(item.Mappings?.Count ?? 0) Field</span></td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">Aktif</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">Non-aktif</span>
+                                    }
+                                </td>
+                                <td class="small text-muted">@item.CreatedDate.ToString("dd MMM yyyy HH:mm")</td>
+                                <td class="text-end pe-3">
+                                    <div class="btn-group">
+                                        <a asp-action="Mapping" asp-route-id="@item.Id" class="btn btn-sm btn-info text-white" title="Atur Mapping">
+                                            <i class="bi bi-diagram-3"></i>
+                                        </a>
+                                        <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-warning" title="Edit Dasar">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        <a asp-action="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-danger" title="Hapus">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                                Belum ada template yang didaftarkan.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

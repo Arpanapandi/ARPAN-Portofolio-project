@@ -1,0 +1,429 @@
+@model IEnumerable<SistemPacking.Web.Models.Item>
+@{
+    ViewData["Title"] = "Dashboard Stock";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Dashboard</li>
+    <li class="breadcrumb-item active">Stock</li>
+}
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h2 class="page-title m-0"><i class="bi bi-box-seam text-primary me-2"></i> Dashboard Stock</h2>
+        <small class="text-muted">Monitoring ketersediaan stok aktual fisik hasil Stock Take Opname (STO) dan standar min/max</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+
+        <button class="btn btn-outline-success shadow-sm" id="btnAdjustStock" title="Adjust / Tambah Stock Manual">
+            <i class="bi bi-plus-circle me-1"></i> Adjust Stock
+        </button>
+        <button class="btn btn-outline-primary shadow-sm" id="btnRefreshStock" title="Muat ulang data stok">
+            <i class="bi bi-arrow-clockwise me-1"></i> Refresh Data
+        </button>
+        <a href="/Opname" class="btn btn-primary shadow-sm">
+            <i class="bi bi-clipboard-check me-1"></i> Buka Opname (STO)
+        </a>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-7 fw-semibold" id="badgeStockCount">
+                <i class="bi bi-box-seam me-1"></i> Total: <span id="totalStockText">@Model.Count()</span> Item Stock
+            </span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fs-7 fw-semibold">
+                <span class="live-dot me-1"></span> Live Sync Opname
+            </span>
+        </div>
+        <div class="text-muted small">
+            <i class="bi bi-info-circle me-1"></i> Kolom <strong>ACT QTY</strong> menampilkan kuantitas aktual fisik hasil Stock Take Opname (STO)
+        </div>
+    </div>
+    <div class="card-body p-3">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped align-middle mb-0" id="stockTable" style="width: 100%;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-center" style="width: 40px;">
+                            <div class="form-check d-flex justify-content-center">
+                                <input class="form-check-input" type="checkbox" id="checkAll">
+                            </div>
+                        </th>
+                        <th style="width: 50px;">NO</th>
+                        <th>LOKASI RACK</th>
+                        <th>PROD. PLANT</th>
+                        <th>RACK</th>
+                        <th>NO RACK</th>
+                        <th>DOCK</th>
+                        <th>VIN</th>
+                        <th>PART NO</th>
+                        <th>PART NAME</th>
+                        <th class="text-center">KATEGORI</th>
+                        <th class="text-end">QTY (PCS)</th>
+                        <th class="text-end text-success fw-bold">ACT QTY (OPNAME)</th>
+                        <th class="text-end">MIN 0,5</th>
+                        <th class="text-end">ROP 1D</th>
+                        <th class="text-end">MAX 2D</th>
+                        <th class="text-center" style="width: 80px;">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="stockTableBody">
+                    @{
+                        int no = 1;
+                    }
+                    @foreach (var i in Model)
+                    {
+                        <tr>
+                            <td class="text-center">
+                                <div class="form-check d-flex justify-content-center">
+                                    <input class="form-check-input chk-item" type="checkbox" value="@i.Id">
+                                </div>
+                            </td>
+                            <td>@(no++)</td>
+                            <td>@(i.LokasiRack ?? "-")</td>
+                            <td>@(i.ProdPlant ?? "-")</td>
+                            <td>@(i.Rack ?? "-")</td>
+                            <td>@(i.NoRack ?? "-")</td>
+                            <td>@(i.Dock ?? "-")</td>
+                            <td>@(i.VIN ?? "-")</td>
+                            <td class="fw-semibold text-primary">@i.ItemCode</td>
+                            <td>@i.ItemName</td>
+                            <td class="text-center">
+                                @if (i.Category == "Export")
+                                {
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">Export</span>
+                                }
+                                else if (i.Category == "Service Part")
+                                {
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Service Part</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">@i.Category</span>
+                                }
+                            </td>
+                            <td class="text-end">@(i.QtyPcs == 0 ? "-" : (i.QtyPcs % 1 == 0 ? ((long)i.QtyPcs).ToString() : i.QtyPcs.ToString("G29")))</td>
+                            <td class="text-end">
+                                @if (i.ActQty == 0)
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success-subtle text-success fs-7 fw-bold px-2 py-1" title="Hasil Aktual Opname">
+                                        @(i.ActQty % 1 == 0 ? ((long)i.ActQty).ToString() : i.ActQty.ToString("G29"))
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-end">@(i.Min == 0 ? "-" : (i.Min % 1 == 0 ? ((long)i.Min).ToString() : i.Min.ToString("G29")))</td>
+                            <td class="text-end">@(i.Rop == 0 ? "-" : (i.Rop % 1 == 0 ? ((long)i.Rop).ToString() : i.Rop.ToString("G29")))</td>
+                            <td class="text-end">@(i.Max == 0 ? "-" : (i.Max % 1 == 0 ? ((long)i.Max).ToString() : i.Max.ToString("G29")))</td>
+                            <td class="text-center">
+                                <a href="/Master/MasterItem" class="btn btn-xs btn-outline-info" title="Go to Master Item">
+                                    <i class="bi bi-eye"></i> View
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Adjust Stock Modal -->
+<div class="modal fade" id="adjustStockModal" tabindex="-1" aria-labelledby="adjustStockModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="adjustStockModalLabel"><i class="bi bi-plus-circle me-2"></i>Adjust Stock Manual</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formAdjustStock">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cari Item (VIN / Part No / Part Name)</label>
+                        <select class="form-select" id="selectAdjustItem" name="itemId" style="width: 100%;"></select>
+                    </div>
+                    
+                    <div class="card bg-light mb-3" id="adjustItemInfo" style="display:none;">
+                        <div class="card-body p-2 fs-7">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Kategori:</span>
+                                <span class="fw-bold" id="adjustCategory">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span class="text-muted">Part No:</span>
+                                <span class="fw-bold" id="adjustPartNo">-</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Stock Saat Ini:</span>
+                                <span class="fw-bold text-primary" id="adjustCurrentStock">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">QTY Koreksi</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="adjustQty" required placeholder="Contoh: 10 atau -5">
+                            <span class="input-group-text">PCS</span>
+                        </div>
+                        <small class="text-muted">Gunakan angka minus (-) untuk mengurangi stok.</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnSaveAdjustStock">
+                    <i class="bi bi-save me-1"></i> Simpan Stock
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+@section Scripts {
+<script>
+    let stockDataTable = null;
+
+    $(document).ready(function () {
+        initStockDataTable();
+
+        function initStockDataTable() {
+            if (stockDataTable) {
+                stockDataTable.destroy();
+            }
+            stockDataTable = $('#stockTable').DataTable({
+                language: {
+                    search: "Search:",
+                    lengthMenu: "Show _MENU_ entries",
+                    info: "Menampilkan _START_ sampai _END_ dari _TOTAL_ item stock",
+                    paginate: {
+                        first: "«",
+                        previous: "‹",
+                        next: "›",
+                        last: "»"
+                    }
+                },
+                pageLength: 20,
+                columnDefs: [
+                    { targets: 0, className: 'text-center', orderable: false, width: '40px' },
+                    { targets: 1, width: '50px' },
+                    { targets: [10], className: 'text-center' },
+                    { targets: [11, 12, 13, 14, 15], className: 'text-end' },
+                    { targets: 16, className: 'text-center', orderable: false, width: '80px' }
+                ]
+            });
+        }
+
+        $('#checkAll').change(function() {
+            stockDataTable.$('.chk-item').prop('checked', $(this).prop('checked'));
+        });
+
+        function formatVal(v) {
+            if (!v || parseFloat(v) === 0) return '-';
+            let num = parseFloat(v);
+            return num % 1 === 0 ? num.toString() : num.toFixed(2).replace(/\.?0+$/, '');
+        }
+
+        // Function reload data via AJAX
+        function reloadStockTable(silent = false) {
+            const btn = $('#btnRefreshStock');
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status"></span> Memuat...');
+
+            $.ajax({
+                url: '/Dashboard/GetStockTableData',
+                type: 'GET',
+                success: function (res) {
+                    if (res.success && res.data) {
+                        stockDataTable.clear();
+
+                        res.data.forEach(function (item, index) {
+                            let actBadge = (item.actQty && parseFloat(item.actQty) !== 0) 
+                                ? `<span class="badge bg-success-subtle text-success fs-7 fw-bold px-2 py-1" title="Hasil Aktual Opname">${formatVal(item.actQty)}</span>`
+                                : `<span class="text-muted">-</span>`;
+
+                            let catBadge = "";
+                            if (item.category === "Export") {
+                                catBadge = `<span class="badge bg-info-subtle text-info border border-info-subtle">Export</span>`;
+                            } else if (item.category === "Service Part") {
+                                catBadge = `<span class="badge bg-warning-subtle text-warning border border-warning-subtle">Service Part</span>`;
+                            } else {
+                                catBadge = `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">${escapeHtml(item.category)}</span>`;
+                            }
+
+                            stockDataTable.row.add([
+                                `<div class="form-check d-flex justify-content-center"><input class="form-check-input chk-item" type="checkbox" value="${item.id}"></div>`,
+                                index + 1,
+                                escapeHtml(item.lokasiRack),
+                                escapeHtml(item.prodPlant),
+                                escapeHtml(item.rack),
+                                escapeHtml(item.noRack),
+                                escapeHtml(item.dock),
+                                escapeHtml(item.vin),
+                                `<span class="fw-semibold text-primary">${escapeHtml(item.itemCode)}</span>`,
+                                escapeHtml(item.itemName),
+                                catBadge,
+                                formatVal(item.qtyPcs),
+                                actBadge,
+                                formatVal(item.min),
+                                formatVal(item.rop),
+                                formatVal(item.max),
+                                `<a href="/Master/MasterItem" class="btn btn-xs btn-outline-info" title="Go to Master Item"><i class="bi bi-eye"></i> View</a>`
+                            ]);
+                        });
+
+                        stockDataTable.draw();
+                        $('#totalStockText').text(res.data.length);
+
+                        if (!silent) {
+                            Swal.fire({
+                                toast: true,
+                                position: 'top-end',
+                                icon: 'success',
+                                title: 'Data Dashboard Stock berhasil dimuat ulang!',
+                                showConfirmButton: false,
+                                timer: 1500
+                            });
+                        }
+                    }
+                },
+                error: function () {
+                    if (!silent) {
+                        Swal.fire('Error', 'Gagal memuat ulang data stock', 'error');
+                    }
+                },
+                complete: function () {
+                    btn.prop('disabled', false).html('<i class="bi bi-arrow-clockwise me-1"></i> Refresh Data');
+                }
+            });
+        }
+
+        $('#btnRefreshStock').click(function () {
+            reloadStockTable(false);
+        });
+
+        // Realtime SignalR Update dari Opname
+        if (typeof signalR !== 'undefined') {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/hubs/dashboard")
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on("StockUpdated", function () {
+                reloadStockTable(true);
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'info',
+                    title: 'Data stock baru saja diperbarui dari Opname!',
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+            });
+
+            connection.start().then(() => {
+                connection.invoke("JoinDashboard");
+            }).catch(err => console.log('SignalR Dashboard connection status:', err));
+        }
+
+        function escapeHtml(text) {
+            if (text === null || text === undefined || String(text).trim() === '') return '-';
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // --- ADJUST STOCK LOGIC ---
+        $('#btnAdjustStock').click(function () {
+            $('#formAdjustStock')[0].reset();
+            $('#selectAdjustItem').val(null).trigger('change');
+            $('#adjustItemInfo').hide();
+            $('#adjustStockModal').modal('show');
+        });
+
+        $('#selectAdjustItem').select2({
+            theme: 'bootstrap-5',
+            dropdownParent: $('#adjustStockModal'),
+            placeholder: 'Ketik VIN atau Part No...',
+            allowClear: true,
+            ajax: {
+                url: '/Dashboard/LookupItems',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { term: params.term };
+                },
+                processResults: function (data) {
+                    return {
+                        results: data.map(function (item) {
+                            return {
+                                id: item.id,
+                                text: `${item.vin} - ${item.itemCode} (${item.itemName})`,
+                                item: item
+                            };
+                        })
+                    };
+                },
+                cache: true
+            }
+        });
+
+        $('#selectAdjustItem').on('select2:select', function (e) {
+            let data = e.params.data.item;
+            $('#adjustCategory').text(data.category);
+            $('#adjustPartNo').text(data.itemCode);
+            $('#adjustCurrentStock').text(formatVal(data.actQty));
+            $('#adjustItemInfo').slideDown();
+        });
+
+        $('#selectAdjustItem').on('select2:unselect', function () {
+            $('#adjustItemInfo').slideUp();
+        });
+
+        $('#btnSaveAdjustStock').click(function () {
+            let itemId = $('#selectAdjustItem').val();
+            let qty = $('#adjustQty').val();
+
+            if (!itemId || !qty) {
+                Swal.fire('Peringatan', 'Harap pilih item dan isi QTY!', 'warning');
+                return;
+            }
+
+            let btn = $(this);
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Dashboard/AdjustStock',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ itemId: parseInt(itemId), qty: parseFloat(qty) }),
+                success: function (res) {
+                    if (res.success) {
+                        $('#adjustStockModal').modal('hide');
+                        Swal.fire('Berhasil', 'Stock berhasil disesuaikan', 'success');
+                        reloadStockTable(true);
+                    } else {
+                        Swal.fire('Gagal', res.message || 'Terjadi kesalahan', 'error');
+                    }
+                },
+                error: function () {
+                    Swal.fire('Error', 'Gagal menghubungi server', 'error');
+                },
+                complete: function () {
+                    btn.prop('disabled', false).html('<i class="bi bi-save me-1"></i> Simpan Stock');
+                }
+            });
+        });
+
+    });
+</script>
+}

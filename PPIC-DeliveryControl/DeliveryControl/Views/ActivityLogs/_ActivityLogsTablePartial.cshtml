@@ -1,0 +1,126 @@
+@model IEnumerable<DeliveryControl.Models.ActivityLog>
+@{
+    int currentPage = ViewBag.CurrentPage as int? ?? 1;
+    int totalPages = ViewBag.TotalPages as int? ?? 1;
+    int totalItems = ViewBag.TotalItems as int? ?? 0;
+}
+
+@if (Model.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm">
+            <thead>
+                <tr>
+                    <th style="width: 150px;">Timestamp</th>
+                    <th style="width: 100px;">Modul</th>
+                    <th style="width: 80px;">Aksi</th>
+                    <th style="width: 120px;">Entity</th>
+                    <th>Deskripsi</th>
+                    <th style="width: 120px;">User</th>
+                    <th style="width: 120px;">IP Address</th>
+                    <th style="width: 80px;">Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var log in Model)
+                {
+                    var badgeClass = log.Action switch
+                    {
+                        "Create" => "bg-success",
+                        "Update" => "bg-info",
+                        "Delete" => "bg-danger",
+                        "Confirm" => "bg-primary",
+                        _ => "bg-secondary"
+                    };
+
+                    <tr>
+                        <td>
+                            <small>@log.Timestamp.ToString("dd/MM/yyyy HH:mm:ss")</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">@log.Module</span>
+                        </td>
+                        <td>
+                            <span class="badge @badgeClass">@log.Action</span>
+                        </td>
+                        <td>
+                            <small class="text-muted">@(log.EntityName ?? "-")</small>
+                        </td>
+                        <td>
+                            <small>@(log.Description ?? "-")</small>
+                        </td>
+                        <td>
+                            <small>@log.PerformedBy</small>
+                        </td>
+                        <td>
+                            <small class="text-muted">@(log.IpAddress ?? "-")</small>
+                        </td>
+                        <td>
+                            <a asp-action="Details" asp-route-id="@log.LogId" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Page navigation" class="mt-3">
+            <ul class="pagination pagination-sm justify-content-center">
+                @if (currentPage > 1)
+                {
+                    <li class="page-item">
+                        <a class="page-link bg-dark border-secondary text-info" href="javascript:void(0);" onclick="loadPage(1)" title="First Page">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link bg-dark border-secondary text-info" href="javascript:void(0);" onclick="loadPage(@(currentPage - 1))">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </a>
+                    </li>
+                }
+
+                @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+                {
+                    var isActive = i == currentPage;
+                    <li class="page-item @(isActive ? "active" : "")">
+                        <a class="page-link @(isActive ? "bg-primary border-primary" : "bg-dark border-secondary text-white")" 
+                           href="javascript:void(0);" 
+                           onclick="loadPage(@i)">
+                            @i
+                        </a>
+                    </li>
+                }
+
+                @if (currentPage < totalPages)
+                {
+                    <li class="page-item">
+                        <a class="page-link bg-dark border-secondary text-info" href="javascript:void(0);" onclick="loadPage(@(currentPage + 1))">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link bg-dark border-secondary text-info" href="javascript:void(0);" onclick="loadPage(@totalPages)" title="Last Page">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                }
+            </ul>
+            <div class="text-center mt-2 small text-muted">
+                Halaman @currentPage dari @totalPages (Total @totalItems Data)
+            </div>
+        </nav>
+    }
+}
+else
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Tidak ada activity log untuk filter yang dipilih.
+    </div>
+}
+

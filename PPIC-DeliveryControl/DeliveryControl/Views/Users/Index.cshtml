@@ -1,0 +1,158 @@
+@model IEnumerable<DeliveryControl.Models.User>
+
+@{
+    ViewData["Title"] = "Manajemen User";
+}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-people"></i> Manajemen User</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Tambah User
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul"></i> Daftar User</h5>
+    </div>
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Nama Lengkap</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Dock</th>
+                            <th>Status</th>
+                            <th>Tanggal Dibuat</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model)
+                        {
+                            <tr>
+                                <td class="fw-bold" style="color: var(--primary-blue);">
+                                    <i class="bi bi-person-circle me-2"></i>@item.Username
+                                </td>
+                                <td>@item.FullName</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.Email))
+                                    {
+                                        <i class="bi bi-envelope me-1"></i>@item.Email
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.Role == "Admin")
+                                    {
+                                        <span class="badge bg-danger">
+                                            <i class="bi bi-shield-check"></i> Admin
+                                        </span>
+                                    }
+                                    else if (item.Role == "Preparation")
+                                    {
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-box-arrow-in-right"></i> Preparation
+                                        </span>
+                                    }
+                                    else if (item.Role == "Pulling")
+                                    {
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-arrow-down-square"></i> Pulling
+                                        </span>
+                                    }
+                                    else if (item.Role == "Leader")
+                                    {
+                                        <span class="badge bg-purple text-white" style="background:#7c3aed!important;">
+                                            <i class="bi bi-person-badge"></i> Leader
+                                        </span>
+                                    }
+                                    else if (item.Role == "Driver")
+                                    {
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-truck"></i> Driver
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-person"></i> User
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    @{
+                                        bool hasAllDocks = item.Role == "Admin" || item.HasAllDockAccess;
+                                    }
+                                    @if (hasAllDocks)
+                                    {
+                                        <span class="badge bg-dark bg-opacity-50 text-light border border-secondary shadow-sm">
+                                            <i class="bi bi-infinity text-warning me-1"></i> Semua Dock
+                                        </span>
+                                    }
+                                    else if (item.UserDockAccesses != null && item.UserDockAccesses.Any())
+                                    {
+                                        <div class="d-flex flex-wrap gap-1" style="max-width: 250px;">
+                                            @foreach (var access in item.UserDockAccesses.OrderBy(a => a.Dock.DockCode))
+                                            {
+                                                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.7rem; letter-spacing: 0.5px;">@access.Dock.DockCode</span>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small"><i>Tanpa Izin</i></span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-check-circle"></i> Aktif
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-x-circle"></i> Nonaktif
+                                        </span>
+                                    }
+                                </td>
+                                <td>@item.CreatedDate.ToString("dd MMM yyyy", new System.Globalization.CultureInfo("id-ID"))</td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a asp-action="Edit" asp-route-id="@item.UserId" class="btn btn-sm btn-warning" title="Edit">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                        <a asp-action="Delete" asp-route-id="@item.UserId" class="btn btn-sm btn-danger" title="Hapus">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info text-center">
+                <i class="bi bi-info-circle"></i> Belum ada data user.
+            </div>
+        }
+    </div>
+</div>
+

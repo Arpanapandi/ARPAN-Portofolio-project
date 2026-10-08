@@ -1,0 +1,98 @@
+@model IEnumerable<DeliveryControl.Models.ShoppingRecord>
+@{
+    ViewData["Title"] = "Log Shopping Packing";
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2 class="text-primary"><i class="bi bi-cart-check"></i> Log Shopping Sistem Packing</h2>
+            <p class="text-muted">Riwayat transaksi scan barang dari sistem packing.</p>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Tanggal</label>
+                    <input type="date" name="date" class="form-control" value="@ViewBag.Date" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Pencarian (Tag/Label/Kanban)</label>
+                    <input type="text" name="search" class="form-control" placeholder="Cari..." value="@ViewBag.Search" />
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Cari</button>
+                </div>
+                <div class="col-md-2">
+                    <a asp-action="ShoppingLog" class="btn btn-secondary w-100"><i class="bi bi-arrow-clockwise"></i> Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>No</th>
+                            <th>Tanggal Waktu</th>
+                            <th>Part / Kanban</th>
+                            <th>Tag / Barcode</th>
+                            <th>Label / Serial</th>
+                            <th>Plant</th>
+                            <th>User (API)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Any())
+                        {
+                            int no = ((ViewBag.CurrentPage - 1) * 50) + 1;
+                            foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td>@no</td>
+                                    <td>@item.CreatedDate.ToString("dd MMM yyyy HH:mm:ss")</td>
+                                    <td><span class="badge bg-info text-dark">@item.Kanban</span></td>
+                                    <td><code>@item.Tag</code></td>
+                                    <td>@item.Label</td>
+                                    <td>@(string.IsNullOrEmpty(item.Plant) ? "-" : item.Plant)</td>
+                                    <td>@item.CreatedBy</td>
+                                </tr>
+                                no++;
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-muted">Tidak ada data transaksi shopping.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        @if (ViewBag.TotalPages > 1)
+        {
+            <div class="card-footer bg-white">
+                <nav>
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item @(ViewBag.CurrentPage == 1 ? "disabled" : "")">
+                            <a class="page-link" href="?pageNumber=@(ViewBag.CurrentPage - 1)&search=@ViewBag.Search&date=@ViewBag.Date">Sebelumnya</a>
+                        </li>
+                        <li class="page-item active">
+                            <span class="page-link">@ViewBag.CurrentPage / @ViewBag.TotalPages</span>
+                        </li>
+                        <li class="page-item @(ViewBag.CurrentPage == ViewBag.TotalPages ? "disabled" : "")">
+                            <a class="page-link" href="?pageNumber=@(ViewBag.CurrentPage + 1)&search=@ViewBag.Search&date=@ViewBag.Date">Berikutnya</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

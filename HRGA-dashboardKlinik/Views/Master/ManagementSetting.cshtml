@@ -1,0 +1,400 @@
+@model IEnumerable<dashboardKlinik.Models.User>
+@{
+    ViewData["Title"] = "Management Setting";
+}
+
+<!-- Page Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="background: var(--primary-bg); color: var(--primary); font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+                Master
+            </span>
+        </div>
+        <h5 style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin: 6px 0 0;">Management Setting</h5>
+        <p style="font-size: 13.5px; color: var(--text-secondary); margin: 4px 0 0;">Pengelolaan akun pengguna, hak akses peran, dan kredensial login</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn-action btn-primary-custom" onclick="openAddUserModal()">
+            <i class="bi bi-person-plus-fill"></i> Tambah Pengguna
+        </button>
+    </div>
+</div>
+
+<!-- Search Bar -->
+<div class="card-custom fade-in" style="margin-bottom: 20px; padding: 16px 20px;">
+    <form method="get" asp-action="ManagementSetting" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <div class="search-box" style="flex: 1; min-width: 250px;">
+            <i class="bi bi-search"></i>
+            <input type="text" name="searchString" value="@ViewData["CurrentSearch"]"
+                   placeholder="Cari berdasarkan Nama, NPK (4 digit), Username, atau Role..." />
+        </div>
+        <button type="submit" class="btn-action btn-primary-custom" style="padding: 10px 18px;">
+            <i class="bi bi-search"></i> Cari
+        </button>
+        @if (!string.IsNullOrWhiteSpace(ViewData["CurrentSearch"]?.ToString()))
+        {
+            <a href="@Url.Action("ManagementSetting")" class="btn-action btn-outline-custom" style="padding: 10px 18px;">
+                <i class="bi bi-x-lg"></i> Reset
+            </a>
+        }
+    </form>
+</div>
+
+<!-- Table Card -->
+<div class="card-custom fade-in">
+    <div class="card-body-custom" style="padding: 0;">
+        @if (Model != null && Model.Any())
+        {
+            <div style="overflow-x: auto;">
+                <table class="table-custom" id="table-users">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px; text-align: center;">No</th>
+                            <th>Nama</th>
+                            <th style="width: 130px;">NPK</th>
+                            <th style="width: 140px;">Role</th>
+                            <th style="width: 130px;">Status</th>
+                            <th style="width: 130px; text-align: center;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int no = 1;
+                        }
+                        @foreach (var user in Model)
+                        {
+                            <tr>
+                                <td style="text-align: center; font-weight: 600; color: var(--text-secondary);">@no</td>
+                                <td>
+                                    <div style="display: flex; align-items: center; gap: 12px;">
+                                        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--primary), #6366f1); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; flex-shrink: 0;">
+                                            @(user.Nama.Length > 0 ? user.Nama.Substring(0, 1).ToUpper() : "U")
+                                        </div>
+                                        <div>
+                                            <div style="font-weight: 700; color: var(--text-primary);">@user.Nama</div>
+                                            <small style="color: var(--text-secondary); font-size: 11.5px;">@@@user.Username</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span style="font-family: monospace; font-size: 13px; font-weight: 700; background: rgba(0,0,0,0.05); padding: 4px 8px; border-radius: 6px; letter-spacing: 1px;">
+                                        @user.NPK
+                                    </span>
+                                </td>
+                                <td>
+                                    @{
+                                        var roleClass = user.Role switch
+                                        {
+                                            "Admin" => "background: rgba(124, 58, 237, 0.1); color: #7c3aed; border: 1px solid rgba(124, 58, 237, 0.2);",
+                                            "Dokter" => "background: rgba(26, 115, 232, 0.1); color: #1a73e8; border: 1px solid rgba(26, 115, 232, 0.2);",
+                                            "Perawat" => "background: rgba(13, 144, 79, 0.1); color: #0d904f; border: 1px solid rgba(13, 144, 79, 0.2);",
+                                            _ => "background: rgba(95, 99, 104, 0.1); color: #5f6368; border: 1px solid rgba(95, 99, 104, 0.2);"
+                                        };
+                                    }
+                                    <span style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; @roleClass">
+                                        <i class="bi bi-shield-lock" style="margin-right: 4px;"></i>@user.Role
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (user.Status == "Aktif")
+                                    {
+                                        <span class="badge-status rawat-jalan" style="display: inline-flex; align-items: center; gap: 5px;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success);"></span>
+                                            Aktif
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-status dirujuk" style="display: inline-flex; align-items: center; gap: 5px;">
+                                            <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--danger);"></span>
+                                            Non-Aktif
+                                        </span>
+                                    }
+                                </td>
+                                <td style="text-align: center;">
+                                    <div style="display: flex; gap: 6px; justify-content: center;">
+                                        <button type="button" class="btn-action btn-outline-custom btn-sm-custom"
+                                                onclick="openEditUserModal(@user.Id)"
+                                                title="Edit Data User"
+                                                style="color: var(--primary); border-color: rgba(26, 115, 232, 0.3);">
+                                            <i class="bi bi-pencil-square"></i> Edit data
+                                        </button>
+                                        @if (User.Identity?.Name != user.Username)
+                                        {
+                                            <form asp-action="DeleteUser" asp-route-id="@user.Id" method="post" style="display: inline;"
+                                                  onsubmit="return confirm('Apakah Anda yakin ingin menghapus user @user.Nama?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn-action btn-danger-custom btn-sm-custom" title="Hapus User">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                            no++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-people"></i>
+                <h5>Tidak ada data pengguna</h5>
+                <p>Belum ada data yang cocok dengan kriteria pencarian.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ===== MODAL USER (CREATE / EDIT) ===== -->
+<div class="modal-backdrop-custom" id="userModal" style="display: none;">
+    <div class="modal-dialog-custom">
+        <div class="modal-header-custom">
+            <h5 id="modalTitle" style="font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="bi bi-person-gear" style="color: var(--primary);"></i> Edit Data User
+            </h5>
+            <button type="button" class="btn-close-modal" onclick="closeUserModal()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
+        <form asp-action="SaveUser" method="post" id="userForm">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Id" id="userId" />
+
+            <div class="modal-body-custom">
+                <!-- Nama -->
+                <div class="form-group-custom" style="margin-bottom: 16px;">
+                    <label for="inputNama">Nama Lengkap *</label>
+                    <input type="text" name="Nama" id="inputNama" class="form-control-custom" placeholder="Contoh: Budi Santoso" required />
+                </div>
+
+                <!-- Username & NPK (4 Digit) -->
+                <div class="form-row" style="margin-bottom: 16px;">
+                    <div class="form-group-custom">
+                        <label for="inputUsername">Username *</label>
+                        <input type="text" name="Username" id="inputUsername" class="form-control-custom" placeholder="Contoh: budi123" required autocomplete="off" />
+                    </div>
+                    <div class="form-group-custom">
+                        <label for="inputNPK">NPK (4 Digit Angka) *</label>
+                        <input type="text" name="NPK" id="inputNPK" class="form-control-custom"
+                               placeholder="Contoh: 1001"
+                               maxlength="4"
+                               pattern="[0-9]{4}"
+                               inputmode="numeric"
+                               title="NPK harus berupa 4 digit angka"
+                               required />
+                        <small style="color: var(--text-secondary); font-size: 11px;">Tepat 4 digit angka</small>
+                    </div>
+                </div>
+
+                <!-- Password -->
+                <div class="form-group-custom" style="margin-bottom: 16px;">
+                    <label for="inputPassword" id="labelPassword">Password *</label>
+                    <div class="input-with-icon" style="position: relative;">
+                        <input type="password" name="Password" id="inputPassword" class="form-control-custom"
+                               placeholder="Masukkan password" autocomplete="new-password" />
+                        <button type="button" class="password-toggle-btn" onclick="toggleModalPassword()"
+                                style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer;">
+                            <i class="bi bi-eye" id="modalPwdIcon"></i>
+                        </button>
+                    </div>
+                    <small id="passwordHelp" style="color: var(--text-secondary); font-size: 11.5px; margin-top: 4px; display: none;">
+                        <i class="bi bi-info-circle"></i> Kosongkan jika tidak ingin mengubah password.
+                    </small>
+                </div>
+
+                <!-- Role & Status -->
+                <div class="form-row" style="margin-bottom: 8px;">
+                    <div class="form-group-custom">
+                        <label for="selectRole">Role / Peran *</label>
+                        <select name="Role" id="selectRole" class="form-control-custom" required>
+                            <option value="Admin">Admin</option>
+                            <option value="Dokter">Dokter</option>
+                            <option value="Perawat">Perawat</option>
+                            <option value="Staff">Staff</option>
+                        </select>
+                    </div>
+                    <div class="form-group-custom">
+                        <label for="selectStatus">Status *</label>
+                        <select name="Status" id="selectStatus" class="form-control-custom" required>
+                            <option value="Aktif">Aktif</option>
+                            <option value="Non-Aktif">Non-Aktif</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer-custom">
+                <button type="button" class="btn-action btn-outline-custom" onclick="closeUserModal()">Batal</button>
+                <button type="submit" class="btn-action btn-primary-custom" id="btnSubmitModal">
+                    <i class="bi bi-check-lg"></i> Simpan Perubahan
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* Modal Styles */
+    .modal-backdrop-custom {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        animation: fadeIn 0.2s ease-out;
+    }
+
+    .modal-dialog-custom {
+        background: #ffffff;
+        border-radius: 16px;
+        width: 100%;
+        max-width: 520px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-header-custom {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #f8fafc;
+    }
+
+    .modal-body-custom {
+        padding: 24px;
+    }
+
+    .modal-footer-custom {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        background: #f8fafc;
+    }
+
+    .btn-close-modal {
+        background: none;
+        border: none;
+        font-size: 18px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+        background: rgba(0,0,0,0.06);
+        color: var(--text-primary);
+    }
+
+    @@keyframes scaleUp {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+</style>
+
+@section Scripts {
+<script>
+    // Enforce NPK 4 digits only
+    document.getElementById('inputNPK').addEventListener('input', function (e) {
+        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
+    });
+
+    function openAddUserModal() {
+        document.getElementById('modalTitle').innerHTML = '<i class="bi bi-person-plus-fill" style="color: var(--primary);"></i> Tambah Pengguna Baru';
+        document.getElementById('userId').value = '';
+        document.getElementById('inputNama').value = '';
+        document.getElementById('inputUsername').value = '';
+        document.getElementById('inputNPK').value = '';
+        document.getElementById('inputPassword').value = '';
+        document.getElementById('inputPassword').required = true;
+        document.getElementById('labelPassword').innerText = 'Password *';
+        document.getElementById('passwordHelp').style.display = 'none';
+        document.getElementById('selectRole').value = 'Admin';
+        document.getElementById('selectStatus').value = 'Aktif';
+        document.getElementById('btnSubmitModal').innerHTML = '<i class="bi bi-plus-lg"></i> Tambah Pengguna';
+
+        document.getElementById('userModal').style.display = 'flex';
+    }
+
+    async function openEditUserModal(id) {
+        try {
+            const res = await fetch('@Url.Action("GetUser", "Master")/' + id);
+            const data = await res.json();
+            if (data.success) {
+                const u = data.data;
+                document.getElementById('modalTitle').innerHTML = '<i class="bi bi-pencil-square" style="color: var(--primary);"></i> Edit Data User';
+                document.getElementById('userId').value = u.id;
+                document.getElementById('inputNama').value = u.nama;
+                document.getElementById('inputUsername').value = u.username;
+                document.getElementById('inputNPK').value = u.npk;
+                document.getElementById('inputPassword').value = '';
+                document.getElementById('inputPassword').required = false;
+                document.getElementById('labelPassword').innerText = 'Password Baru (Opsional)';
+                document.getElementById('passwordHelp').style.display = 'block';
+                document.getElementById('selectRole').value = u.role;
+                document.getElementById('selectStatus').value = u.status;
+                document.getElementById('btnSubmitModal').innerHTML = '<i class="bi bi-check-lg"></i> Simpan Perubahan';
+
+                document.getElementById('userModal').style.display = 'flex';
+            } else {
+                alert('Gagal mengambil data user: ' + (data.message || 'Error'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Terjadi kesalahan saat memuat data');
+        }
+    }
+
+    function closeUserModal() {
+        document.getElementById('userModal').style.display = 'none';
+    }
+
+    function toggleModalPassword() {
+        const input = document.getElementById('inputPassword');
+        const icon = document.getElementById('modalPwdIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'bi bi-eye-slash';
+        } else {
+            input.type = 'password';
+            icon.className = 'bi bi-eye';
+        }
+    }
+
+    // Close on outside click or ESC
+    window.addEventListener('click', function(e) {
+        const modal = document.getElementById('userModal');
+        if (e.target === modal) {
+            closeUserModal();
+        }
+    });
+
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeUserModal();
+        }
+    });
+</script>
+}

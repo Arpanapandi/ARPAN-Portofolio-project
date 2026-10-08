@@ -1,0 +1,2245 @@
+@model OeeSystem.Models.ViewModels.MachineOeeViewModel
+@{
+    ViewData["Title"] = "OEE Detail - " + Model.MachineName;
+    // ✅ Set ViewData untuk menandai ini adalah halaman OEE Detail
+    ViewData["IsOeeDetailPage"] = true;
+    ViewData["MachineName"] = Model.MachineName;
+    ViewData["LineId"] = Model.LineId;
+    ViewData["ShiftName"] = string.IsNullOrEmpty(Model.ShiftName) ? $"Shift {Model.ShiftCode}" : Model.ShiftName;
+    ViewData["ShiftTime"] = $"{Model.ShiftStart:HH:mm} - {Model.ShiftEnd:HH:mm}";
+    ViewData["StandarCycleTime"] = Model.StandarCycleTime.ToString("F1");
+    ViewData["MachineStatus"] = Model.Status;
+    
+    var shiftDateStr = Model.ShiftDate.ToString("yyyy-MM-dd");
+    var shiftStartStr = Model.ShiftStart.ToString("HH:mm");
+    var shiftEndStr = Model.ShiftEnd.ToString("HH:mm");
+}
+
+<!-- ✅ Status badge dan back button sudah dipindahkan ke navbar -->
+
+<div id="shift-meta"
+     data-shift-key="@Model.ShiftKey"
+     data-shift-date="@shiftDateStr"
+     data-shift-code="@Model.ShiftCode"
+     data-shift-id="@(Model.ShiftId?.ToString() ?? "")"></div>
+
+<!-- Machine Actions Section - Compact with Inline Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center" style="padding: 0.75rem 1rem;">
+                <div>
+                    <i class="fa-solid fa-sliders me-2"></i>Machine Actions
+                </div>
+                <div>
+                    <span class="badge @(Model.MachineStatus == MachineStatus.Aktif ? "bg-success" : "bg-warning")" id="machine-status-badge">
+                        @(Model.MachineStatus == MachineStatus.Aktif ? "AKTIF" : "TIDAK AKTIF")
+                    </span>
+                    @if (Model.MachineStatus == MachineStatus.TidakAktif)
+                    {
+                        <span class="small text-warning ms-2" id="machine-status-info">
+                            <i class="fa-solid fa-exclamation-triangle me-1"></i>Machine di-set Tidak Aktif di Admin
+                        </span>
+                    }
+                    else if (Model.HasActiveDowntime && !string.IsNullOrEmpty(Model.ActiveDowntimeDescription))
+                    {
+                        <span class="small text-danger ms-2" id="downtime-description">
+                            @Model.ActiveDowntimeDescription
+                        </span>
+                    }
+                </div>
+            </div>
+            <div class="card-body" style="padding: 1rem;">
+                <!-- Action Buttons - Compact Horizontal Layout (centered) -->
+                <div class="row g-2 justify-content-center text-center">
+                    <!-- RUNNING PROCESS Button -->
+                    <div class="col-md-2 col-6">
+                        <form asp-controller="Operator" asp-action="Start" method="post" id="running-form" style="margin: 0;">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="machineId" value="@Model.MachineId" />
+                            <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                            <button type="submit" 
+                                    id="btn-running" 
+                                    class="btn w-100 btn-outline-success machine-action-btn"
+                                    style="pointer-events: auto !important; cursor: pointer !important;">
+                                <i class="fa-solid fa-play-circle me-1"></i>
+                                RUNNING
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- REST BREAK Button -->
+                    @if (Model.RestReason != null)
+                    {
+                        <div class="col-md-2 col-6">
+                            <form asp-controller="Operator" asp-action="Rest" method="post" id="rest-form" style="margin: 0;">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="machineId" value="@Model.MachineId" />
+                                <input type="hidden" name="reasonId" value="@Model.RestReason.Id" />
+                                <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                <button type="submit" 
+                                        id="btn-rest" 
+                                        class="btn w-100 btn-outline-warning machine-action-btn"
+                                        style="pointer-events: auto !important; cursor: pointer !important;">
+                                    <i class="fa-solid fa-pause-circle me-1"></i>
+                                    REST BREAK
+                                </button>
+                            </form>
+                        </div>
+                    }
+
+                    <!-- LINE STOP Button -->
+                    <div class="col-md-2 col-6">
+                        <button type="button" 
+                                id="btn-line-stop" 
+                                class="btn w-100 btn-outline-danger machine-action-btn"
+                                style="pointer-events: auto !important; cursor: pointer !important;"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#lineStopModal">
+                            <i class="fa-solid fa-stop-circle me-1"></i>
+                            LINE STOP
+                        </button>
+                    </div>
+
+                    <!-- NO LOADING Button -->
+                    <div class="col-md-2 col-6">
+                        <button type="button" 
+                                id="btn-no-loading" 
+                                class="btn w-100 btn-outline-info machine-action-btn"
+                                style="pointer-events: auto !important; cursor: pointer !important;"
+                                data-bs-toggle="modal" 
+                                data-bs-target="#noLoadingModal">
+                            <i class="fa-regular fa-hourglass-half me-1"></i>
+                            NOLOADING
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scan Data Produksi Section -->
+<div class="row mb-4">
+    <!-- Left Side: Man Power & Injection -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header" style="padding: 0.75rem 1rem;">
+                <i class="fa-solid fa-users me-2"></i>Man Power & Injection
+            </div>
+            <div class="card-body" style="padding: 1rem;">
+                <!-- Man Power Field -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Man Power <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" id="select-man-power" required>
+                        <option value="">-- Pilih Man Power --</option>
+                        @if (ViewBag.ManPowers != null)
+                        {
+                            @foreach (var mp in (List<OeeSystem.Models.ManPower>)ViewBag.ManPowers)
+                            {
+                                @if (mp.IsActive)
+                                {
+                                    @if (Model.ActiveJob?.ManPowerId == mp.Id)
+                                    {
+                                        <option value="@mp.Id" selected>@mp.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@mp.Id">@mp.Name</option>
+                                    }
+                                }
+                            }
+                        }
+                    </select>
+                </div>
+
+                <!-- Injection Field -->
+                <div class="mb-2">
+                    <label class="form-label fw-bold">
+                        Group Injection <span class="text-danger">*</span>
+                    </label>
+                    <div class="d-flex gap-2" role="group" id="injection-group">
+                        <input type="radio" class="btn-check" name="injection" id="injection-merah" value="merah" required>
+                        <label class="btn btn-outline-danger flex-fill" for="injection-merah">
+                            <i class="fa-solid fa-circle me-1" style="color: #dc3545;"></i>Merah
+                        </label>
+
+                        <input type="radio" class="btn-check" name="injection" id="injection-biru" value="biru" required>
+                        <label class="btn btn-outline-primary flex-fill" for="injection-biru">
+                            <i class="fa-solid fa-circle me-1" style="color: #0d6efd;"></i>Biru
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side: Scan Data Produksi (50% width) -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header" style="padding: 0.75rem 1rem;">
+                <i class="fa-solid fa-qrcode me-2"></i>Scan Data Produksi
+            </div>
+            <div class="card-body" style="padding: 1rem;">
+                <!-- Part Number Field -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        Part Number <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group position-relative">
+                        <button type="button" 
+                                class="btn btn-outline-primary border-end-0" 
+                                id="btn-scan-part-number"
+                                style="border-top-right-radius: 0; border-bottom-right-radius: 0; z-index: 1;">
+                            <i class="fa-solid fa-qrcode"></i>
+                        </button>
+                        <input type="text" 
+                               class="form-control border-start-0 border-end-0" 
+                               id="input-part-number" 
+                               placeholder="Tap to scan Part Number"
+                               style="padding-left: 0.5rem;"
+                               required />
+                        <button type="button" 
+                                class="btn btn-outline-primary border-start-0" 
+                                id="btn-edit-part-number"
+                                style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                            <i class="fa-solid fa-pencil"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- No Lot Produksi Field -->
+                <div class="mb-2">
+                    <label class="form-label fw-bold">
+                        No Lot Produksi <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group position-relative">
+                        <button type="button" 
+                                class="btn btn-outline-primary border-end-0" 
+                                id="btn-scan-lot-number"
+                                style="border-top-right-radius: 0; border-bottom-right-radius: 0; z-index: 1;">
+                            <i class="fa-solid fa-qrcode"></i>
+                        </button>
+                        <input type="text" 
+                               class="form-control border-start-0 border-end-0" 
+                               id="input-lot-number" 
+                               placeholder="Tap to scan No Lot Produksi"
+                               style="padding-left: 0.5rem;"
+                               required />
+                        <button type="button" 
+                                class="btn btn-outline-primary border-start-0" 
+                                id="btn-edit-lot-number"
+                                style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
+                            <i class="fa-solid fa-pencil"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Scanner -->
+<div class="modal fade" id="scannerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Scan Barcode/QR Code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="scanner-container" style="width: 100%; min-height: 300px; position: relative;">
+                    <div id="scanner-reader" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="btn-stop-scanner">Stop Scanner</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- OEE KPI Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card kpi-card border-primary" style="margin-bottom: 0;">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">OEE</div>
+                        <div class="kpi-value text-primary">@Model.Oee.ToString("F0")%</div>
+                    </div>
+                    <i class="fa-solid fa-chart-line fa-2x text-primary opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card border-success" style="margin-bottom: 0;">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">Availability</div>
+                        <div class="kpi-value text-success">@Model.Availability.ToString("F0")%</div>
+                    </div>
+                    <i class="fa-solid fa-clock fa-2x text-success opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card border-warning" style="margin-bottom: 0;">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">Performance</div>
+                        <div class="kpi-value text-warning">@Model.Performance.ToString("F0")%</div>
+                    </div>
+                    <i class="fa-solid fa-gauge-high fa-2x text-warning opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card kpi-card border-info" style="margin-bottom: 0;">
+            <div class="card-body" style="padding: 1.25rem;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="text-secondary small mb-1">Quality</div>
+                        <div class="kpi-value text-info">@Model.Quality.ToString("F0")%</div>
+                    </div>
+                    <i class="fa-solid fa-check-circle fa-2x text-info opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- Time Metrics -->
+    <div class="col-md-3">
+        <div class="card h-100" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-clock me-2"></i>Time Metrics
+            </div>
+            <div class="card-body d-flex flex-column" style="padding: 1.25rem;">
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Planned Production</span>
+                        <span class="fw-semibold" id="planned-production-time">@Model.PlannedProductionTime.ToString(@"hh\:mm\:ss")</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-primary" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Operating Time</span>
+                        <span class="fw-semibold text-success" id="operating-time">@Model.OperatingTime.ToString(@"hh\:mm\:ss")</span>
+                    </div>
+                    <div class="progress" style="height: 6px; background-color: #e9ecef;">
+                        @{
+                            var operatingPercent = Model.PlannedProductionTime.TotalSeconds > 0 
+                                ? (Model.OperatingTime.TotalSeconds / Model.PlannedProductionTime.TotalSeconds * 100) 
+                                : 0;
+                            
+                            // Logika warna dinamis: Hijau >=80%, Kuning 50-80%, Merah <50%
+                            string operatingColor;
+                            if (operatingPercent >= 80)
+                            {
+                                operatingColor = "#28a745";
+                            }
+                            else if (operatingPercent >= 50)
+                            {
+                                operatingColor = "#ffc107";
+                            }
+                            else
+                            {
+                                operatingColor = "#dc3545";
+                            }
+                        }
+                        <div class="progress-bar" id="operating-progress-bar" style="width: @operatingPercent.ToString("F1")%; background-color: @operatingColor !important; min-width: 2px;"></div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Downtime</span>
+                        <span class="fw-semibold text-danger" id="downtime-total">@Model.DowntimeTotal.ToString(@"hh\:mm\:ss")</span>
+                    </div>
+                    <div class="progress" style="height: 6px; background-color: #e9ecef;">
+                        @{
+                            var downtimePercent = Model.PlannedProductionTime.TotalSeconds > 0 
+                                ? (Model.DowntimeTotal.TotalSeconds / Model.PlannedProductionTime.TotalSeconds * 100) 
+                                : 0;
+                            
+                            // Logika warna dinamis: Merah >20%, Kuning 10-20%, Hijau <10%
+                            string downtimeColor;
+                            if (downtimePercent > 20)
+                            {
+                                downtimeColor = "#dc3545";
+                            }
+                            else if (downtimePercent > 10)
+                            {
+                                downtimeColor = "#ffc107";
+                            }
+                            else
+                            {
+                                downtimeColor = "#28a745";
+                            }
+                        }
+                        <div class="progress-bar" id="downtime-progress-bar" style="width: @downtimePercent.ToString("F1")%; background-color: @downtimeColor !important; min-width: 2px;"></div>
+                    </div>
+                </div>
+                <!-- ✅ PERBAIKAN: Tambahkan Rest Break -->
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Rest Break</span>
+                        <span class="fw-semibold text-warning" id="rest-break-time">00:00:00</span>
+                    </div>
+                    <div class="progress" style="height: 6px; background-color: #e9ecef;">
+                        @{
+                            var restBreakPercent = 0;
+                        }
+                        <div class="progress-bar" id="rest-break-progress-bar" style="width: @restBreakPercent.ToString("F1")%; background-color: #ffc107 !important; min-width: 2px;"></div>
+                    </div>
+                </div>
+                <!-- ✅ PERBAIKAN: Tambahkan No Loading -->
+                <div class="mt-auto">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">No Loading</span>
+                        <span class="fw-semibold text-info" id="no-loading-time">00:00:00</span>
+                    </div>
+                    <div class="progress" style="height: 6px; background-color: #e9ecef;">
+                        @{
+                            var noLoadingPercent = 0;
+                        }
+                        <div class="progress-bar" id="no-loading-progress-bar" style="width: @noLoadingPercent.ToString("F1")%; background-color: #0dcaf0 !important; min-width: 2px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Production Metrics -->
+    <div class="col-md-3">
+        <div class="card h-100" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-boxes me-2"></i>Production Metrics
+            </div>
+            <div class="card-body d-flex flex-column" style="padding: 1.25rem;">
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-primary">
+                            <i class="fa-solid fa-box me-1"></i>Total Produced
+                        </span>
+                        <span class="fw-semibold text-primary">@Model.TotalCount</span>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                        <div class="progress-bar bg-primary" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="fw-semibold" style="color: #28a745 !important;">
+                            <i class="fa-solid fa-check-circle me-1"></i>Good
+                        </span>
+                        <span class="fw-bold" style="color: #28a745 !important;">@Model.GoodCount</span>
+                    </div>
+                    <div class="progress" style="height: 8px; background-color: #e9ecef;">
+                        @{
+                            var goodPercent = Model.TotalCount > 0 ? (Model.GoodCount * 100.0 / Model.TotalCount) : 0;
+                            
+                            // Logika warna dinamis: Hijau >=95%, Kuning 80-95%, Merah <80%
+                            string goodColor;
+                            if (goodPercent >= 95)
+                            {
+                                goodColor = "#28a745";
+                            }
+                            else if (goodPercent >= 80)
+                            {
+                                goodColor = "#ffc107";
+                            }
+                            else
+                            {
+                                goodColor = "#dc3545";
+                            }
+                        }
+                        <div class="progress-bar" id="good-progress-bar" style="width: @goodPercent.ToString("F1")%; background-color: @goodColor !important; min-width: 2px;"></div>
+                    </div>
+                </div>
+                <div class="mt-auto">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="fw-semibold" style="color: #dc3545 !important;">
+                            <i class="fa-solid fa-times-circle me-1"></i>Reject
+                        </span>
+                        <span class="fw-bold" style="color: #dc3545 !important;">@Model.RejectCount</span>
+                    </div>
+                    <div class="progress" style="height: 8px; background-color: #e9ecef;">
+                        @{
+                            var rejectPercent = Model.TotalCount > 0 ? (Model.RejectCount * 100.0 / Model.TotalCount) : 0;
+                            
+                            // Logika warna dinamis: Merah >5%, Kuning 2-5%, Hijau <2%
+                            string rejectColor;
+                            if (rejectPercent > 5)
+                            {
+                                rejectColor = "#dc3545";
+                            }
+                            else if (rejectPercent > 2)
+                            {
+                                rejectColor = "#ffc107";
+                            }
+                            else
+                            {
+                                rejectColor = "#28a745";
+                            }
+                        }
+                        <div class="progress-bar" id="reject-progress-bar" style="width: @rejectPercent.ToString("F1")%; background-color: @rejectColor !important; min-width: 2px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current Job -->
+    <div class="col-md-6">
+        <div class="card h-100" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 0.75rem 1rem;">
+                <i class="fa-solid fa-clipboard-list me-2"></i>Current Job
+            </div>
+            <div class="card-body d-flex flex-column" style="padding: 0.75rem 1rem;">
+                @if (Model.ActiveJob != null)
+                {
+                    <div class="row gy-2 gx-1 h-100">
+                        <!-- Left Section: Product Image/Name -->
+                        <div class="col-5 d-flex flex-column">
+                            <div class="mb-1">
+                                @if (!string.IsNullOrEmpty(Model.ActiveJob.ProductImageUrl))
+                                {
+                                    <img src="@Model.ActiveJob.ProductImageUrl" alt="@(Model.ActiveJob?.ProductName ?? "Product")" 
+                                         class="img-fluid rounded mb-2" style="max-height: 200px; max-width: 100%; width: auto; height: auto; object-fit: contain;" />
+                                }
+                                else
+                                {
+                                    <div class="text-center mb-2" style="min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                                        <span class="text-secondary">@Model.ActiveJob.ProductName</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="mt-auto">
+                                <div class="fw-semibold small">@(Model.ActiveJob?.ProductName ?? "Unknown Product")</div>
+                                <div class="text-secondary small">@(Model.ActiveJob?.WorkOrderNumber ?? "-")</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Section: Progress & Info -->
+                        <div class="col-7 d-flex flex-column ps-2">
+                            <!-- QUANTITY di atas progress, selebar area progress -->
+                            <div class="mb-2">
+                                <button type="button" 
+                                        class="btn btn-sm btn-primary w-100"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#addQtyModal">
+                                    <i class="fa-solid fa-plus-circle me-1"></i>
+                                    QUANTITY
+                                </button>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Progress</span>
+                                    <span id="progress-text">@Model.GoodCount / @(Model.ActiveJob?.TargetQuantity ?? 0)</span>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    @{
+                                        var targetQty = Model.ActiveJob?.TargetQuantity ?? 0;
+                                        var progressPercent = targetQty > 0 
+                                            ? (Model.GoodCount * 100.0 / targetQty) 
+                                            : 0;
+                                        if (progressPercent > 100) progressPercent = 100;
+                                    }
+                                    <div id="progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: @progressPercent.ToString("F1")%;" aria-valuenow="@progressPercent" aria-valuemin="0" aria-valuemax="100">
+                                        <span id="progress-percent" class="small">@progressPercent.ToString("F1")%</span>
+                                    </div>
+                                </div>
+                                <div class="small mt-1 text-secondary">
+                                    Total Good: <span id="total-good" class="fw-bold text-success">@Model.GoodCount</span> • 
+                                    Reject: <span id="total-reject" class="fw-bold text-danger">@Model.RejectCount</span>
+                                </div>
+                                @if ((Model.ActiveJob?.TargetQuantity ?? 0) > 0)
+                                {
+                                    <div class="small mt-1 text-info">
+                                        <i class="fa-solid fa-clock me-1"></i>
+                                        Est. Completion: <span id="estimated-completion">@(ViewData["EstimatedCompletion"] ?? "-")</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="mt-auto">
+                                <div class="small text-secondary mb-2">
+                                    <div class="mb-1"><i class="fa-solid fa-user me-1"></i>Operator: @(Model.ActiveJob?.OperatorName ?? "Unknown")</div>
+                                    <div class="mb-1"><i class="fa-solid fa-play me-1"></i>Started: @(Model.ActiveJob?.StartTime.ToString("MM/dd HH:mm") ?? "-")</div>
+                                </div>
+                                <!-- Durasi sejak status terakhir - Prominent -->
+                                <div class="pt-2 border-top">
+                                    <div class="text-secondary small mb-1">Durasi sejak status terakhir</div>
+                                    <div class="fs-4 fw-bold text-primary" id="since-last-status">
+                                        @{
+                                            var sinceLastChangeSeconds = Model.ActiveJob?.SinceLastChangeSeconds ?? 0;
+                                            var sinceLastChange = TimeSpan.FromSeconds(sinceLastChangeSeconds);
+                                        }
+                                        @sinceLastChange.ToString(@"hh\:mm\:ss")
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center text-secondary py-5 my-auto">
+                        <i class="fa-solid fa-inbox fa-3x mb-3 opacity-50"></i>
+                        <div class="fw-semibold">No active job</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Modal Line Stop -->
+    <div class="modal fade" id="lineStopModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">LINE STOP - Pilih Alasan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form asp-controller="Operator" asp-action="LineStop" method="post" id="line-stop-start-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="machineId" value="@Model.MachineId" />
+                    <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Pilih Alasan Line Stop:</label>
+                            <select class="form-select" name="reasonId" required>
+                                <option value="">-- Pilih Alasan --</option>
+                                @foreach (var r in Model.LineStopReasons)
+                                {
+                                    <option value="@r.Id">@r.Description (@r.Category)</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fa-solid fa-play me-2"></i>START LINE STOP
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal No Loading -->
+    <div class="modal fade" id="noLoadingModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">NO LOADING - Konfirmasi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form asp-controller="Operator" asp-action="NoLoading" method="post" id="no-loading-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="machineId" value="@Model.MachineId" />
+                    <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fa-solid fa-info-circle me-2"></i>
+                            Mesin akan di-set ke status <strong>NO LOADING</strong>. Status ini menandakan mesin tidak memiliki material untuk diproses.
+                        </div>
+                        <div class="alert alert-warning">
+                            <i class="fa-solid fa-exclamation-triangle me-2"></i>
+                            <strong>Catatan Penting:</strong> Waktu NO LOADING <strong>tidak akan</strong> dihitung sebagai Operating Time atau Downtime.
+                        </div>
+                        <p>Apakah Anda yakin ingin melanjutkan?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-info">
+                            <i class="fa-solid fa-check me-2"></i>KONFIRMASI NO LOADING
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Qty -->
+    <div class="modal fade" id="addQtyModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Tambah Output</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form asp-controller="Operator" asp-action="AddQuantity" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="machineId" value="@Model.MachineId" />
+                    <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Good Qty</label>
+                            <input type="number" class="form-control" name="goodQty" value="0" min="0" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Reject Qty</label>
+                            <input type="number" class="form-control" name="rejectQty" value="0" min="0" required />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Jenis NG (jika ada reject)</label>
+                            <select class="form-select" name="ngTypeId">
+                                <option value="">-- Pilih Jenis NG --</option>
+                                @foreach (var ng in Model.NgTypes)
+                                {
+                                    <option value="@ng.Id">@ng.Code - @ng.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Alasan Reject (optional)</label>
+                            <input type="text" class="form-control" name="rejectReason" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Group Injection <span class="text-danger">*</span></label>
+                            <div class="d-flex gap-2" role="group">
+                                <input type="radio" class="btn-check" name="injection" id="modal-injection-merah" value="merah" required>
+                                <label class="btn btn-outline-danger flex-fill" for="modal-injection-merah">
+                                    <i class="fa-solid fa-circle me-1" style="color: #dc3545;"></i>Merah
+                                </label>
+                                <input type="radio" class="btn-check" name="injection" id="modal-injection-biru" value="biru" required>
+                                <label class="btn btn-outline-primary flex-fill" for="modal-injection-biru">
+                                    <i class="fa-solid fa-circle me-1" style="color: #0d6efd;"></i>Biru
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<div class="row g-4 mb-4">
+    <!-- Recent Downtimes -->
+    <div class="col-md-6">
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>Recent Downtimes
+            </div>
+            <div class="card-body" style="padding: 1.25rem;">
+                @if (Model.RecentDowntimes != null && Model.RecentDowntimes.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-dark table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Reason</th>
+                                    <th>Start</th>
+                                    <th>Duration</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var dt in Model.RecentDowntimes)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="small">@(dt.ReasonDescription ?? "-")</div>
+                                            <div class="text-secondary" style="font-size: 0.7rem;">@(dt.ReasonCategory ?? "-")</div>
+                                        </td>
+                                        <td class="small">@dt.StartTime.ToString("MM/dd HH:mm")</td>
+                                        <td>
+                                            @if (dt.EndTime.HasValue)
+                                            {
+                                                <span class="text-success">@TimeSpan.FromSeconds(dt.DurationSeconds).ToString(@"hh\:mm\:ss")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-danger">Ongoing</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (dt.EndTime.HasValue)
+                                            {
+                                                <span class="badge bg-success">Closed</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger">Active</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center text-secondary py-3">
+                        <i class="fa-solid fa-check-circle fa-2x mb-2"></i>
+                        <div>No downtime recorded</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Production Counts -->
+    <div class="col-md-6">
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-chart-column me-2"></i>Recent Production Counts
+            </div>
+            <div class="card-body" style="padding: 1.25rem;">
+                @if (Model.RecentProductionCounts != null && Model.RecentProductionCounts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-dark table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th class="text-end">Good</th>
+                                    <th class="text-end">Reject</th>
+                                    <th>Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var pc in Model.RecentProductionCounts)
+                                {
+                                    <tr>
+                                        <td class="small">@pc.Timestamp.ToString("MM/dd HH:mm")</td>
+                                        <td class="text-end text-success">@(pc.GoodCount)</td>
+                                        <td class="text-end text-danger">@(pc.RejectCount)</td>
+                                        <td class="small text-secondary">@(pc.RejectReason ?? "-")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center text-secondary py-3">
+                        <i class="fa-solid fa-inbox fa-2x mb-2"></i>
+                        <div>No production counts</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="row g-4 mb-4">
+    <!-- Machine Run Time Donut Chart -->
+    <div class="col-md-4">
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-clock me-2"></i>Machine Run Time (min)
+            </div>
+            <div class="card-body" style="padding: 1.25rem;">
+                <canvas id="runTimeDonutChart" style="max-height: 300px;"></canvas>
+                <div class="text-center mt-3">
+                    <div class="fw-bold">Total @((Model.ChartData?.RunTimeMinutes ?? 0) + (Model.ChartData?.IdleTimeMinutes ?? 0) + (Model.ChartData?.OffTimeMinutes ?? 0))</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OEE Analysis Bar Chart -->
+    <div class="col-md-4">
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-chart-bar me-2"></i>OEE Analysis
+            </div>
+            <div class="card-body" style="padding: 1.25rem;">
+                <canvas id="oeeBarChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Operation Trend -->
+    <div class="col-md-4">
+        <div class="card" style="margin-bottom: 0;">
+            <div class="card-header" style="padding: 1rem 1.25rem;">
+                <i class="fa-solid fa-chart-line me-2"></i>Machine Operation Trend
+            </div>
+            <div class="card-body" style="padding: 1.25rem;">
+                <canvas id="weeklyTrendChart" style="max-height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Progress bar colors dinamis - warna akan diatur berdasarkan data proses mesin */
+    /* Operating Time: Hijau >=80%, Kuning 50-80%, Merah <50% */
+    /* Downtime: Merah >20%, Kuning 10-20%, Hijau <10% */
+    /* Good: Hijau >=95%, Kuning 80-95%, Merah <80% */
+    /* Reject: Merah >5%, Kuning 2-5%, Hijau <2% */
+    
+    /* Pastikan progress bar memiliki min-width untuk visibility */
+    #operating-progress-bar,
+    #downtime-progress-bar,
+    #good-progress-bar,
+    #reject-progress-bar {
+        min-width: 2px;
+        transition: background-color 0.3s ease;
+    }
+    
+    /* Scan Data Produksi Styles */
+    .input-group .form-control {
+        border-color: #dee2e6;
+    }
+    
+    .input-group .btn-outline-primary {
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+    
+    .input-group .btn-outline-primary:hover {
+        background-color: #0d6efd;
+        color: #fff;
+    }
+    
+    .form-control.border-success {
+        border-color: #198754 !important;
+        box-shadow: 0 0 0 0.2rem rgba(25, 135, 84, 0.25);
+    }
+    
+    #scanner-reader {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    #scanner-reader video {
+        border-radius: 8px;
+    }
+    
+    /* Injection Button Group Styles */
+    #injection-group .btn-check:checked + .btn-outline-danger {
+        background-color: #dc3545;
+        border-color: #dc3545;
+        color: #fff;
+    }
+    
+    #injection-group .btn-check:checked + .btn-outline-primary {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+    }
+    
+    #injection-group .btn:hover {
+        transform: scale(1.02);
+        transition: transform 0.2s ease;
+    }
+</style>
+
+@section Scripts {
+    <script>
+        // ========== SCANNER FUNCTIONALITY ==========
+        let html5QrCode = null;
+        let currentScanTarget = null; // 'part-number' or 'lot-number'
+        let scannerLibraryLoaded = false;
+        
+        // Load scanner library dynamically
+        function loadScannerLibrary() {
+            return new Promise((resolve, reject) => {
+                if (typeof Html5Qrcode !== 'undefined') {
+                    scannerLibraryLoaded = true;
+                    resolve();
+                    return;
+                }
+                
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+                script.async = true;
+                script.onload = () => {
+                    scannerLibraryLoaded = true;
+                    resolve();
+                };
+                script.onerror = () => {
+                    console.error('Failed to load html5-qrcode library');
+                    reject(new Error('Failed to load scanner library'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Initialize scanner functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+            const scannerModal = document.getElementById('scannerModal');
+            
+            // Part Number Scan Button
+            const btnScanPartNumber = document.getElementById('btn-scan-part-number');
+            if (btnScanPartNumber) {
+                btnScanPartNumber.addEventListener('click', function() {
+                    currentScanTarget = 'part-number';
+                    openScanner();
+                });
+            }
+            
+            // Lot Number Scan Button
+            const btnScanLotNumber = document.getElementById('btn-scan-lot-number');
+            if (btnScanLotNumber) {
+                btnScanLotNumber.addEventListener('click', function() {
+                    currentScanTarget = 'lot-number';
+                    openScanner();
+                });
+            }
+            
+            // Edit Buttons - Enable manual input
+            const btnEditPartNumber = document.getElementById('btn-edit-part-number');
+            if (btnEditPartNumber) {
+                btnEditPartNumber.addEventListener('click', function() {
+                    const input = document.getElementById('input-part-number');
+                    if (input) {
+                        input.disabled = false;
+                        input.focus();
+                        input.select();
+                    }
+                });
+            }
+            
+            const btnEditLotNumber = document.getElementById('btn-edit-lot-number');
+            if (btnEditLotNumber) {
+                btnEditLotNumber.addEventListener('click', function() {
+                    const input = document.getElementById('input-lot-number');
+                    if (input) {
+                        input.disabled = false;
+                        input.focus();
+                        input.select();
+                    }
+                });
+            }
+            
+            // Stop Scanner Button
+            const btnStopScanner = document.getElementById('btn-stop-scanner');
+            if (btnStopScanner) {
+                btnStopScanner.addEventListener('click', function() {
+                    stopScanner();
+                });
+            }
+            
+            // Close modal and stop scanner
+            if (scannerModal) {
+                scannerModal.addEventListener('hidden.bs.modal', function() {
+                    stopScanner();
+                });
+            }
+            } catch (error) {
+                console.error('Error initializing scanner functionality:', error);
+            }
+        });
+        
+        async function openScanner() {
+            // Load library if not already loaded
+            if (!scannerLibraryLoaded) {
+                try {
+                    await loadScannerLibrary();
+                } catch (error) {
+                    alert('Gagal memuat library scanner. Silakan refresh halaman.');
+                    return;
+                }
+            }
+            
+            // Check if Html5Qrcode is available
+            if (typeof Html5Qrcode === 'undefined') {
+                alert('Scanner library belum dimuat. Silakan refresh halaman.');
+                return;
+            }
+            
+            // Reset scanner container
+            const scannerReader = document.getElementById('scanner-reader');
+            if (scannerReader) {
+                scannerReader.innerHTML = '';
+            }
+            
+            // Show modal
+            const scannerModalEl = document.getElementById('scannerModal');
+            if (!scannerModalEl) return;
+            
+            const scannerModal = new bootstrap.Modal(scannerModalEl);
+            scannerModal.show();
+            
+            // Initialize scanner after modal is shown
+            setTimeout(() => {
+                try {
+                    html5QrCode = new Html5Qrcode("scanner-reader");
+                    
+                    html5QrCode.start(
+                        { facingMode: "environment" }, // Use back camera
+                        {
+                            fps: 10,
+                            qrbox: { width: 250, height: 250 },
+                            aspectRatio: 1.0
+                        },
+                        (decodedText, decodedResult) => {
+                            // Success callback - handle scanned data
+                            handleScanSuccess(decodedText);
+                        },
+                        (errorMessage) => {
+                            // Error callback - ignore for continuous scanning
+                            // console.log(`Scan error: ${errorMessage}`);
+                        }
+                    ).catch((err) => {
+                        console.error('Error starting scanner:', err);
+                        alert('Gagal mengaktifkan kamera. Pastikan izin kamera sudah diberikan.');
+                        stopScanner();
+                        const scannerModalInstance = bootstrap.Modal.getInstance(scannerModalEl);
+                        if (scannerModalInstance) {
+                            scannerModalInstance.hide();
+                        }
+                    });
+                } catch (err) {
+                    console.error('Error initializing scanner:', err);
+                    alert('Gagal menginisialisasi scanner.');
+                }
+            }, 300);
+        }
+        
+        function handleScanSuccess(decodedText) {
+            // Stop scanner
+            stopScanner();
+            
+            // Close modal
+            const scannerModalEl = document.getElementById('scannerModal');
+            if (scannerModalEl) {
+                const scannerModal = bootstrap.Modal.getInstance(scannerModalEl);
+                if (scannerModal) {
+                    scannerModal.hide();
+                }
+            }
+            
+            // Fill input field based on target
+            if (currentScanTarget === 'part-number') {
+                const input = document.getElementById('input-part-number');
+                if (input) {
+                    input.value = decodedText;
+                    input.dispatchEvent(new Event('input'));
+                    showScanSuccess('part-number');
+                }
+            } else if (currentScanTarget === 'lot-number') {
+                const input = document.getElementById('input-lot-number');
+                if (input) {
+                    input.value = decodedText;
+                    input.dispatchEvent(new Event('input'));
+                    showScanSuccess('lot-number');
+                }
+            }
+        }
+        
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    html5QrCode = null;
+                }).catch((err) => {
+                    console.error('Error stopping scanner:', err);
+                    html5QrCode = null;
+                });
+            }
+        }
+        
+        function showScanSuccess(target) {
+            const inputId = target === 'part-number' ? 'input-part-number' : 'input-lot-number';
+            const input = document.getElementById(inputId);
+            
+            if (input) {
+                // Add success class temporarily
+                input.classList.add('border-success');
+                setTimeout(() => {
+                    input.classList.remove('border-success');
+                }, 2000);
+            }
+        }
+        
+        // ========== END SCANNER FUNCTIONALITY ==========
+        
+        // Donut Chart: Machine Run Time
+        const runTimeCtx = document.getElementById('runTimeDonutChart').getContext('2d');
+        new Chart(runTimeCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Run Time', 'Idle Time', 'Off Time'],
+                datasets: [{
+                    data: [
+                        @(Model.ChartData?.RunTimeMinutes ?? 0),
+                        @(Model.ChartData?.IdleTimeMinutes ?? 0),
+                        @(Model.ChartData?.OffTimeMinutes ?? 0)
+                    ],
+                    backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#e4e6eb',
+                            padding: 10
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.label + ': ' + context.parsed + ' min';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Bar Chart: OEE Analysis
+        const oeeBarCtx = document.getElementById('oeeBarChart').getContext('2d');
+        new Chart(oeeBarCtx, {
+            type: 'bar',
+            data: {
+                labels: ['OEE', 'Availability', 'Performance', 'Quality'],
+                datasets: [{
+                    label: 'Percentage (%)',
+                    data: [
+                        @(Model.ChartData?.OeeValue ?? 0),
+                        @(Model.ChartData?.AvailabilityValue ?? 0),
+                        @(Model.ChartData?.PerformanceValue ?? 0),
+                        @(Model.ChartData?.QualityValue ?? 0)
+                    ],
+                    backgroundColor: ['#3b82f6', '#22c55e', '#f59e0b', '#06b6d4'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        },
+                        grid: {
+                            color: '#23293a'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: '#9ca3af'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y.toFixed(1) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Stacked Bar Chart: Weekly Trend
+        const weeklyTrendCtx = document.getElementById('weeklyTrendChart').getContext('2d');
+        const weeklyLabels = [@Html.Raw(Model.ChartData?.WeeklyTrend != null ? string.Join(", ", Model.ChartData.WeeklyTrend.Select(t => $"'{t.DateLabel}'")) : "")];
+        const weeklyRunTime = [@Html.Raw(Model.ChartData?.WeeklyTrend != null ? string.Join(", ", Model.ChartData.WeeklyTrend.Select(t => t.RunTimeMinutes.ToString("F0"))) : "")];
+        const weeklyIdleTime = [@Html.Raw(Model.ChartData?.WeeklyTrend != null ? string.Join(", ", Model.ChartData.WeeklyTrend.Select(t => t.IdleTimeMinutes.ToString("F0"))) : "")];
+        const weeklyOffTime = [@Html.Raw(Model.ChartData?.WeeklyTrend != null ? string.Join(", ", Model.ChartData.WeeklyTrend.Select(t => t.OffTimeMinutes.ToString("F0"))) : "")];
+
+        new Chart(weeklyTrendCtx, {
+            type: 'bar',
+            data: {
+                labels: weeklyLabels,
+                datasets: [
+                    {
+                        label: 'Run Time',
+                        data: weeklyRunTime,
+                        backgroundColor: '#3b82f6',
+                        borderWidth: 0
+                    },
+                    {
+                        label: 'Idle Time',
+                        data: weeklyIdleTime,
+                        backgroundColor: '#22c55e',
+                        borderWidth: 0
+                    },
+                    {
+                        label: 'Off Time',
+                        data: weeklyOffTime,
+                        backgroundColor: '#ef4444',
+                        borderWidth: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    x: {
+                        stacked: true,
+                        ticks: {
+                            color: '#9ca3af'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) {
+                                return value + ' min';
+                            }
+                        },
+                        grid: {
+                            color: '#23293a'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#e4e6eb',
+                            padding: 10
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y + ' min';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+
+    <script>
+        // ========== REAL-TIME TIME METRICS UPDATE ==========
+        const machineId = '@Model.MachineId';
+        let timeMetricsInterval = null;
+        let realTimeCounter = 0; // Counter yang bertambah setiap detik
+        let basePlannedSeconds = @Model.PlannedProductionTime.TotalSeconds;
+        let baseOperatingSeconds = @Model.OperatingTime.TotalSeconds;
+        let baseDowntimeSeconds = @Model.DowntimeTotal.TotalSeconds;
+        let baseRestBreakSeconds = 0; // ✅ PERBAIKAN: Base Rest Break time dari backend
+        let baseNoLoadingSeconds = 0; // ✅ PERBAIKAN: Base No Loading time dari backend
+        let baseNoLoadingSeconds = 0; // ✅ PERBAIKAN: Base No Loading time dari backend
+        const shiftMetaEl = document.getElementById('shift-meta');
+        const shiftDate = shiftMetaEl?.dataset.shiftDate || '';
+        const shiftCode = shiftMetaEl?.dataset.shiftCode || '';
+        const shiftId = shiftMetaEl?.dataset.shiftId || '';
+        let lastShiftKey = shiftMetaEl?.dataset.shiftKey || '';
+
+        // Format seconds to HH:mm:ss
+        function formatTime(seconds) {
+            // Handle NaN, undefined, or invalid values
+            if (isNaN(seconds) || seconds === null || seconds === undefined) {
+                return "00:00:00";
+            }
+            
+            // Ensure seconds is a valid number
+            seconds = Math.max(0, Math.floor(Number(seconds)));
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // Start real-time counter
+        function startTimeCounter() {
+            // Clear existing interval
+            if (timeMetricsInterval) {
+                clearInterval(timeMetricsInterval);
+                timeMetricsInterval = null;
+            }
+
+            // Update every second - PASTIKAN selalu dipanggil
+            timeMetricsInterval = setInterval(() => {
+                try {
+                    realTimeCounter++; // Increment counter setiap detik
+                    updateTimeDisplay(); // Update display setiap detik
+                } catch (error) {
+                    console.error('❌ Error in real-time counter:', error);
+                }
+            }, 1000);
+            
+            console.log('✅ Real-time counter started - akan update setiap detik');
+            console.log('⏱️ Interval ID:', timeMetricsInterval);
+            
+            // Verify interval is running
+            setTimeout(() => {
+                if (timeMetricsInterval) {
+                    console.log('✅ Real-time counter verified - running correctly');
+                } else {
+                    console.error('❌ Real-time counter failed to start!');
+                }
+            }, 2000);
+        }
+
+        // Store active job/downtime info - Initialize dari server-side data
+        let hasActiveJob = @(Model.ActiveJob != null ? "true" : "false");
+        @{
+            var hasActiveDowntimeValue = Model.RecentDowntimes != null && Model.RecentDowntimes.Any(d => !d.EndTime.HasValue);
+        }
+        let hasActiveDowntime = @(hasActiveDowntimeValue ? "true" : "false");
+        let isNoLoading = false; // Track status NoLoading - tidak masuk ke Operating Time atau Downtime
+        let hasActiveRestBreak = false; // ✅ PERBAIKAN: Track status Rest Break aktif
+        let previousHasActiveJob = hasActiveJob;
+        let previousHasActiveDowntime = hasActiveDowntime;
+
+        // Fetch time metrics from server
+        function fetchTimeMetrics() {
+            const params = new URLSearchParams({
+                id: machineId
+            });
+            if (shiftId) {
+                params.append('shiftId', shiftId);
+            }
+            if (shiftDate) {
+                params.append('shiftDate', shiftDate);
+            }
+            if (shiftCode) {
+                params.append('shiftCode', shiftCode);
+            }
+
+            return fetch(`/Machine/GetTimeMetrics?${params.toString()}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const newShiftKey = data.ShiftKey || '';
+                    // Store active job/downtime info
+                    const newHasActiveJob = data.HasActiveJob || false;
+                    const newHasActiveDowntime = data.HasActiveDowntime || false;
+
+                    // Update base values dengan nilai baru dari server (sudah termasuk waktu saat fetch)
+                    basePlannedSeconds = Number(data.PlannedProductionTimeSeconds) || 0;
+                    baseOperatingSeconds = Number(data.OperatingTimeSeconds) || 0;
+                    baseDowntimeSeconds = Number(data.DowntimeTotalSeconds) || 0;
+                    // ✅ PERBAIKAN: Update Rest Break dan No Loading dari backend jika ada
+                    baseRestBreakSeconds = Number(data.RestBreakTimeSeconds) || 0;
+                    baseNoLoadingSeconds = Number(data.NoLoadingTimeSeconds) || 0;
+
+                    // Jika shift berubah, reset counter dan simpan shiftKey baru
+                    const shiftChanged = newShiftKey && newShiftKey !== lastShiftKey;
+                    if (shiftChanged) {
+                        lastShiftKey = newShiftKey;
+                    }
+
+                    // Reset counter karena base sudah mengandung waktu terkini
+                    realTimeCounter = 0;
+
+                    // Update status
+                    hasActiveJob = newHasActiveJob;
+                    hasActiveDowntime = newHasActiveDowntime;
+                    previousHasActiveJob = hasActiveJob;
+                    previousHasActiveDowntime = hasActiveDowntime;
+                    
+                    // Update NoLoading status dari data jika ada
+                    if (data.IsNoLoading !== undefined) {
+                        isNoLoading = data.IsNoLoading;
+                    }
+                    
+                    // ✅ PERBAIKAN: Update Rest Break status dari data jika ada
+                    if (data.HasActiveRestBreak !== undefined) {
+                        hasActiveRestBreak = data.HasActiveRestBreak;
+                    }
+
+                    // Update display immediately
+                    updateTimeDisplay();
+                    
+                    // ✅ Update durasi sejak status terakhir dari backend
+                    if (data?.SinceLastChangeSeconds !== undefined && data.SinceLastChangeSeconds !== null) {
+                        updateSinceLastChange(data.SinceLastChangeSeconds);
+                    } else if (data?.LastStatusChangeTime) {
+                        // Fallback
+                        try {
+                            const lastChangeTime = new Date(data.LastStatusChangeTime);
+                            if (!isNaN(lastChangeTime.getTime())) {
+                                const now = new Date();
+                                const diffSeconds = Math.floor((now.getTime() - lastChangeTime.getTime()) / 1000);
+                                updateSinceLastChange(Math.max(0, diffSeconds));
+                            }
+                        } catch (dateError) {
+                            console.warn('Error parsing LastStatusChangeTime:', dateError);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching time metrics:', error);
+                    // Use current values if fetch fails
+                    updateTimeDisplay();
+                });
+        }
+        
+        // ========== DURASI SEJAK STATUS TERAKHIR ==========
+        // Variabel untuk timer durasi sejak status terakhir
+        let sinceLastChangeInterval = null;
+        let lastChangeTimestamp = null;
+
+        // 2. Fungsi Update Display (setiap detik)
+        function updateTimerDisplay() {
+            const sinceLastStatusEl = document.getElementById('since-last-status');
+            if (!sinceLastStatusEl || !lastChangeTimestamp) {
+                // Jika element tidak ada atau timestamp belum di-set, tampilkan 00:00:00
+                if (sinceLastStatusEl) {
+                    sinceLastStatusEl.textContent = '00:00:00';
+                }
+                return;
+            }
+            
+            const now = new Date();
+            const diffMs = now.getTime() - lastChangeTimestamp.getTime();
+            const totalSeconds = Math.max(0, Math.floor(diffMs / 1000)); // Pastikan tidak negatif
+            
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            
+            const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            sinceLastStatusEl.textContent = timeString;
+        }
+
+        // 3. Fungsi Initialize/Update Timer dari Backend
+        function updateSinceLastChange(initialTimeSeconds) {
+            const sinceLastStatusEl = document.getElementById('since-last-status');
+            if (!sinceLastStatusEl) return;
+            
+            // Clear existing interval jika ada
+            if (sinceLastChangeInterval) {
+                clearInterval(sinceLastChangeInterval);
+                sinceLastChangeInterval = null;
+            }
+            
+            // Pastikan initialSeconds valid (tidak null, tidak undefined, >= 0)
+            const validSeconds = (initialTimeSeconds !== null && initialTimeSeconds !== undefined && initialTimeSeconds >= 0) 
+                ? initialTimeSeconds 
+                : 0;
+            
+            // Calculate timestamp ketika last change occurred
+            // initialSeconds adalah durasi dalam detik sejak last change
+            const now = new Date();
+            lastChangeTimestamp = new Date(now.getTime() - (validSeconds * 1000));
+            
+            // Update display immediately
+            updateTimerDisplay();
+            
+            // Start interval untuk update setiap detik - PASTIKAN selalu berjalan
+            sinceLastChangeInterval = setInterval(() => {
+                updateTimerDisplay();
+            }, 1000);
+            
+            console.log('✅ Timer initialized:', {
+                initialSeconds: validSeconds,
+                lastChangeTimestamp: lastChangeTimestamp,
+                currentDisplay: sinceLastStatusEl.textContent
+            });
+        }
+        
+        // 5. Initialize dari Server-Side Data (saat page load)
+        @if (Model.ActiveJob != null)
+        {
+            <text>
+            const initialSeconds = @(Model.ActiveJob?.SinceLastChangeSeconds ?? 0);
+            if (initialSeconds >= 0) {
+                updateSinceLastChange(initialSeconds);
+                console.log('✅ Timer initialized from server:', initialSeconds, 'seconds');
+            }
+            </text>
+        }
+
+        // Update time display with real-time calculation
+        function updateTimeDisplay() {
+            // Ensure base values are valid numbers
+            const baseOperating = Number(baseOperatingSeconds) || 0;
+            const baseDowntime = Number(baseDowntimeSeconds) || 0;
+
+            // Calculate current values dengan real-time increment
+            // Operating Time bertambah jika ada active job DAN tidak ada active downtime (running) DAN bukan NoLoading
+            let currentOperatingSeconds = baseOperating;
+            if (hasActiveJob && !hasActiveDowntime && !isNoLoading) {
+                // Operating time bertambah setiap detik jika running dan bukan NoLoading
+                currentOperatingSeconds = baseOperating + realTimeCounter;
+            }
+
+            // Downtime bertambah jika ada active downtime DAN bukan NoLoading
+            let currentDowntimeSeconds = baseDowntime;
+            if (hasActiveDowntime && !isNoLoading) {
+                // Downtime bertambah setiap detik jika ada downtime aktif dan bukan NoLoading
+                currentDowntimeSeconds = baseDowntime + realTimeCounter;
+            }
+
+            // Planned Production Time = Operating Time + Downtime
+            // Selalu hitung dari current values (sudah termasuk real-time increment jika ada aktivitas)
+            let currentPlannedSeconds = currentOperatingSeconds + currentDowntimeSeconds;
+            
+            // PASTIKAN: Jika tidak ada aktivitas, Planned Production Time tetap dihitung dari base values
+            // Ini memastikan waktu selalu ter-display, meskipun tidak bertambah
+            if (currentPlannedSeconds === 0 && baseOperating === 0 && baseDowntime === 0) {
+                // Jika belum ada data sama sekali, tetap tampilkan 00:00:00
+                currentPlannedSeconds = 0;
+            }
+
+            // Update Planned Production Time
+            const plannedEl = document.getElementById('planned-production-time');
+            if (plannedEl) {
+                plannedEl.textContent = formatTime(currentPlannedSeconds);
+            }
+
+            // Update Operating Time
+            const operatingEl = document.getElementById('operating-time');
+            if (operatingEl) {
+                operatingEl.textContent = formatTime(currentOperatingSeconds);
+            }
+
+            // Update Downtime
+            const downtimeEl = document.getElementById('downtime-total');
+            if (downtimeEl) {
+                downtimeEl.textContent = formatTime(currentDowntimeSeconds);
+            }
+
+            // ✅ PERBAIKAN: Calculate Rest Break Time
+            let currentRestBreakSeconds = baseRestBreakSeconds;
+            if (hasActiveRestBreak && !isNoLoading) {
+                // Rest Break time bertambah setiap detik jika ada rest break aktif dan bukan NoLoading
+                currentRestBreakSeconds = baseRestBreakSeconds + realTimeCounter;
+            }
+
+            // ✅ PERBAIKAN: Calculate No Loading Time
+            let currentNoLoadingSeconds = baseNoLoadingSeconds;
+            if (isNoLoading) {
+                // No Loading time bertambah setiap detik jika status NoLoading aktif
+                currentNoLoadingSeconds = baseNoLoadingSeconds + realTimeCounter;
+            }
+
+            // ✅ PERBAIKAN: Update Rest Break Time
+            const restBreakEl = document.getElementById('rest-break-time');
+            if (restBreakEl) {
+                restBreakEl.textContent = formatTime(currentRestBreakSeconds);
+            }
+
+            // ✅ PERBAIKAN: Update No Loading Time
+            const noLoadingEl = document.getElementById('no-loading-time');
+            if (noLoadingEl) {
+                noLoadingEl.textContent = formatTime(currentNoLoadingSeconds);
+            }
+
+            // Update progress bars dengan warna dinamis
+            const operatingProgressBar = document.getElementById('operating-progress-bar');
+            const downtimeProgressBar = document.getElementById('downtime-progress-bar');
+            const restBreakProgressBar = document.getElementById('rest-break-progress-bar'); // ✅ PERBAIKAN
+            const noLoadingProgressBar = document.getElementById('no-loading-progress-bar'); // ✅ PERBAIKAN
+            
+            if (operatingProgressBar) {
+                if (currentPlannedSeconds > 0) {
+                    const operatingPercent = (currentOperatingSeconds / currentPlannedSeconds * 100);
+                    operatingProgressBar.style.width = operatingPercent.toFixed(1) + '%';
+                    
+                    // Logika warna dinamis: Hijau >=80%, Kuning 50-80%, Merah <50%
+                    const operatingColor = operatingPercent >= 80 ? '#28a745' : 
+                                          operatingPercent >= 50 ? '#ffc107' : '#dc3545';
+                    operatingProgressBar.style.setProperty('background-color', operatingColor, 'important');
+                } else {
+                    // Default warna jika tidak ada planned time
+                    operatingProgressBar.style.setProperty('background-color', '#28a745', 'important');
+                }
+            }
+
+            if (downtimeProgressBar) {
+                if (currentPlannedSeconds > 0) {
+                    const downtimePercent = (currentDowntimeSeconds / currentPlannedSeconds * 100);
+                    downtimeProgressBar.style.width = downtimePercent.toFixed(1) + '%';
+                    
+                    // Logika warna dinamis: Merah >20%, Kuning 10-20%, Hijau <10%
+                    const downtimeColor = downtimePercent > 20 ? '#dc3545' : 
+                                        downtimePercent > 10 ? '#ffc107' : '#28a745';
+                    downtimeProgressBar.style.setProperty('background-color', downtimeColor, 'important');
+                } else {
+                    // Default warna jika tidak ada planned time
+                    downtimeProgressBar.style.setProperty('background-color', '#dc3545', 'important');
+                }
+            }
+
+            // ✅ PERBAIKAN: Update Rest Break progress bar
+            if (restBreakProgressBar) {
+                if (currentPlannedSeconds > 0) {
+                    const restBreakPercent = (currentRestBreakSeconds / currentPlannedSeconds * 100);
+                    restBreakProgressBar.style.width = restBreakPercent.toFixed(1) + '%';
+                } else {
+                    restBreakProgressBar.style.width = '0%';
+                }
+            }
+
+            // ✅ PERBAIKAN: Update No Loading progress bar
+            if (noLoadingProgressBar) {
+                if (currentPlannedSeconds > 0) {
+                    const noLoadingPercent = (currentNoLoadingSeconds / currentPlannedSeconds * 100);
+                    noLoadingProgressBar.style.width = noLoadingPercent.toFixed(1) + '%';
+                } else {
+                    noLoadingProgressBar.style.width = '0%';
+                }
+            }
+            
+            // Update Good dan Reject progress bars dengan warna dinamis
+            const goodProgressBar = document.getElementById('good-progress-bar');
+            const rejectProgressBar = document.getElementById('reject-progress-bar');
+            
+            if (goodProgressBar) {
+                const goodWidth = parseFloat(goodProgressBar.style.width) || 0;
+                // Logika warna dinamis: Hijau >=95%, Kuning 80-95%, Merah <80%
+                const goodColor = goodWidth >= 95 ? '#28a745' : 
+                                goodWidth >= 80 ? '#ffc107' : '#dc3545';
+                goodProgressBar.style.setProperty('background-color', goodColor, 'important');
+            }
+            
+            if (rejectProgressBar) {
+                const rejectWidth = parseFloat(rejectProgressBar.style.width) || 0;
+                // Logika warna dinamis: Merah >5%, Kuning 2-5%, Hijau <2%
+                const rejectColor = rejectWidth > 5 ? '#dc3545' : 
+                                  rejectWidth > 2 ? '#ffc107' : '#28a745';
+                rejectProgressBar.style.setProperty('background-color', rejectColor, 'important');
+            }
+        }
+
+        // Initialize function - bisa dipanggil langsung atau saat DOM ready
+        function initializeTimeMetrics() {
+            console.log('🚀 Initializing Time Metrics real-time update...');
+            console.log('📊 Initial state:', {
+                hasActiveJob: hasActiveJob,
+                hasActiveDowntime: hasActiveDowntime,
+                baseOperating: baseOperatingSeconds,
+                baseDowntime: baseDowntimeSeconds,
+                basePlanned: basePlannedSeconds
+            });
+            
+            // Initialize counter
+            realTimeCounter = 0;
+            
+            // Initialize display dengan server-side values terlebih dahulu
+            // Ini memastikan tampilan langsung muncul tanpa menunggu fetch
+            updateTimeDisplay();
+            console.log('📊 Initial display updated');
+
+            // Start real-time counter immediately (update every second)
+            // Counter akan bertambah setiap detik dan durasi akan update secara real-time
+            // Ini memastikan waktu berjalan real-time sejak page load
+            startTimeCounter();
+
+            // Fetch initial data to get active job/downtime status
+            // Setelah fetch, counter akan di-reset dan mulai dari 0
+            // Tapi real-time counter tetap berjalan, jadi waktu tetap update setiap detik
+            fetchTimeMetrics().then(() => {
+                // Setelah fetch pertama selesai, pastikan display ter-update
+                updateTimeDisplay();
+                console.log('✅ Initial fetch completed, display updated');
+                console.log('📊 Updated state:', {
+                    hasActiveJob: hasActiveJob,
+                    hasActiveDowntime: hasActiveDowntime,
+                    baseOperating: baseOperatingSeconds,
+                    baseDowntime: baseDowntimeSeconds,
+                    basePlanned: basePlannedSeconds
+                });
+            }).catch(error => {
+                console.error('❌ Error in initial fetch:', error);
+            });
+
+            // Refresh data every 10 seconds to get updated base values and status
+            // Setiap fetch, counter akan di-reset karena base values sudah update
+            // Tapi real-time counter tetap berjalan, jadi waktu tetap update setiap detik
+            setInterval(() => {
+                fetchTimeMetrics();
+            }, 10000);
+        }
+
+        // Initialize on page load - dengan fallback jika DOM sudah ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeTimeMetrics);
+        } else {
+            // DOM sudah ready, langsung jalankan
+            initializeTimeMetrics();
+        }
+
+            // ========== SIGNALR CONNECTION FOR REAL-TIME UPDATES ==========
+            let oeeConnection = null;
+            try {
+                oeeConnection = new signalR.HubConnectionBuilder()
+                    .withUrl("/oeeHub")
+                    .build();
+            } catch (error) {
+                console.error('❌ Error creating SignalR connection:', error);
+            }
+            
+            if (oeeConnection) {
+
+                oeeConnection.on("OeeUpdated", function (data) {
+                    console.log('📢 OeeUpdated received in OEE View:', data);
+                    
+                    // Jika MachineId sesuai atau ada flag RefreshTimeMetrics
+                    if (data.MachineId === machineId || data.RefreshTimeMetrics || 
+                        data.Type === "MachineStarted" || 
+                        data.Type === "MachineStopped" || 
+                        data.Type === "DowntimeStarted" || 
+                        data.Type === "DowntimeEnded" ||
+                        data.Type === "NoLoadingStarted" ||
+                        data.Type === "NoLoadingEnded") {
+                        
+                        // Refresh Time Metrics immediately
+                        console.log('🔄 Refreshing Time Metrics due to action update');
+                        fetchTimeMetrics();
+                        
+                        // Refresh operator data untuk update action buttons dan timer
+                        fetchOperatorDataForOee();
+                        
+                        // Juga refresh setelah 2 detik untuk memastikan sinkronisasi
+                        setTimeout(() => {
+                            fetchTimeMetrics();
+                            fetchOperatorDataForOee();
+                        }, 2000);
+                    }
+                });
+
+                oeeConnection.start()
+                    .then(() => {
+                        console.log('✅ SignalR connected in OEE View');
+                    })
+                    .catch(err => {
+                        console.error('❌ SignalR connection error in OEE View:', err);
+                    });
+            }
+
+            // 9. Cleanup saat Page Unload
+            window.addEventListener('beforeunload', () => {
+                // Clear interval saat page unload
+                if (sinceLastChangeInterval) {
+                    clearInterval(sinceLastChangeInterval);
+                    sinceLastChangeInterval = null;
+                }
+                
+                // Clear SignalR connection jika ada
+                if (oeeConnection) {
+                    oeeConnection.stop();
+                }
+                
+                // Clear time metrics interval jika ada
+                if (timeMetricsInterval) {
+                    clearInterval(timeMetricsInterval);
+                }
+            });
+        });
+
+        // ========== ACTION BUTTONS & TIMER SYNCHRONIZATION ==========
+        let hasActiveJobOee = @(Model.HasActiveJob.ToString().ToLower());
+        let hasActiveDowntimeOee = @(Model.HasActiveDowntime.ToString().ToLower());
+        let machineStatusOee = '@Model.MachineStatus.ToString()';
+
+        // Update action buttons state
+        // FRONTEND: semua tombol selalu bisa diklik.
+        // BACKEND: teman Anda yang akan validasi & menolak jika status tidak sesuai.
+        function updateActionButtonsOee(data) {
+            // Defensive: Check if data exists
+            if (!data) {
+                data = {};
+            }
+            
+            // Safe property access with fallbacks
+            const machineStatusFromAdmin = (data?.MachineStatus ?? machineStatusOee ?? '').toString().trim();
+            const hasActiveJobValue = data?.HasActiveJob ?? hasActiveJobOee ?? false;
+            const hasActiveDowntimeValue = data?.HasActiveDowntime ?? hasActiveDowntimeOee ?? false;
+            
+            // Update NoLoading flag dari data jika ada (dipakai hanya untuk time metrics)
+            if (data?.IsNoLoading !== undefined) {
+                isNoLoading = data.IsNoLoading;
+            }
+            
+            // Tidak ada pengaturan disabled/enabled di sini.
+            // Semua tombol tetap aktif; server menjadi single source of truth.
+        }
+
+        // Update machine status display
+        function updateMachineStatusOee(data) {
+            // Defensive: Check if data exists
+            if (!data) {
+                data = {};
+            }
+            
+            const statusBadgeEl = document.getElementById('machine-status-badge');
+            const downtimeDescEl = document.getElementById('downtime-description');
+            const machineStatusInfoEl = document.getElementById('machine-status-info');
+            
+            // Safe property access with fallbacks
+            const machineStatusFromAdmin = (data?.MachineStatus ?? machineStatusOee ?? '').toString().trim();
+            const isAktif = machineStatusFromAdmin === 'Aktif';
+            
+            // Update badge in header
+            if (statusBadgeEl) {
+                statusBadgeEl.textContent = isAktif ? 'AKTIF' : 'TIDAK AKTIF';
+                statusBadgeEl.className = `badge ${isAktif ? 'bg-success' : 'bg-warning'}`;
+            }
+            
+            // Update machine status info
+            if (machineStatusInfoEl) {
+                if (isAktif) {
+                    machineStatusInfoEl.style.display = 'none';
+                } else {
+                    machineStatusInfoEl.style.display = 'inline';
+                }
+            }
+            
+            // Update downtime description
+            if (downtimeDescEl) {
+                if (data?.HasActiveDowntime && data?.ActiveDowntimeDescription) {
+                    downtimeDescEl.textContent = data.ActiveDowntimeDescription;
+                    downtimeDescEl.style.display = 'inline';
+                } else {
+                    downtimeDescEl.style.display = 'none';
+                }
+            }
+        }
+
+        // Update progress bar and production data
+        function updateProductionDataOee(data) {
+            // Defensive: Check if data exists
+            if (!data || typeof data !== 'object') {
+                console.warn('updateProductionDataOee: Invalid data', data);
+                return;
+            }
+            
+            const progressBar = document.getElementById('progress-bar');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressText = document.getElementById('progress-text');
+            const totalGoodEl = document.getElementById('total-good');
+            const totalRejectEl = document.getElementById('total-reject');
+            const estimatedCompletion = document.getElementById('estimated-completion');
+            
+            // Update progress bar safely
+            if (progressBar && progressPercent && progressText) {
+                try {
+                    const percent = Math.max(0, Math.min(100, data.ProgressPercent ?? 0));
+                    progressBar.style.width = percent + '%';
+                    progressBar.setAttribute('aria-valuenow', percent);
+                    progressPercent.textContent = percent.toFixed(1) + '%';
+                    
+                    const totalGood = data.TotalGood ?? 0;
+                    const targetQty = data.TargetQuantity ?? 0;
+                    progressText.textContent = `${totalGood} / ${targetQty}`;
+                    
+                    // Change color based on progress
+                    progressBar.classList.remove('bg-success', 'bg-warning', 'bg-primary', 'bg-info');
+                    if (percent >= 100) {
+                        progressBar.classList.add('bg-info');
+                    } else if (percent >= 80) {
+                        progressBar.classList.add('bg-warning');
+                    } else {
+                        progressBar.classList.add('bg-primary');
+                    }
+                } catch (error) {
+                    console.error('Error updating progress bar:', error);
+                }
+            }
+            
+            // Update total good safely
+            if (totalGoodEl) {
+                try {
+                    const oldValue = parseInt(totalGoodEl.textContent) || 0;
+                    const newValue = data.TotalGood ?? 0;
+                    totalGoodEl.textContent = newValue;
+                    
+                    // Animate change
+                    if (newValue > oldValue) {
+                        totalGoodEl.classList.add('text-success');
+                        setTimeout(() => totalGoodEl.classList.remove('text-success'), 1000);
+                    }
+                } catch (error) {
+                    console.error('Error updating total good:', error);
+                }
+            }
+            
+            // Update total reject safely
+            if (totalRejectEl) {
+                try {
+                    const oldValue = parseInt(totalRejectEl.textContent) || 0;
+                    const newValue = data.TotalReject ?? 0;
+                    totalRejectEl.textContent = newValue;
+                    
+                    // Animate change
+                    if (newValue > oldValue) {
+                        totalRejectEl.classList.add('text-danger');
+                        setTimeout(() => totalRejectEl.classList.remove('text-danger'), 1000);
+                    }
+                } catch (error) {
+                    console.error('Error updating total reject:', error);
+                }
+            }
+            
+            // Update estimated completion safely
+            if (estimatedCompletion) {
+                try {
+                    estimatedCompletion.textContent = data.EstimatedCompletion ?? '-';
+                } catch (error) {
+                    console.error('Error updating estimated completion:', error);
+                }
+            }
+        }
+
+        // 4. Fungsi Reset Timer saat Action Diklik
+        function resetTimerOnAction() {
+            // Reset timer ke 00:00:00 secara visual (backend akan konfirmasi nilai yang benar nanti)
+            const now = new Date();
+            lastChangeTimestamp = now; // Reset ke sekarang = 00:00:00
+            updateTimerDisplay(); // Update display immediately
+            
+            // Pastikan interval berjalan jika belum ada
+            if (!sinceLastChangeInterval) {
+                sinceLastChangeInterval = setInterval(() => {
+                    updateTimerDisplay();
+                }, 1000);
+            }
+            
+            console.log('🔄 Timer reset to 00:00:00');
+        }
+
+        // 8. Event Listeners untuk Reset Timer saat Action Diklik
+        document.addEventListener('DOMContentLoaded', function() {
+            const runningForm = document.getElementById('running-form');
+            const restForm = document.getElementById('rest-form');
+            const lineStopForm = document.getElementById('line-stop-start-form');
+            const noLoadingForm = document.getElementById('no-loading-form');
+            
+            // RUNNING - Reset timer saat form submit
+            if (runningForm) {
+                runningForm.addEventListener('submit', function() {
+                    resetTimerOnAction(); // Reset ke 00:00:00
+                    console.log('🔄 RUNNING clicked - timer reset');
+                    isNoLoading = false; // Reset NoLoading status saat RUNNING
+                    hasActiveRestBreak = false; // Reset Rest Break status saat RUNNING
+                });
+            }
+            
+            // REST BREAK - Reset timer saat form submit
+            if (restForm) {
+                restForm.addEventListener('submit', function() {
+                    resetTimerOnAction(); // Reset ke 00:00:00
+                    console.log('🔄 REST BREAK clicked - timer reset');
+                    isNoLoading = false; // Reset NoLoading status saat REST BREAK
+                    hasActiveRestBreak = true; // Set Rest Break status aktif
+                });
+            }
+            
+            // LINE STOP - Reset timer saat form submit (bukan saat button click)
+            if (lineStopForm) {
+                lineStopForm.addEventListener('submit', function() {
+                    resetTimerOnAction(); // Reset ke 00:00:00
+                    console.log('🔄 LINE STOP clicked - timer reset');
+                    isNoLoading = false; // Reset NoLoading status saat LINE STOP
+                    hasActiveRestBreak = false; // Reset Rest Break status saat LINE STOP
+                });
+            }
+            
+            // NO LOADING - Reset timer ke 00:00:00 saat form submit
+            if (noLoadingForm) {
+                noLoadingForm.addEventListener('submit', function() {
+                    resetTimerOnAction(); // Reset ke 00:00:00
+                    console.log('🔄 NO LOADING clicked - timer reset');
+                    isNoLoading = true; // Set NoLoading status
+                    hasActiveRestBreak = false; // Reset Rest Break status saat NO LOADING
+                });
+            }
+            
+            // Initialize action buttons state
+            updateActionButtonsOee({
+                MachineStatus: machineStatusOee,
+                HasActiveJob: hasActiveJobOee,
+                HasActiveDowntime: hasActiveDowntimeOee,
+                IsNoLoading: isNoLoading
+            });
+            
+            // ✅ PERBAIKAN: Pastikan timer selalu berjalan setelah DOM ready
+            // Jika timer belum diinisialisasi, inisialisasi sekarang
+            if (!sinceLastChangeInterval) {
+                // Jika lastChangeTimestamp belum di-set, set ke waktu sekarang
+                if (!lastChangeTimestamp) {
+                    lastChangeTimestamp = new Date();
+                }
+                // Pastikan timer berjalan
+                updateTimerDisplay();
+                sinceLastChangeInterval = setInterval(() => {
+                    updateTimerDisplay();
+                }, 1000);
+                console.log('✅ Timer interval started on DOM ready');
+            } else {
+                // ✅ PERBAIKAN: Jika interval sudah ada, pastikan tetap berjalan
+                console.log('✅ Timer interval already running');
+            }
+        });
+
+        // Fetch operator data untuk update action buttons dan production data
+        async function fetchOperatorDataForOee() {
+            const machineId = '@Model.MachineId';
+            if (!machineId) {
+                console.warn('Machine ID is not available');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/Operator/GetOperatorData?machineId=${machineId}`);
+                if (!response.ok) {
+                    console.warn(`HTTP error! status: ${response.status}`);
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                // Defensive: Check if data exists and has expected structure
+                if (!data || typeof data !== 'object') {
+                    console.warn('Unexpected data structure:', data);
+                    return;
+                }
+                
+                // Update state with safe defaults
+                hasActiveJobOee = data?.HasActiveJob ?? false;
+                hasActiveDowntimeOee = data?.HasActiveDowntime ?? false;
+                machineStatusOee = data?.MachineStatus ?? machineStatusOee;
+                
+                // Update NoLoading status dari data jika ada
+                if (data?.IsNoLoading !== undefined) {
+                    isNoLoading = data.IsNoLoading;
+                }
+                
+                // ✅ PERBAIKAN: Update Rest Break status dari data jika ada
+                if (data?.HasActiveRestBreak !== undefined) {
+                    hasActiveRestBreak = data.HasActiveRestBreak;
+                }
+                
+                // ✅ Update durasi sejak status terakhir dari backend
+                if (data?.SinceLastChangeSeconds !== undefined && data.SinceLastChangeSeconds !== null) {
+                    // Gunakan SinceLastChangeSeconds dari backend (sumber kebenaran)
+                    updateSinceLastChange(data.SinceLastChangeSeconds);
+                } else if (data?.LastStatusChangeTime) {
+                    // Fallback: hitung dari LastStatusChangeTime jika SinceLastChangeSeconds tidak ada
+                    try {
+                        const lastChangeTime = new Date(data.LastStatusChangeTime);
+                        if (!isNaN(lastChangeTime.getTime())) {
+                            const now = new Date();
+                            const diffSeconds = Math.floor((now.getTime() - lastChangeTime.getTime()) / 1000);
+                            updateSinceLastChange(Math.max(0, diffSeconds));
+                        }
+                    } catch (dateError) {
+                        console.warn('Error parsing LastStatusChangeTime:', dateError);
+                    }
+                }
+                
+                // Update action buttons
+                updateActionButtonsOee(data);
+                
+                // Update machine status
+                updateMachineStatusOee(data);
+                
+                // Update production data
+                updateProductionDataOee(data);
+            } catch (error) {
+                console.error('Error fetching operator data for OEE:', error);
+                // Don't break the UI, just log the error
+            }
+        }
+
+        // Fetch operator data every 5 seconds untuk sinkronisasi
+        setInterval(() => {
+            fetchOperatorDataForOee();
+        }, 5000);
+
+        // Initial fetch
+        fetchOperatorDataForOee();
+    </script>
+    
+    <style>
+        /* Action Buttons Horizontal Layout */
+        #running-form,
+        #rest-form {
+            margin: 0;
+        }
+        
+        /* Samakan ukuran & alignment semua tombol Machine Actions */
+        .machine-action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            min-height: 40px; /* ✅ Diperbesar dari 32px ke 40px */
+            padding: 0.5rem 1rem; /* ✅ Tambahkan padding untuk ukuran lebih besar */
+            font-size: 0.95rem; /* ✅ Sedikit lebih besar dari default */
+            border-radius: 8px !important; /* ✅ Tambahkan border radius */
+            font-weight: 500; /* ✅ Sedikit lebih bold untuk visibility */
+        }
+        
+        /* Ensure buttons are clickable */
+        button[type="submit"]:not(:disabled),
+        #btn-running:not(:disabled),
+        #btn-rest:not(:disabled),
+        #btn-line-stop:not(:disabled),
+        #btn-no-loading:not(:disabled) {
+            pointer-events: auto !important;
+            cursor: pointer !important;
+        }
+        
+        /* Button hover effects */
+        .btn-outline-success:hover:not(:disabled),
+        .btn-outline-warning:hover:not(:disabled),
+        .btn-outline-danger:hover:not(:disabled),
+        .btn-outline-info:hover:not(:disabled),
+        .btn-primary:hover:not(:disabled) {
+            transform: scale(1.02);
+            transition: transform 0.2s ease;
+        }
+        
+        /* Responsive: Stack buttons on small screens */
+        @@media (max-width: 768px) {
+            .col-md-3 {
+                margin-bottom: 0.5rem;
+            }
+        }
+    </style>
+}
+

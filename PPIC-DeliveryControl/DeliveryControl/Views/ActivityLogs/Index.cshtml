@@ -1,0 +1,352 @@
+@model IEnumerable<DeliveryControl.Models.ActivityLog>
+
+@{
+    ViewData["Title"] = "Activity Logs - History Aktivitas";
+    var startDate = ViewData["StartDate"]?.ToString() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var endDate = ViewData["EndDate"]?.ToString() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var selectedModule = ViewData["SelectedModule"]?.ToString() ?? "";
+    var selectedAction = ViewData["SelectedAction"]?.ToString() ?? "";
+    var selectedPerformedBy = ViewData["SelectedPerformedBy"]?.ToString() ?? "";
+}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-clock-history"></i> Activity Logs</h2>
+        <p class="text-muted">History semua aktivitas di sistem</p>
+    </div>
+    <div class="col-md-6 text-end">
+        <a asp-action="Export" 
+           asp-route-startDate="@startDate" 
+           asp-route-endDate="@endDate" 
+           asp-route-module="@selectedModule"
+           asp-route-action="@selectedAction"
+           asp-route-performedBy="@selectedPerformedBy"
+           class="btn btn-success">
+            <i class="bi bi-download"></i> Export CSV
+        </a>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row g-3 mb-4">
+    <div class="col-md-12">
+        <div class="card text-white" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-subtitle mb-2 opacity-75">Total Records</h6>
+                        <h2 class="card-title mb-0 fw-bold">@ViewBag.TotalRecords</h2>
+                    </div>
+                    <div style="font-size: 3rem; opacity: 0.3;">
+                        <i class="bi bi-journal-text"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="Index" method="get" class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label" for="startDate"><i class="bi bi-calendar"></i> Dari Tanggal</label>
+                <input type="date" 
+                       class="form-control" 
+                       name="startDate" 
+                       id="startDate"
+                       value="@startDate" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="endDate"><i class="bi bi-calendar"></i> Sampai Tanggal</label>
+                <input type="date" 
+                       class="form-control" 
+                       name="endDate" 
+                       id="endDate"
+                       value="@endDate" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="module"><i class="bi bi-app"></i> Modul</label>
+                <select class="form-select" name="module" id="module">
+                    <option value="">Semua Modul</option>
+                    @if (ViewBag.Modules != null)
+                    {
+                        @foreach (var mod in ViewBag.Modules)
+                        {
+                            var isSelected = selectedModule == mod;
+                            <option value="@mod" selected="@isSelected">@mod</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="action"><i class="bi bi-lightning"></i> Aksi</label>
+                <select class="form-select" name="action" id="action">
+                    <option value="">Semua Aksi</option>
+                    @if (ViewBag.Actions != null)
+                    {
+                        @foreach (var act in ViewBag.Actions)
+                        {
+                            var isSelected = selectedAction == act;
+                            <option value="@act" selected="@isSelected">@act</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="performedBy"><i class="bi bi-person"></i> User</label>
+                <select class="form-select" name="performedBy" id="performedBy">
+                    <option value="">Semua User</option>
+                    @if (ViewBag.Users != null)
+                    {
+                        @foreach (var user in ViewBag.Users)
+                        {
+                            var isSelected = selectedPerformedBy == user;
+                            <option value="@user" selected="@isSelected">@user</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Activity Logs Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Activity Logs</h5>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="refreshBtn" title="Refresh Data" onclick="manualRefresh()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <span class="badge bg-primary" style="font-size: 0.9rem;" id="statusBadge">
+                <i class="bi bi-circle-fill"></i> <span id="statusText">Loading...</span>
+            </span>
+        </div>
+    </div>
+    <div class="card-body" id="activityLogsContainer">
+        @await Html.PartialAsync("_ActivityLogsTablePartial", Model)
+    </div>
+</div>
+
+@section Scripts {
+
+    <script>
+        let currentPage = @(ViewBag.CurrentPage ?? 1);
+        let pollingInterval = null;
+        let usePollingFallback = false;
+        let isConnected = false;
+
+        // Build SignalR connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/deliveryHub")
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        // Update activity logs table
+        function updateActivityLogs() {
+            var timestamp = new Date().getTime();
+            console.log("🔄 Fetching fresh activity logs data...");
+            
+            $.ajax({
+                url: '@Url.Action("GetActivityLogsData", "ActivityLogs")',
+                type: 'GET',
+                cache: false,
+                data: { 
+                    pageNumber: currentPage,
+                    pageSize: 20,
+                    _: timestamp 
+                },
+                success: function(html) {
+                    console.log("✅ Activity logs data received");
+                    $('#activityLogsContainer').html(html);
+                    // Update total records from the response
+                    updateTotalRecords();
+                },
+                error: function(err) {
+                    console.error("❌ Failed to update activity logs:", err);
+                }
+            });
+        }
+
+        // Update total records
+        function updateTotalRecords() {
+            var timestamp = new Date().getTime();
+            $.ajax({
+                url: '@Url.Action("GetTotalRecords", "ActivityLogs")',
+                type: 'GET',
+                cache: false,
+                data: { _: timestamp },
+                success: function(data) {
+                    console.log("✅ Total records updated:", data.totalRecords);
+                    $('.card-title.fw-bold').text(data.totalRecords);
+                },
+                error: function(err) {
+                    console.error("❌ Failed to update total records:", err);
+                }
+            });
+        }
+
+        // Manual refresh
+        function manualRefresh() {
+            console.log("🔄 Manual refresh triggered");
+            updateActivityLogs();
+        }
+
+        // Load specific page
+        function loadPage(pageNumber) {
+            currentPage = pageNumber;
+            updateActivityLogs();
+        }
+
+        // SignalR event handlers
+        connection.on("connected", function(connectionId) {
+            console.log("✅ SignalR Connected! Connection ID:", connectionId);
+            isConnected = true;
+            usePollingFallback = false;
+            stopPollingFallback();
+            updateStatusBadge('live', 'Live');
+        });
+
+        connection.on("deliveryUpdated", function(data) {
+            console.log("🔔 Activity log update received:", data);
+            // Refresh activity logs when there's a delivery update
+            updateActivityLogs();
+        });
+
+        connection.onreconnecting((error) => {
+            console.warn("⚠️ SignalR reconnecting...", error);
+            isConnected = false;
+            updateStatusBadge('reconnecting', 'Reconnecting...');
+        });
+
+        connection.onreconnected((connectionId) => {
+            console.log("✅ SignalR reconnected! Connection ID:", connectionId);
+            isConnected = true;
+            usePollingFallback = false;
+            stopPollingFallback();
+            updateStatusBadge('live', 'Live');
+            updateActivityLogs();
+        });
+
+        connection.onclose((error) => {
+            console.error("❌ SignalR connection closed:", error);
+            isConnected = false;
+            updateStatusBadge('disconnected', 'Disconnected');
+            
+            // Switch to polling after 10 seconds
+            setTimeout(function() {
+                if (!isConnected && !usePollingFallback) {
+                    console.warn("⚠️ SignalR not connected. Starting polling fallback.");
+                    startPollingFallback();
+                }
+            }, 10000);
+        });
+
+        // Polling fallback
+        function startPollingFallback() {
+            if (usePollingFallback) return;
+            
+            usePollingFallback = true;
+            console.log("🔄 Starting polling fallback (every 5 seconds)...");
+            updateStatusBadge('reconnecting', 'Polling Mode');
+            
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            
+            // Immediate update
+            updateActivityLogs();
+            
+            // Then poll every 5 seconds
+            pollingInterval = setInterval(function() {
+                if (!isConnected) {
+                    console.log("🔄 Polling update...");
+                    updateActivityLogs();
+                } else {
+                    stopPollingFallback();
+                }
+            }, 5000);
+        }
+
+        function stopPollingFallback() {
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
+            usePollingFallback = false;
+        }
+
+        // Update status badge
+        function updateStatusBadge(status, text) {
+            const badge = $('#statusBadge');
+            const textSpan = $('#statusText');
+            
+            badge.removeClass('bg-primary bg-success bg-warning bg-danger');
+            
+            switch(status) {
+                case 'live':
+                    badge.addClass('bg-success');
+                    break;
+                case 'reconnecting':
+                    badge.addClass('bg-warning');
+                    break;
+                case 'disconnected':
+                    badge.addClass('bg-danger');
+                    break;
+                default:
+                    badge.addClass('bg-primary');
+            }
+            
+            textSpan.text(text);
+        }
+
+        // Start SignalR connection
+        async function startConnection() {
+            try {
+                await connection.start();
+                console.log("✅ SignalR connection started successfully!");
+                isConnected = true;
+                updateStatusBadge('live', 'Live');
+            } catch (err) {
+                console.error("❌ SignalR connection failed:", err);
+                isConnected = false;
+                
+                // Start polling fallback after 10 seconds
+                setTimeout(function() {
+                    if (!isConnected) {
+                        startPollingFallback();
+                    }
+                }, 10000);
+            }
+        }
+
+        // Initialize
+        $(document).ready(function() {
+            startConnection();
+            
+            // Fallback: If SignalR doesn't connect in 10 seconds, use polling
+            setTimeout(function() {
+                if (!isConnected && !usePollingFallback) {
+                    console.warn("⚠️ SignalR not connected after 10 seconds. Starting polling fallback.");
+                    startPollingFallback();
+                }
+            }, 10000);
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (connection && isConnected) {
+                connection.stop();
+            }
+            stopPollingFallback();
+        });
+    </script>
+}

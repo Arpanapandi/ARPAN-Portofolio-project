@@ -1,0 +1,187 @@
+@model DeliveryControl.Models.Customer
+
+@{
+    ViewData["Title"] = "Edit Customer";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-pencil-square"></i> Edit Customer</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Customer</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Form Edit Customer</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    
+                    <input type="hidden" asp-for="CustomerId" />
+                    <input type="hidden" asp-for="CreatedDate" />
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="CustomerCode" class="form-label"></label>
+                            <input asp-for="CustomerCode" class="form-control" placeholder="Nama Customer (PT...)" />
+                            <span asp-validation-for="CustomerCode" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="CustomerName" class="form-label"></label>
+                            <input asp-for="CustomerName" class="form-control" placeholder="Dock..." />
+                            <span asp-validation-for="CustomerName" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Route" class="form-label"></label>
+                            <input asp-for="Route" class="form-control" />
+                            <span asp-validation-for="Route" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Cycle" class="form-label"></label>
+                            <input asp-for="Cycle" class="form-control" />
+                            <span asp-validation-for="Cycle" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Start Prep</label>
+                            <input type="text" class="form-control time-input-helper" 
+                                   value="@($"{Model.StartPrepareTime / 60:D2}:{Model.StartPrepareTime % 60:D2}")" 
+                                   placeholder="HH:mm" />
+                            <input type="hidden" asp-for="StartPrepareTime" class="actual-minutes" />
+                            <span asp-validation-for="StartPrepareTime" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">End Prep</label>
+                            <input type="text" class="form-control time-input-helper" 
+                                   value="@($"{Model.StdPrepareTime / 60:D2}:{Model.StdPrepareTime % 60:D2}")" 
+                                   placeholder="HH:mm" />
+                            <input type="hidden" asp-for="StdPrepareTime" class="actual-minutes" />
+                            <span asp-validation-for="StdPrepareTime" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Docking" class="form-label"></label>
+                            <input asp-for="Docking" class="form-control" placeholder="08:00" />
+                            <span asp-validation-for="Docking" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Pickup" class="form-label"></label>
+                            <input asp-for="Pickup" class="form-control" placeholder="10:00" />
+                            <span asp-validation-for="Pickup" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="ETD" class="form-label"></label>
+                            <input asp-for="ETD" class="form-control" placeholder="12:00" />
+                            <span asp-validation-for="ETD" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Range (Auto)</label>
+                            <input type="text" class="form-control" value="@Model.Range" readonly disabled style="background-color: #e9ecef;" />
+                            <small class="text-muted">Dihitung otomatis dari ETD - Pickup</small>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="SKID" class="form-label"></label>
+                            <input asp-for="SKID" class="form-control" type="text" />
+                            <span asp-validation-for="SKID" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Area" class="form-label"></label>
+                            <input asp-for="Area" class="form-control" />
+                            <span asp-validation-for="Area" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                            <label asp-for="IsActive" class="form-check-label">
+                                Status Aktif
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="RemarkOrder" class="form-label">
+                            <i class="bi bi-sticky-fill text-warning"></i> Remark Order
+                        </label>
+                        <textarea asp-for="RemarkOrder" class="form-control" rows="2" placeholder="Catatan order, instruksi khusus, dll..."></textarea>
+                        <span asp-validation-for="RemarkOrder" class="text-danger"></span>
+                        <small class="text-muted">Tampil di Gantt Chart sebagai catatan customer</small>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Update
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> Informasi</h6>
+            </div>
+            <div class="card-body">
+                <p class="small">
+                    <strong>Dibuat:</strong><br />
+                    @Model.CreatedDate.ToString("dd MMM yyyy HH:mm")
+                </p>
+                @if (Model.UpdatedDate.HasValue)
+                {
+                    <p class="small">
+                        <strong>Terakhir Diupdate:</strong><br />
+                        @Model.UpdatedDate.Value.ToString("dd MMM yyyy HH:mm")
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        $(document).ready(function() {
+            $('form').on('submit', function() {
+                $('.time-input-helper').each(function() {
+                    var val = $(this).val().trim();
+                    var minutes = 0;
+                    if (val.includes(':')) {
+                        var parts = val.split(':');
+                        if (parts.length >= 2) {
+                            var hours = parseInt(parts[0]) || 0;
+                            var mins = parseInt(parts[1]) || 0;
+                            minutes = (hours * 60) + mins;
+                        }
+                    } else if (!isNaN(val) && val !== '') {
+                        minutes = parseInt(val);
+                    }
+                    $(this).siblings('.actual-minutes').val(minutes);
+                });
+            });
+        });
+    </script>
+}
+

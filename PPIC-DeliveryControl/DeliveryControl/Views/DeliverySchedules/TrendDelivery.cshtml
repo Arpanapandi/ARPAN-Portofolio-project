@@ -1,0 +1,588 @@
+@{
+    ViewData["Title"] = "Dashboard Trend Delivery";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    /* ── BASE & TYPOGRAPHY ───────────────────────────────────────────────────────── */
+    body {
+        background-color: #0b1120;
+        color: #e2e8f0;
+        font-family: 'Inter', sans-serif;
+    }
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #ffffff;
+        margin-bottom: 0;
+    }
+    
+    /* ── GLASSMORPHISM PANELS ──────────────────────────────────────────────────── */
+    .glass-panel {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 1.5rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    /* Top accents for cards */
+    .border-accent-prepare { border-top: 3px solid #eab308; }
+    .border-accent-truck { border-top: 3px solid #f97316; }
+    .border-accent-delivery { border-top: 3px solid #ef4444; }
+
+    /* ── CARD HEADER & ICONS ───────────────────────────────────────────────────── */
+    .card-title-sm {
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+    }
+    .text-prepare { color: #eab308; }
+    .text-truck { color: #f97316; }
+    .text-delivery { color: #ef4444; }
+
+    .metric-icon-wrap {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+    .icon-prepare { border: 2px solid #eab308; color: #eab308; }
+    .icon-truck { border: 2px solid #f97316; color: #f97316; }
+    .icon-delivery { border: 2px solid #ef4444; color: #ef4444; }
+
+    .metric-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #ffffff;
+    }
+    .metric-label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #94a3b8;
+        margin-left: 0.5rem;
+    }
+
+    /* ── PROGRESS BARS ─────────────────────────────────────────────────────────── */
+    .progress-container {
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .progress-track {
+        flex: 1;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 1s ease-in-out;
+    }
+    .bg-prepare { background-color: #eab308; }
+    .bg-truck { background-color: #f97316; }
+    .bg-delivery { background-color: #ef4444; }
+    .bg-good { background-color: #10b981; }
+
+    .progress-text {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .progress-subtext {
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 0.5rem;
+    }
+
+    /* ── VENDOR LIST ───────────────────────────────────────────────────────────── */
+    .vendor-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1.25rem;
+    }
+    .vendor-name {
+        width: 100px;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+    .vendor-progress {
+        flex: 1;
+        margin: 0 1rem;
+    }
+    .vendor-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* ── CHART CONTAINER ───────────────────────────────────────────────────────── */
+    .chart-container {
+        position: relative;
+        height: 250px;
+        width: 100%;
+    }
+    .chart-container-large {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-graph-up-arrow text-primary fs-3"></i>
+            <h1 class="page-title">Dashboard Trend Delivery</h1>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+            <span class="badge bg-success bg-opacity-25 text-success border border-success px-3 py-2 rounded-pill d-flex align-items-center gap-2">
+                <div class="spinner-grow spinner-grow-sm text-success" role="status" style="width: 10px; height: 10px;"></div>
+                LIVE
+            </span>
+            <input type="date" id="filterDate" class="form-control bg-dark text-light border-secondary" style="width: 180px;" value="@DateTime.Now.ToString("yyyy-MM-dd")" onchange="loadDashboardData()" />
+        </div>
+    </div>
+
+    <!-- 3 Top Cards -->
+    <div class="row g-4 mb-4">
+        <!-- Delay Delivery -->
+        <div class="col-md-4">
+            <div class="glass-panel border-accent-delivery">
+                <div class="card-title-sm text-delivery">DELAY DELIVERY</div>
+                <div class="d-flex align-items-center gap-4">
+                    <div class="metric-icon-wrap icon-delivery">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+                    <div>
+                        <span class="metric-value" id="valDeliveryCount">-</span>
+                        <span class="metric-label">DELAY</span>
+                    </div>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-track">
+                        <div class="progress-fill bg-delivery" id="barDelivery" style="width: 0%"></div>
+                    </div>
+                    <span class="progress-text text-delivery" id="txtDeliveryPct">0%</span>
+                </div>
+                <div class="progress-subtext" id="subDeliveryPct">0% dari total schedule</div>
+            </div>
+        </div>
+
+        <!-- Delay Truck-In -->
+        <div class="col-md-4">
+            <div class="glass-panel border-accent-truck">
+                <div class="card-title-sm text-truck">DELAY TRUCK-IN</div>
+                <div class="d-flex align-items-center gap-4">
+                    <div class="metric-icon-wrap icon-truck">
+                        <i class="bi bi-truck"></i>
+                    </div>
+                    <div>
+                        <span class="metric-value" id="valTruckInCount">-</span>
+                        <span class="metric-label">DELAY</span>
+                    </div>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-track">
+                        <div class="progress-fill bg-truck" id="barTruckIn" style="width: 0%"></div>
+                    </div>
+                    <span class="progress-text text-truck" id="txtTruckInPct">0%</span>
+                </div>
+                <div class="progress-subtext" id="subTruckInPct">0% dari total schedule</div>
+            </div>
+        </div>
+
+        <!-- Delay Prepare -->
+        <div class="col-md-4">
+            <div class="glass-panel border-accent-prepare">
+                <div class="card-title-sm text-prepare">DELAY PREPARE</div>
+                <div class="d-flex align-items-center gap-4">
+                    <div class="metric-icon-wrap icon-prepare">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div>
+                        <span class="metric-value" id="valPrepareCount">-</span>
+                        <span class="metric-label">DELAY</span>
+                    </div>
+                </div>
+                <div class="progress-container">
+                    <div class="progress-track">
+                        <div class="progress-fill bg-prepare" id="barPrepare" style="width: 0%"></div>
+                    </div>
+                    <span class="progress-text text-prepare" id="txtPreparePct">0%</span>
+                </div>
+                <div class="progress-subtext" id="subPreparePct">0% dari total schedule</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3 Hourly Charts -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-4">
+            <div class="glass-panel h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="card-title-sm text-delivery mb-0">TREN DELAY DELIVERY (Bulan Ini)</div>
+                    <i class="bi bi-calendar text-secondary"></i>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chartDeliveryHourly"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-panel h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="card-title-sm text-truck mb-0">TREN DELAY TRUCK-IN (Bulan Ini)</div>
+                    <i class="bi bi-calendar text-secondary"></i>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chartTruckInHourly"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="glass-panel h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="card-title-sm text-prepare mb-0">TREN DELAY PREPARE (Bulan Ini)</div>
+                    <i class="bi bi-calendar text-secondary"></i>
+                </div>
+                <div class="chart-container">
+                    <canvas id="chartPrepareHourly"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Row -->
+    <div class="row g-4">
+        <!-- Monthly Trend -->
+        <div class="col-md-7">
+            <div class="glass-panel h-100">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-bar-chart-fill text-info"></i>
+                    <div class="card-title-sm text-info mb-0">TREN BULANAN (Trend Delay Harian)</div>
+                </div>
+                <div class="chart-container-large">
+                    <canvas id="chartMonthly"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vendor Performance -->
+        <div class="col-md-5">
+            <div class="glass-panel h-100">
+                <div class="d-flex align-items-center justify-content-between mb-4">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-truck text-info fs-5"></i>
+                        <div class="card-title-sm text-info mb-0">TREN TRUCKING</div>
+                    </div>
+                    <ul class="nav nav-pills" id="truckingPills" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-1 px-2" style="font-size: 0.75rem;" id="pills-shift1-tab" data-bs-toggle="pill" data-bs-target="#pills-shift1" type="button" role="tab">Shift 1</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-1 px-2" style="font-size: 0.75rem;" id="pills-shift2-tab" data-bs-toggle="pill" data-bs-target="#pills-shift2" type="button" role="tab">Shift 2</button>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="tab-content" id="truckingPillsContent">
+                    <div class="tab-pane fade show active" id="pills-shift1" role="tabpanel">
+                        <div id="vendorListContainerShift1" style="max-height: 280px; overflow-y: auto; padding-right: 10px;">
+                            <div class="text-center text-secondary py-4">Memuat data...</div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="pills-shift2" role="tabpanel">
+                        <div id="vendorListContainerShift2" style="max-height: 280px; overflow-y: auto; padding-right: 10px;">
+                            <div class="text-center text-secondary py-4">Memuat data...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-top border-secondary d-flex align-items-center text-secondary" style="font-size: 0.75rem;">
+                    <i class="bi bi-info-circle me-2"></i>
+                    * Berdasarkan Persentase Delay. Diurutkan dari delay terbanyak.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/chart.js/chart.umd.min.js"></script>
+    <script>
+        // Chart instances
+        let cPrepareHourly, cTruckInHourly, cDeliveryHourly, cMonthly;
+
+        // Default labels, will be updated based on month selected
+        const defaultDaysLabels = Array.from({length: 31}, (_, i) => (i + 1).toString());
+        const monthsLabels = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
+        // Colors
+        const colorPrepare = "#eab308";
+        const colorTruckIn = "#f97316";
+        const colorDelivery = "#ef4444";
+        const colorGrid = "rgba(255, 255, 255, 0.05)";
+        const colorText = "#94a3b8";
+
+        function initCharts() {
+            Chart.defaults.color = colorText;
+            Chart.defaults.font.family = "'Inter', sans-serif";
+
+            const commonOptionsHourly = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { 
+                        mode: 'index', 
+                        intersect: false,
+                        callbacks: {
+                            title: function(context) {
+                                return 'Tanggal ' + context[0].label;
+                            },
+                            label: function(context) {
+                                return 'Total Delay: ' + (context.raw || 0);
+                            },
+                            afterLabel: function(context) {
+                                let rawObj = context.dataset.rawObjects ? context.dataset.rawObjects[context.dataIndex] : null;
+                                if (rawObj && rawObj.docks && rawObj.docks.length > 0) {
+                                    return 'Docks: ' + rawObj.docks.join(', ');
+                                }
+                                return '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colorGrid }, border: { dash: [4, 4] }, suggestedMax: 16 },
+                    x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 0 } }
+                },
+                elements: {
+                    line: { tension: 0.4, borderWidth: 2 },
+                    point: { radius: 3, hoverRadius: 5 }
+                }
+            };
+
+            const ctxPrep = document.getElementById('chartPrepareHourly').getContext('2d');
+            const gradientPrep = ctxPrep.createLinearGradient(0, 0, 0, 250);
+            gradientPrep.addColorStop(0, "rgba(234, 179, 8, 0.5)");
+            gradientPrep.addColorStop(1, "rgba(234, 179, 8, 0.0)");
+
+            cPrepareHourly = new Chart(ctxPrep, {
+                type: 'line',
+                data: { labels: defaultDaysLabels, datasets: [{ data: [], borderColor: colorPrepare, backgroundColor: gradientPrep, fill: true }] },
+                options: commonOptionsHourly
+            });
+
+            const ctxTruck = document.getElementById('chartTruckInHourly').getContext('2d');
+            const gradientTruck = ctxTruck.createLinearGradient(0, 0, 0, 250);
+            gradientTruck.addColorStop(0, "rgba(249, 115, 22, 0.5)");
+            gradientTruck.addColorStop(1, "rgba(249, 115, 22, 0.0)");
+
+            cTruckInHourly = new Chart(ctxTruck, {
+                type: 'line',
+                data: { labels: defaultDaysLabels, datasets: [{ data: [], borderColor: colorTruckIn, backgroundColor: gradientTruck, fill: true }] },
+                options: commonOptionsHourly
+            });
+
+            const ctxDelv = document.getElementById('chartDeliveryHourly').getContext('2d');
+            const gradientDelv = ctxDelv.createLinearGradient(0, 0, 0, 250);
+            gradientDelv.addColorStop(0, "rgba(239, 68, 68, 0.5)");
+            gradientDelv.addColorStop(1, "rgba(239, 68, 68, 0.0)");
+
+            cDeliveryHourly = new Chart(ctxDelv, {
+                type: 'line',
+                data: { labels: defaultDaysLabels, datasets: [{ data: [], borderColor: colorDelivery, backgroundColor: gradientDelv, fill: true }] },
+                options: commonOptionsHourly
+            });
+
+            const ctxMonthly = document.getElementById('chartMonthly').getContext('2d');
+            cMonthly = new Chart(ctxMonthly, {
+                type: 'line',
+                data: { 
+                    labels: monthsLabels, 
+                    datasets: [
+                        { label: 'Delay Prepare', data: [], borderColor: colorPrepare, backgroundColor: colorPrepare, tension: 0.4, borderWidth: 2 },
+                        { label: 'Delay Truck-In', data: [], borderColor: colorTruckIn, backgroundColor: colorTruckIn, tension: 0.4, borderWidth: 2 },
+                        { label: 'Delay Delivery', data: [], borderColor: colorDelivery, backgroundColor: colorDelivery, tension: 0.4, borderWidth: 2 }
+                    ] 
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 8 } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: colorGrid }, border: { dash: [4, 4] }, suggestedMax: 160 },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateTopCard(idPrefix, data, colorClass) {
+            document.getElementById(`val${idPrefix}Count`).innerText = data.count;
+            document.getElementById(`txt${idPrefix}Pct`).innerText = data.pct + "%";
+            document.getElementById(`sub${idPrefix}Pct`).innerText = `${data.pct}% dari target`;
+            document.getElementById(`bar${idPrefix}`).style.width = data.pct + "%";
+        }
+
+        function renderVendors(containerId, vendors) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            if (!vendors || vendors.length === 0) {
+                container.innerHTML = '<div class="text-center text-secondary py-4">Tidak ada data delay customer hari ini.</div>';
+                return;
+            }
+
+            vendors.forEach(v => {
+                let badgeClass = 'text-danger border-danger';
+                let badgeText = 'BAD';
+                let barColor = 'bg-danger';
+
+                if (v.pctDelay < 30) {
+                    badgeClass = 'text-success border-success';
+                    badgeText = 'OK';
+                    barColor = 'bg-success';
+                } else if (v.pctDelay < 60) {
+                    badgeClass = 'text-warning border-warning';
+                    badgeText = 'WARN';
+                    barColor = 'bg-warning';
+                }
+
+                const html = `
+                    <div class="vendor-item">
+                        <div class="vendor-name text-truncate" title="${v.vendor}">${v.vendor}</div>
+                        <div class="vendor-progress">
+                            <div class="progress-track" style="height: 10px; background: rgba(255,255,255,0.05);">
+                                <div class="progress-fill ${barColor}" style="width: ${v.pctDelay}%"></div>
+                            </div>
+                        </div>
+                        <div class="text-info fw-bold me-3" style="width: 45px; text-align: right;">${v.pctDelay}%</div>
+                        <div class="vendor-badge ${badgeClass}">${badgeText}</div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        function loadDashboardData() {
+            const dateStr = document.getElementById('filterDate').value;
+
+            // Fetch Trend Data
+            fetch(`/DeliverySchedules/GetTrendDeliveryData?date=${dateStr}`)
+                .then(res => res.json())
+                .then(data => {
+                    const daysLabels = data.daily.labels || defaultDaysLabels;
+                    cPrepareHourly.data.labels = daysLabels;
+                    cTruckInHourly.data.labels = daysLabels;
+                    cDeliveryHourly.data.labels = daysLabels;
+
+                    // Update Top Cards using returned indicators (excluding completed delays)
+                    const prepCount = data.indicators ? data.indicators.prepare : 0;
+                    const truckInCount = data.indicators ? data.indicators.truckIn : 0;
+                    const deliveryCount = data.indicators ? data.indicators.delivery : 0;
+                    
+                    const total = data.indicators && data.indicators.total ? data.indicators.total : (data.totalSchedules || 1);
+                    const pctP = Math.round((prepCount / total) * 100) || 0;
+                    const pctT = Math.round((truckInCount / total) * 100) || 0;
+                    const pctD = Math.round((deliveryCount / total) * 100) || 0;
+
+                    updateTopCard('Prepare', { count: prepCount, pct: pctP });
+                    updateTopCard('TruckIn', { count: truckInCount, pct: pctT });
+                    updateTopCard('Delivery', { count: deliveryCount, pct: pctD });
+
+                    // Update Daily Charts
+                    const prepData = data.daily.prepare;
+                    cPrepareHourly.data.datasets[0].data = prepData.map(x => x.count);
+                    cPrepareHourly.data.datasets[0].rawObjects = prepData;
+                    cPrepareHourly.update();
+
+                    const truckInData = data.daily.truckIn;
+                    cTruckInHourly.data.datasets[0].data = truckInData.map(x => x.count);
+                    cTruckInHourly.data.datasets[0].rawObjects = truckInData;
+                    cTruckInHourly.update();
+
+                    const delivData = data.daily.delivery;
+                    cDeliveryHourly.data.datasets[0].data = delivData.map(x => x.count);
+                    cDeliveryHourly.data.datasets[0].rawObjects = delivData;
+                    cDeliveryHourly.update();
+
+                    // Update Monthly Chart
+                    cMonthly.data.datasets[0].data = data.monthly.prepare;
+                    cMonthly.data.datasets[1].data = data.monthly.truckIn;
+                    cMonthly.data.datasets[2].data = data.monthly.delivery;
+                    cMonthly.update();
+
+                    // Update Vendors
+                    if (data.vendors && data.vendors.shift1) {
+                        renderVendors('vendorListContainerShift1', data.vendors.shift1);
+                        renderVendors('vendorListContainerShift2', data.vendors.shift2);
+                    } else {
+                        // Fallback if backend not updated
+                        renderVendors('vendorListContainerShift1', data.vendors);
+                        renderVendors('vendorListContainerShift2', []);
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching dashboard data", err);
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            loadDashboardData();
+            
+            // Auto refresh every 5 minutes as fallback
+            setInterval(loadDashboardData, 300000);
+
+            // SignalR for real-time updates
+            try {
+                if (typeof signalR !== 'undefined') {
+                    const connection = new signalR.HubConnectionBuilder()
+                        .withUrl("/deliveryHub")
+                        .withAutomaticReconnect()
+                        .build();
+
+                    let signalRDebounce = null;
+                    connection.on("deliveryUpdated", function (data) {
+                        clearTimeout(signalRDebounce);
+                        signalRDebounce = setTimeout(function () {
+                            console.log("SignalR (Trend Delivery) update received:", data);
+                            loadDashboardData();
+                        }, 1500);
+                    });
+
+                    connection.start().then(function () {
+                        console.log("✅ SignalR connected for Trend Delivery.");
+                    }).catch(function (err) {
+                        console.error("❌ SignalR Connection Error: ", err);
+                    });
+                } else {
+                    console.warn("⚠️ SignalR not found on page.");
+                }
+            } catch (e) {
+                console.error("Error setting up SignalR:", e);
+            }
+        });
+    </script>
+}

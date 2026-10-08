@@ -1,0 +1,1190 @@
+@{
+    ViewData["Title"] = "Trend Critical Stock";
+    var allPlants       = ViewBag.AllPlants as List<string> ?? new List<string>();
+    var selectedLevel   = ViewBag.SelectedLevel as string ?? "1.5D";
+    var selectedPeriod  = ViewBag.SelectedPeriod as string ?? "30d";
+    var statusFilter    = ViewBag.StatusFilter as string ?? "All";
+    var selectedMonth   = ViewBag.SelectedMonth as string ?? "";
+    var availableMonths = ViewBag.AvailableMonthsList as List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem> ?? new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>();
+    var plantBreakdown  = ViewBag.PlantBreakdown as string ?? "[]";
+    var dateLabels      = ViewBag.DateLabels as string ?? "[]";
+    var dailyDateLabels = ViewBag.DailyDateLabels as string ?? "[]";
+    var todayBelow2D   = (int)(ViewBag.TodayBelow1_5D ?? 0);
+    var todayTotal      = (int)(ViewBag.TodayTotal ?? 0);
+    var shortageCount   = (int)(ViewBag.ShortageCount ?? 0);
+    var normalCount     = (int)(ViewBag.NormalCount   ?? 0);
+    var overCount       = (int)(ViewBag.OverCount     ?? 0);
+    var lastSnapshot    = ViewBag.LastSnapshot as DateTime?;
+    var fullDates       = ViewBag.FullDates as string ?? "[]";
+}
+
+<style>
+    .tcs-card         { background: #0f1929; border: 1px solid #1e3a5f; border-radius: 12px; }
+    .tcs-card-red     { border-left: 4px solid #ef4444; }
+    .tcs-card-orange  { border-left: 4px solid #f97316; }
+    .tcs-card-blue    { border-left: 4px solid #3b82f6; }
+
+    .tcs-stat-num { font-size: 2.5rem; font-weight: 700; line-height: 1; text-shadow: 0 0 20px rgba(255,255,255,0.1); }
+    .tcs-label    { font-size: .72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+
+    .tcs-filter-btn {
+        background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(59, 130, 246, 0.2); color: #94a3b8;
+        padding: 5px 15px; border-radius: 6px; cursor: pointer;
+        transition: all .2s; font-size: .75rem; font-weight: 600;
+    }
+    .tcs-filter-btn:hover   { background: rgba(59, 130, 246, 0.1); color: #fff; }
+    .tcs-filter-btn.active  { background: var(--primary-blue); border-color: var(--primary-blue); color: #fff; box-shadow: 0 0 15px rgba(59, 130, 246, 0.3); }
+
+    /* Match Trend Dashboard table styles */
+    .stock-level-red    { background: rgba(239, 68, 68, 0.2) !important; color: #ef4444 !important; border: 1px solid rgba(239, 68, 68, 0.3) !important; }
+    .stock-level-orange { background: rgba(249, 115, 22, 0.2) !important; color: #f97316 !important; border: 1px solid rgba(249, 115, 22, 0.3) !important; }
+    .stock-level-yellow { background: rgba(234, 179, 8, 0.2) !important; color: #eab308 !important; border: 1px solid rgba(234, 179, 8, 0.3) !important; }
+    .stock-level-green  { background: rgba(16, 185, 129, 0.2) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.3) !important; }
+    .stock-level-blue   { background: rgba(59, 130, 246, 0.2) !important; color: #3b82f6 !important; border: 1px solid rgba(59, 130, 246, 0.3) !important; }
+
+    .level-toggle { background: #0a1628; border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 10px; padding: 4px; display: inline-flex; gap: 4px; }
+    .level-btn {
+        border: none; border-radius: 7px; padding: 7px 20px; font-size: .8rem;
+        font-weight: 700; cursor: pointer; transition: all .25s; color: #64748b; background: transparent;
+    }
+    .level-btn.red    { background: #ef4444; color: #fff; box-shadow: 0 0 14px rgba(239,68,68,.45); }
+    .level-btn.orange { background: #f97316; color: #fff; box-shadow: 0 0 14px rgba(249,115,22,.45); }
+    .level-btn.deepred { background: #b91c1c; color: #fff; box-shadow: 0 0 14px rgba(185,28,28,.5); }
+
+    .chart-wrap { position: relative; height: 380px; }
+
+    .bdg-red    { background: rgba(239,68,68,.15);  color: #ef4444; border: 1px solid rgba(239,68,68,.3);  border-radius: 5px; padding: 2px 8px; font-size: .72rem; }
+    .bdg-orange { background: rgba(249,115,22,.15); color: #f97316; border: 1px solid rgba(249,115,22,.3); border-radius: 5px; padding: 2px 8px; font-size: .72rem; }
+    .bdg-deepred { background: rgba(185,28,28,.15); color: #fca5a5; border: 1px solid rgba(185,28,28,.3); border-radius: 5px; padding: 2px 8px; font-size: .72rem; }
+
+    .legend-pill {
+        display: flex; align-items: center; gap: 8px; cursor: pointer;
+        background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(59, 130, 246, 0.1); border-radius: 8px;
+        padding: 6px 14px; transition: all .2s;
+    }
+    .legend-pill:hover { background: rgba(59, 130, 246, 0.05); transform: translateY(-1px); }
+    .legend-pill.hidden-series { opacity: .35; }
+    .legend-line { width: 24px; height: 4px; border-radius: 2px; }
+
+    /* ========================================
+       DASHBOARD SUB-MENU NAV STYLING
+       ======================================== */
+    .dashboard-nav-wrapper {
+        border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .nav-links-container {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+    }
+
+    .nav-link-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #94a3b8;
+        text-decoration: none;
+        padding: 12px 0px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        position: relative;
+        border-bottom: 2px solid transparent;
+    }
+
+    .nav-link-item i {
+        font-size: 1rem;
+    }
+
+    .nav-link-item:hover {
+        color: #fff;
+    }
+
+    .nav-link-item.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+    }
+
+    .nav-link-item.active i {
+        color: #3b82f6;
+    }
+
+    .custom-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(10, 22, 40, 0.6);
+        padding: 6px 15px;
+        border-radius: 10px;
+        border: 1px solid rgba(59, 130, 246, 0.15);
+    }
+
+    .animate-fade-in {
+        animation: fadeIn 0.4s ease-out forwards;
+    }
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="header-main-row mb-3">
+    <div class="header-title-section">
+        <i class="bi bi-graph-down-arrow fs-4 text-danger"></i>
+        <h1 class="h5 fw-bold mb-0 text-white text-nowrap">Trend Critical Stock</h1>
+    </div>
+
+    <div class="custom-filter-bar ms-auto">
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <span class="tcs-label me-1"><i class="bi bi-tag-fill me-1"></i>Status:</span>
+            <select id="statusFilterSelect" class="form-select form-select-sm" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(59, 130, 246, 0.2); color: #94a3b8; font-size: 0.75rem; font-weight: 600; width: 120px;" onchange="applyFilter('@selectedLevel', '@selectedPeriod', this.value, '@selectedMonth')">
+                <option value="All" selected="@(statusFilter == "All" ? "selected" : null)" style="background: #0f172a; color: #ffffff;">All Items</option>
+                <option value="Reguler" selected="@(statusFilter == "Reguler" ? "selected" : null)" style="background: #0f172a; color: #ffffff;">Reguler</option>
+                <option value="PMSP FM" selected="@(statusFilter == "PMSP FM" ? "selected" : null)" style="background: #0f172a; color: #ffffff;">PMSP FM</option>
+            </select>
+        </div>
+        <div class="dash-v-divider" style="width: 1px; height: 20px; background: rgba(255,255,255,0.1); margin: 0 5px;"></div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <span class="tcs-label me-1"><i class="bi bi-calendar-month me-1"></i>Bulan:</span>
+            <select id="monthFilterSelect" class="form-select form-select-sm" style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(59, 130, 246, 0.2); color: #3b82f6; font-size: 0.75rem; font-weight: 700; width: 175px;" onchange="onMonthSelectChange(this.value)">
+                @foreach (var m in availableMonths)
+                {
+                    if (selectedMonth == m.Value)
+                    {
+                        <option value="@m.Value" selected style="background: #0f172a; color: #ffffff;">@m.Text</option>
+                    }
+                    else
+                    {
+                        <option value="@m.Value" style="background: #0f172a; color: #ffffff;">@m.Text</option>
+                    }
+                }
+            </select>
+        </div>
+        <div class="dash-v-divider" style="width: 1px; height: 20px; background: rgba(255,255,255,0.1); margin: 0 5px;"></div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <span class="tcs-label me-1"><i class="bi bi-calendar3 me-1"></i>Pintas:</span>
+            @foreach (var (val, lbl) in new[] { ("7d","7H"), ("14d","14H"), ("30d","30H"), ("90d","90H") })
+            {
+                <button class="tcs-filter-btn @(selectedPeriod == val && string.IsNullOrEmpty(selectedMonth) ? "active" : "")"
+                        style="height: 30px; padding: 2px 12px; font-size: 0.7rem;"
+                        onclick="applyFilter('@selectedLevel','@val', '@statusFilter', '')">@lbl</button>
+            }
+        </div>
+        <div class="dash-v-divider" style="width: 1px; height: 20px; background: rgba(255,255,255,0.1); margin: 0 5px;"></div>
+        <button class="btn btn-sm btn-outline-success shadow-sm me-1" id="btnExportCriticalStock" style="height: 30px; font-size: 0.75rem; font-weight: 600;" onclick="exportCriticalStock()">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export Excel
+        </button>
+        @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+        {
+            <button class="btn btn-sm btn-outline-warning shadow-sm" id="btnTriggerSnapshot" style="height: 30px; font-size: 0.75rem; font-weight: 600;">
+                <i class="bi bi-camera me-1"></i>Snapshot
+            </button>
+            <button class="btn btn-sm btn-outline-info shadow-sm ms-1" id="btnRepairSnapshotPlant" style="height: 30px; font-size: 0.75rem; font-weight: 600;" title="Perbaiki Plant yang kosong/salah di snapshot berdasarkan master item">
+                <i class="bi bi-tools me-1"></i>Repair Snapshot
+            </button>
+        }
+    </div>
+</div>
+
+<div class="col-12 mt-2">
+    <div class="dashboard-nav-wrapper mb-2">
+        <partial name="_DashboardNav" />
+    </div>
+    <hr class="mt-0 opacity-25" />
+</div>
+
+<div class="container-fluid px-0">
+    @if (lastSnapshot.HasValue)
+    {
+        <div class="mb-3 d-flex justify-content-end">
+            <div class="snap-info py-1 px-3 d-inline-flex align-items-center" style="font-size: 0.75rem;">
+                <span class="text-muted"><i class="bi bi-clock-history me-1"></i>Terakhir diperbarui:</span>
+                <span class="text-info fw-bold ms-1">@lastSnapshot.Value.ToString("dd/MM/yyyy HH:mm")</span>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <!-- Card 1: Shortage (< 1.5 Days) -->
+        <div class="col-md-6">
+            <div class="tcs-card tcs-card-red p-3 h-100 position-relative overflow-hidden">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="tcs-label mb-2 text-uppercase fw-bold" style="font-size: 0.75rem; letter-spacing: 0.5px; opacity: 0.8;">
+                            <i class="bi bi-exclamation-triangle-fill text-danger me-1"></i> SHORTAGE
+                        </div>
+                        <div class="tcs-stat-num text-danger mb-1" id="statShortageNum">@shortageCount</div>
+                        <div class="text-muted small mt-1">Low Stock Items</div>
+                        <div class="mt-2">
+                            <span id="statShortageLbl" style="display:inline-block;background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.35);border-radius:20px;padding:2px 10px;font-size:0.7rem;font-weight:700;letter-spacing:0.5px;">< @(selectedLevel == "0.5D" ? "0.5D" : selectedLevel == "1D" ? "1D" : "1.5D")</span>
+                        </div>
+                    </div>
+                </div>
+                @if (todayTotal > 0)
+                {
+                    var pct = Math.Round((double)shortageCount / todayTotal * 100, 1);
+                    <div class="mt-3">
+                        <div class="progress" style="height: 4px; background: rgba(239, 68, 68, 0.1);">
+                            <div class="progress-bar bg-danger shadow-sm" id="statShortageBar" style="width: @pct%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                            <small class="text-muted fw-bold" id="statShortagePct" style="font-size: 0.65rem;">@pct% DARI TOTAL</small>
+                            <small class="text-white-50" id="statShortageTotal" style="font-size: 0.65rem;">@todayTotal ITEM</small>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Card 2: Informasi Item Kritis (pindah ke atas) -->
+        <div class="col-md-6">
+            <div id="plantInfoCard" class="tcs-card p-3 h-100" style="background:rgba(15,25,41,0.8);border:1px solid rgba(59,130,246,0.18);">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-table text-primary" style="font-size: 1.1rem;"></i>
+                    <span class="text-white fw-semibold" style="font-size: 1.3rem;">Informasi Item Kritis per Plant</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0" style="border-collapse:separate;border-spacing:0;width:100%;">
+                        <colgroup>
+                            <col style="width:25%;">
+                            <col style="width:25%;">
+                            <col style="width:25%;">
+                            <col style="width:25%;">
+                        </colgroup>
+                        <thead>
+                            <tr style="border-bottom:3px solid rgba(255,255,255,0.1);">
+                                <th rowspan="2" style="color:#ffffff;font-weight:700;padding:8px 10px;background:rgba(0,0,0,0.3);text-align:center;vertical-align:middle;font-size:0.95rem;border-radius:6px 0 0 0;">Plant</th>
+                                <th colspan="2" style="color:#ffffff;font-weight:700;padding:8px 10px;background:rgba(0,0,0,0.3);text-align:center;font-size:0.95rem;border-left:1px solid rgba(255,255,255,0.06);">Qty Item</th>
+                                <th rowspan="2" style="color:#ffffff;font-weight:700;padding:8px 10px;background:rgba(0,0,0,0.3);text-align:center;font-size:0.95rem;vertical-align:middle;border-left:1px solid rgba(255,255,255,0.06);border-radius:0 6px 0 0;">Status</th>
+                            </tr>
+                            <tr style="border-bottom:2.0px solid rgba(255,255,255,0.12);">
+                                <th id="thKemarin" style="color:#eeeff1;font-weight:700;padding:6px 10px;background:rgba(0,0,0,0.2);text-align:center;font-size:0.85rem;border-left:1px solid rgba(255,255,255,0.06);">Kemarin</th>
+                                <th id="thSekarang" style="color:#e2e8f0;font-weight:700;padding:6px 10px;background:rgba(0,0,0,0.2);text-align:center;font-size:0.85rem;border-left:1px solid rgba(255,255,255,0.06);">Hari Ini</th>
+                            </tr>
+                        </thead>
+                        <tbody id="plantInfoTableBody"></tbody>
+                    </table>
+                </div>
+                <div id="plantInfoDateRange" class="text-center mt-3" style="font-size:0.8rem;color:#64748b;letter-spacing:0.01em;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tcs-card p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+            <div>
+                <h3 class="text-white mb-1 fw-semibold">
+                    <i class="bi bi-graph-up me-2 text-primary"></i>
+                    Trend Jumlah Item Kritis per Plant
+                </h3>
+                <small class="text-muted">Setiap garis = 1 plant | Filter level di kanan</small>
+            </div>
+            <div class="level-toggle">
+                <button class="level-btn @(selectedLevel == "0.5D" ? "deepred" : "")"
+                        id="btnLv0_5D" onclick="switchLevel('0.5D')">
+                    <i class="bi bi-exclamation-octagon me-1"></i>&lt; 0.5 Days
+                </button>
+                <button class="level-btn @(selectedLevel == "1D" ? "red" : "")"
+                        id="btnLv1D" onclick="switchLevel('1D')">
+                    <i class="bi bi-exclamation-triangle me-1"></i>&lt; 1 Day
+                </button>
+                <button class="level-btn @(selectedLevel == "1.5D" ? "orange" : "")"
+                        id="btnLv1_5D" onclick="switchLevel('1.5D')">
+                    <i class="bi bi-exclamation-circle me-1"></i>&lt; 1.5 Days
+                </button>
+            </div>
+        </div>
+
+        <div class="row g-3 align-items-start">
+            <div class="col-12">
+                <div class="chart-wrap">
+                    <div id="mainChart"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- History Critical Stock (Moved to full width) -->
+        <div class="mt-4 pt-3" style="border-top: 1px solid rgba(255,255,255,0.08);">
+            <h1 class="text-white mb-3 fw-semibold" style="font-size: 2.0rem;">
+                <i class="bi bi-clock-history me-2 text-primary"></i>
+                History Critical Stock
+            </h1>
+            <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0 text-center" id="historyCriticalTable" style="border-collapse: separate; border-spacing: 0;">
+                    <thead id="historyTableHead">
+                    </thead>
+                    <tbody id="historyTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    @if (allPlants.Any())
+    {
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h3 class="text-white mb-0 fw-semibold">
+                <i class="bi bi-building me-2 text-primary"></i>
+                Breakdown per Plant — <span id="selectedBreakdownDate">Hari Ini</span>
+            </h3>
+            <div class="d-flex align-items-center gap-2">
+                <div class="position-relative">
+                    <i class="bi bi-search position-absolute" style="left: 10px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 0.8rem; pointer-events: none;"></i>
+                    <input type="text" id="breakdownSearch"
+                           class="form-control form-control-sm"
+                           placeholder="Cari VIN atau nama item..."
+                           style="background: #0f1929; border: 1px solid rgba(59,130,246,0.2); color: #e2e8f0; padding-left: 30px; border-radius: 8px; width: 260px; font-size: 0.8rem;"
+                           oninput="onBreakdownSearch(this.value)">
+                </div>
+                <span id="searchResultInfo" class="text-muted" style="font-size: 0.75rem; display: none;"></span>
+                <button id="btnClearSearch" class="btn btn-sm" onclick="clearBreakdownSearch()"
+                        style="display: none; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; border-radius: 8px; font-size: 0.72rem; padding: 3px 10px;">
+                    <i class="bi bi-x me-1"></i>Clear
+                </button>
+            </div>
+        </div>
+        <div id="plantCards" class="row g-3 mb-4"></div>
+    }
+
+    @if (todayTotal == 0)
+    {
+        <div class="tcs-card p-5 text-center">
+            <i class="bi bi-database-x" style="font-size:3rem;color:#334155"></i>
+            <p class="text-muted mt-3 mb-1 fw-semibold">Belum ada data snapshot</p>
+            <p class="text-muted small mb-3">
+                Snapshot otomatis berjalan setiap <strong class="text-info">jam 08:00</strong>.<br>
+                Gunakan tombol <strong class="text-warning">Snapshot Manual</strong> untuk mengambil data sekarang.
+            </p>
+            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+            {
+                <button class="btn btn-warning btn-sm" onclick="triggerSnapshot()">
+                    <i class="bi bi-camera me-1"></i>Ambil Snapshot Sekarang
+                </button>
+            }
+            else
+            {
+                <p class="text-info small mt-2">Daftar item kritis akan otomatis terupdate setiap harinya.</p>
+            }
+        </div>
+    }
+
+</div>
+
+<!-- Modal Edit Target Trend -->
+<div class="modal fade" id="editTargetModalTrend" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content bg-dark text-white" style="border: 1px solid rgba(255,255,255,0.1);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <h5 class="modal-title fs-6">Edit Target</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Tanggal</label>
+                    <select id="editTargetDateTrend" class="form-select bg-dark text-white border-secondary">
+                        <!-- Populated via JS -->
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Qty Target</label>
+                    <input type="number" id="editTargetQtyTrend" class="form-control bg-dark text-white border-secondary" value="0" min="0">
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1);">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-sm btn-primary" onclick="saveTargetTrend()">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Delete Target Trend -->
+<div class="modal fade" id="deleteTargetModalTrend" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content bg-dark text-white" style="border: 1px solid rgba(255,255,255,0.1);">
+            <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <h5 class="modal-title fs-6 text-danger">Hapus Target</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label text-muted small">Pilih Tanggal</label>
+                    <select id="deleteTargetDateTrend" class="form-select bg-dark text-white border-secondary">
+                        <!-- Populated via JS -->
+                    </select>
+                </div>
+                <p class="text-warning small mb-0">Target pada tanggal yang dipilih akan di-reset menjadi 0.</p>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1);">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-sm btn-danger" onclick="deleteTargetTrend()">Hapus</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+// ── Data dari server ─────────────────────────────────────────────────────────
+const PLANT_BREAKDOWN   = @Html.Raw(plantBreakdown);
+const DATE_LABELS       = @Html.Raw(dateLabels);
+const DAILY_DATE_LABELS = @Html.Raw(dailyDateLabels);
+const FULL_DATES       = @Html.Raw(fullDates);
+
+// ── Warna tetap per plant (konsisten dengan skrip desain) ─────────────────
+const PLANT_COLORS = {
+    'Hose'   : '#3b82f6',   // biru
+    'Molded' : '#f97316',   // oranye
+    'RVI'    : '#10b981',   // hijau
+    'BTR'    : '#06b6d4',   // cyan
+};
+const FALLBACK = ['#e879f9','#fbbf24','#f472b6','#2dd4bf','#fb923c'];
+
+function plantColor(name, idx) {
+    return PLANT_COLORS[name] ?? FALLBACK[idx % FALLBACK.length];
+}
+
+function hexRgba(hex, a) {
+    const r = parseInt(hex.slice(1,3),16),
+          g = parseInt(hex.slice(3,5),16),
+          b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── State ────────────────────────────────────────────────────────────────
+let currentLevel = '@selectedLevel';
+let searchQuery = '';
+
+function exportCriticalStock() {
+    window.location.href = `/Stock/ExportCriticalStockToExcel?level=${currentLevel}`;
+}
+
+// ── Search filter ────────────────────────────────────────────────────────────
+function filterItems(items) {
+    if (!searchQuery) return items;
+    const q = searchQuery.toLowerCase();
+    return items.filter(it => {
+        const code = (it.vin || it.itemCode || '').toLowerCase();
+        const name = (it.itemName || '').toLowerCase();
+        return code.includes(q) || name.includes(q);
+    });
+}
+
+window.onBreakdownSearch = function(val) {
+    searchQuery = val.trim();
+    const clearBtn = document.getElementById('btnClearSearch');
+    const info = document.getElementById('searchResultInfo');
+    if (clearBtn) clearBtn.style.display = searchQuery ? 'inline-block' : 'none';
+    if (info) info.style.display = 'none';
+    Object.keys(cardPages).forEach(k => delete cardPages[k]);
+    renderCards(_lastRenderDynamic);
+};
+
+window.clearBreakdownSearch = function() {
+    const inp = document.getElementById('breakdownSearch');
+    if (inp) inp.value = '';
+    window.onBreakdownSearch('');
+};
+
+// ── Build series per level untuk ApexCharts ──────────────────────────────────
+function buildApexSeries(level) {
+    return PLANT_BREAKDOWN.map((p, i) => {
+        const data = p.trend.map(t => t.hasSnapshot
+            ? (level === '0.5D' ? t.below0_5D : level === '1D' ? t.below1D : t.below1_5D)
+            : 0);
+        return {
+            name: p.plant || 'Unknown',
+            data: data
+        };
+    });
+}
+
+const apexChartOptions = {
+    chart: {
+        type: 'line',
+        height: 320,
+        background: '#0d1527',
+        toolbar: { show: false },
+        events: {
+            markerClick: function(event, chartContext, { dataPointIndex }) {
+                if (FULL_DATES && FULL_DATES[dataPointIndex]) {
+                    fetchBreakdownForDate(FULL_DATES[dataPointIndex], DATE_LABELS[dataPointIndex]);
+                }
+            }
+        }
+    },
+    colors: ['#3b82f6', '#f97316', '#10b981', '#06b6d4'], // Hose, Molded, RVI, BTR
+    stroke: { curve: 'smooth', width: 2.5 },
+    markers: { size: 3, strokeWidth: 1 },
+    series: buildApexSeries(currentLevel),
+    xaxis: {
+        categories: DATE_LABELS,
+        labels: { style: { colors: '#94a3b8', fontSize: '11px' } },
+        axisBorder: { color: '#1e293b' }
+    },
+    yaxis: {
+        min: 0,
+        tickAmount: 7,
+        labels: { style: { colors: '#94a3b8' } }
+    },
+    grid: { borderColor: '#1e293b' },
+    theme: { mode: 'dark' },
+    tooltip: { theme: 'dark' }
+};
+
+var mainApexChart = new ApexCharts(document.querySelector("#mainChart"), apexChartOptions);
+mainApexChart.render();
+
+function togglePlant(idx) {
+    if (mainApexChart && PLANT_BREAKDOWN[idx]) {
+        mainApexChart.toggleSeries(PLANT_BREAKDOWN[idx].plant);
+    }
+}
+
+// ── Plant info table (Kemarin / Hari Ini / Perubahan) ────────────────────────
+function renderPlantInfoTable() {
+    const tbody = document.getElementById('plantInfoTableBody');
+    if (!tbody) return;
+
+    // Sub-header tetap statis: Kemarin / Hari Ini
+    const thK = document.getElementById('thKemarin');
+    const thS = document.getElementById('thSekarang');
+    if (thK) thK.textContent = 'Kemarin';
+    if (thS) thS.textContent = 'Hari Ini';
+
+    // Periode: baca dari DAILY_DATE_LABELS (simetris dengan tanggal harian)
+    const dateRangeEl = document.getElementById('plantInfoDateRange');
+    if (dateRangeEl) {
+        let dStart = DAILY_DATE_LABELS[0] || '';
+        let dEnd   = DAILY_DATE_LABELS[DAILY_DATE_LABELS.length - 1] || '';
+        dateRangeEl.textContent = `Periode: ${dStart} — ${dEnd}`;
+    }
+
+    tbody.innerHTML = PLANT_BREAKDOWN.map((p, i) => {
+        const color = plantColor(p.plant, i);
+
+        // Hari Ini
+        const today = currentLevel === '0.5D' ? (p.totalBelow0_5D || 0)
+                    : currentLevel === '1D'   ? (p.totalBelow1D   || 0)
+                    : (p.totalBelow1_5D || 0);
+
+        // Kemarin = snapshot ke-2 dari akhir di dailyTrend
+        const trendSource = p.dailyTrend || p.trend || [];
+        const snaps = trendSource.filter(t => t.hasSnapshot);
+        const yestSnap = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
+        const yest = yestSnap
+            ? (currentLevel === '0.5D' ? (yestSnap.below0_5D || 0)
+             : currentLevel === '1D'   ? (yestSnap.below1D || 0)
+             : (yestSnap.below1_5D    || 0))
+            : null;
+
+        const yestDisplay = yest !== null ? yest : '<span style="color:#475569;">—</span>';
+
+        // Perubahan: delta qty, warna teks & ikon panah mengikuti warna garis plant
+        let deltaHtml;
+        if (yest === null) {
+            deltaHtml = `<span style="color:#475569;font-size:1rem;">—</span>`;
+        } else {
+            const delta = today - yest;
+            const sign  = delta > 0 ? '+' : '';
+            if (delta === 0) {
+                deltaHtml = `<span style="color:#e2e8f0;font-size:1rem;font-weight:600;">± 0 item</span>`;
+            } else {
+                const goingUp  = delta > 0;
+                const svgColor = goingUp ? '#ef4444' : '#22c55e';
+                const pts      = goingUp ? 'points="2,17 7,11 12,14 18,5 23,9 28,2"' : 'points="2,3 7,9 12,6 18,15 23,11 28,18"';
+                const arrowPts = goingUp ? 'points="22,2 28,2 28,8"' : 'points="22,18 28,18 28,12"';
+                const svg = `<svg width="28" height="18" viewBox="0 0 32 20" fill="none" style="flex-shrink:0;vertical-align:middle;"><polyline ${pts} stroke="${svgColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><polyline ${arrowPts} stroke="${svgColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                deltaHtml = `<span style="display:inline-flex;align-items:center;gap:4px;color:#e2e8f0;font-size:1rem;font-weight:700;white-space:nowrap;">${svg}${sign}${delta} item</span>`;
+            }
+        }
+
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,0.05);transition:background 0.15s;" onmouseover="this.style.background='rgba(59,130,246,0.06)'" onmouseout="this.style.background='transparent'">
+            <td style="padding:6px 10px;color:#e2e8f0;font-size:0.95rem;font-weight:600;white-space:nowrap;">
+                <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};margin-right:6px;flex-shrink:0;"></span>
+                ${p.plant || '—'}
+            </td>
+            <td style="padding:6px 8px;text-align:center;color:#94a3b8;font-size:0.95rem;border-left:1px solid rgba(255,255,255,0.05);">${yestDisplay}</td>
+            <td style="padding:6px 8px;text-align:center;color:#e2e8f0;font-size:0.95rem;font-weight:700;border-left:1px solid rgba(255,255,255,0.05);">${today}</td>
+            <td style="padding:6px 8px;text-align:center;border-left:1px solid rgba(255,255,255,0.05);">${deltaHtml}</td>
+        </tr>`;
+    }).join('');
+}
+
+// ── History Table (Tanggal & Jam sebagai kolom) ──────────────────────────────
+function renderHistoryTable() {
+    const thead = document.getElementById('historyTableHead');
+    const tbody = document.getElementById('historyTableBody');
+    if (!thead || !tbody) return;
+
+    let headHtml = `<tr>
+        <th style="position: sticky; left: 0; background: #0f1929; color: #fff; z-index: 3; min-width: 120px; border-bottom: 2px solid #1e3a5f; text-align: left; padding-left: 15px;">Plant</th>`;
+    
+    // Iterasi dari terlama ke terbaru (menggunakan DATE_LABELS termasuk jam hari ini)
+    for (let j = 0; j < DATE_LABELS.length; j++) {
+        const isTodayHour = DATE_LABELS[j].includes(':');
+        const labelStr = DATE_LABELS[j];
+        const fullDate = FULL_DATES[j];
+        headHtml += `<th style="background: #0f1929; color: ${isTodayHour ? '#3b82f6' : '#94a3b8'}; border-bottom: 1px solid rgba(255,255,255,0.1); min-width: 65px; cursor: pointer;" title="Klik untuk lihat detail breakdown ${labelStr}" onclick="fetchBreakdownForDate('${fullDate}', '${labelStr}')">${labelStr}</th>`;
+    }
+    headHtml += `</tr>`;
+    thead.innerHTML = headHtml;
+
+    let bodyHtml = '';
+    
+    // Simpan total per kolom tanggal
+    let dailyTotals = new Array(DATE_LABELS.length).fill(0);
+    
+    PLANT_BREAKDOWN.forEach((p, i) => {
+        const color = plantColor(p.plant, i);
+        const rowBg = hexRgba(color, 0.15);
+        const stickyBg = `linear-gradient(${rowBg}, ${rowBg}), #0f1929`;
+
+        let rowHtml = `<tr id="leg-${i}" style="background: ${rowBg}; border-bottom: 1px solid rgba(255,255,255,0.05); transition: filter 0.15s, opacity 0.3s;" onmouseover="this.style.filter='brightness(1.2)'" onmouseout="this.style.filter='none'">
+            <td class="fw-bold" style="position: sticky; left: 0; background: ${stickyBg}; color: #e2e8f0; z-index: 2; text-align: left; padding-left: 15px; border-right: 1px solid rgba(255,255,255,0.05); cursor: pointer;" onclick="togglePlant(${i})">
+                <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color};margin-right:6px;flex-shrink:0;"></span>
+                ${p.plant || '—'}
+            </td>`;
+        
+        for (let j = 0; j < DATE_LABELS.length; j++) {
+            const trendData = p.trend[j];
+            const fullDate = FULL_DATES[j];
+            const labelStr = DATE_LABELS[j];
+            if (trendData && trendData.hasSnapshot) {
+                const val = currentLevel === '0.5D' ? trendData.below0_5D : currentLevel === '1D' ? trendData.below1D : trendData.below1_5D;
+                dailyTotals[j] += val;
+                rowHtml += `<td class="text-white fw-bold" style="cursor: pointer;" title="Klik untuk lihat breakdown ${labelStr}" onclick="fetchBreakdownForDate('${fullDate}', '${labelStr}')">${val}</td>`;
+            } else {
+                rowHtml += `<td style="color:rgba(148,163,184,0.35);font-weight:400;cursor: pointer;" onclick="fetchBreakdownForDate('${fullDate}', '${labelStr}')">0</td>`;
+            }
+        }
+        rowHtml += `</tr>`;
+        bodyHtml += rowHtml;
+    });
+
+    // Row Total
+    bodyHtml += `<tr style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+            <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#e2e8f0;margin-right:6px;"></span>Total
+        </td>`;
+    for (let j = 0; j < DATE_LABELS.length; j++) {
+        const hasAnyData = PLANT_BREAKDOWN.some(p => p.trend[j] && p.trend[j].hasSnapshot);
+        const fullDate = FULL_DATES[j];
+        const labelStr = DATE_LABELS[j];
+        bodyHtml += `<td style="color:${hasAnyData ? '#e2e8f0' : 'rgba(148,163,184,0.35)'};font-weight:${hasAnyData ? 'bold' : '400'};cursor: pointer;" onclick="fetchBreakdownForDate('${fullDate}', '${labelStr}')">${dailyTotals[j]}</td>`;
+    }
+    bodyHtml += `</tr>`;
+
+    // Row Target
+    bodyHtml += `<tr style="background: rgba(255,255,255,0.02); border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <td style="text-align:left;font-weight:bold;color:#e2e8f0;position:sticky;left:0;background:linear-gradient(rgba(255,255,255,0.02), rgba(255,255,255,0.02)), #0f1929;z-index:2;padding-left:15px;border-right:1px solid rgba(255,255,255,0.05);">
+            <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#94a3b8;margin-right:6px;"></span>Target
+            <i class="bi bi-pencil-square ms-2 text-warning" style="cursor:pointer; font-size:0.8rem;" title="Edit Target" onclick="openEditTargetModalTrend()"></i>
+            <i class="bi bi-trash text-danger ms-1" style="cursor:pointer; font-size:0.8rem;" title="Hapus Target" onclick="openDeleteTargetModalTrend()"></i>
+        </td>`;
+    for (let j = 0; j < DATE_LABELS.length; j++) {
+        bodyHtml += `<td style="color:#94a3b8;font-weight:500;" id="target-cell-trend-${j}">0</td>`;
+    }
+    bodyHtml += `</tr>`;
+
+    tbody.innerHTML = bodyHtml;
+}
+
+// ── Switch level ──────────────────────────────────────────────────────────
+const SUMMARY_TOTAL = @ViewBag.TodayTotal;
+function switchLevel(lv) {
+    currentLevel = lv;
+    document.getElementById('btnLv0_5D').className = 'level-btn' + (lv === '0.5D' ? ' deepred' : '');
+    document.getElementById('btnLv1D')  .className = 'level-btn' + (lv === '1D'   ? ' red'    : '');
+    document.getElementById('btnLv1_5D').className = 'level-btn' + (lv === '1.5D' ? ' orange' : '');
+
+    if (mainApexChart) {
+        mainApexChart.updateSeries(buildApexSeries(lv));
+    }
+
+    // Reset pagination saat ganti level
+    Object.keys(cardPages).forEach(k => delete cardPages[k]);
+
+    renderCards();
+    renderPlantInfoTable();
+    renderHistoryTable();
+    renderCards();
+    renderPlantInfoTable();
+    renderHistoryTable();
+
+    const url = new URL(window.location);
+    url.searchParams.set('level', lv);
+    window.history.replaceState({}, '', url);
+
+    // Update indicator card SHORTAGE sesuai level yang dipilih
+    const s0_5 = PLANT_BREAKDOWN.reduce((acc, p) => acc + (p.totalBelow0_5D || 0), 0);
+    const s1   = PLANT_BREAKDOWN.reduce((acc, p) => acc + (p.totalBelow1D || 0), 0);
+    const s1_5 = PLANT_BREAKDOWN.reduce((acc, p) => acc + (p.totalBelow1_5D || 0), 0);
+    const sVal = lv === '0.5D' ? s0_5 : lv === '1D' ? s1 : s1_5;
+    const sPct = SUMMARY_TOTAL > 0 ? (sVal / SUMMARY_TOTAL * 100).toFixed(1) : 0;
+    const numEl = document.getElementById('statShortageNum');
+    const barEl = document.getElementById('statShortageBar');
+    const pctEl = document.getElementById('statShortagePct');
+    if (numEl) numEl.textContent = sVal;
+    if (barEl) barEl.style.width = sPct + '%';
+    if (pctEl) pctEl.textContent = sPct + '% DARI TOTAL';
+
+    // Update label threshold hanya di kartu SHORTAGE
+    const shortageLbl = document.getElementById('statShortageLbl');
+    if (shortageLbl) shortageLbl.textContent = lv === '0.5D' ? '< 0.5D' : lv === '1D' ? '< 1D' : '< 1.5D';
+}
+
+// ── Pagination state per plant ───────────────────────────────────────────────
+const CARDS_PAGE_SIZE = 10;
+const cardPages = {}; // { plantIndex: currentPage }
+
+function getPageRows(items, page) {
+    const start = (page - 1) * CARDS_PAGE_SIZE;
+    return items.slice(start, start + CARDS_PAGE_SIZE);
+}
+
+function renderPagination(plantIdx, totalItems, currentPage, color) {
+    const totalPages = Math.ceil(totalItems / CARDS_PAGE_SIZE);
+    if (totalPages <= 1) return '';
+    const pages = Array.from({length: totalPages}, (_, i) => i + 1);
+    return `
+    <div class="d-flex justify-content-between align-items-center px-3 py-2" style="border-top: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.2); flex-shrink: 0;">
+        <span style="font-size: 0.72rem; color: #64748b;">${totalItems} item · hal ${currentPage}/${totalPages}</span>
+        <div class="d-flex gap-1">
+            <button onclick="changeCardPage(${plantIdx}, ${currentPage - 1})" class="card-page-btn" ${currentPage === 1 ? 'disabled' : ''}
+                style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;border-radius:4px;padding:2px 8px;font-size:0.72rem;cursor:pointer;">
+                ‹
+            </button>
+            ${pages.map(p => `
+                <button onclick="changeCardPage(${plantIdx}, ${p})" class="card-page-btn"
+                    style="background:${p === currentPage ? color : 'rgba(255,255,255,0.06)'};border:1px solid ${p === currentPage ? color : 'rgba(255,255,255,0.1)'};color:${p === currentPage ? '#fff' : '#94a3b8'};border-radius:4px;padding:2px 8px;font-size:0.72rem;cursor:pointer;min-width:26px;">
+                    ${p}
+                </button>`).join('')}
+            <button onclick="changeCardPage(${plantIdx}, ${currentPage + 1})" class="card-page-btn" ${currentPage === totalPages ? 'disabled' : ''}
+                style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;border-radius:4px;padding:2px 8px;font-size:0.72rem;cursor:pointer;">
+                ›
+            </button>
+        </div>
+    </div>`;
+}
+
+window.changeCardPage = function(plantIdx, page) {
+    const totalItems = _lastRenderSource ? _lastRenderSource[plantIdx]?.criticalItems?.length || 0 : 0;
+    const totalPages = Math.ceil(totalItems / CARDS_PAGE_SIZE);
+    if (page < 1 || page > totalPages) return;
+    cardPages[plantIdx] = page;
+    renderCards(_lastRenderDynamic);
+};
+
+let _lastRenderSource = null;
+let _lastRenderDynamic = null;
+
+// ── Breakdown cards ───────────────────────────────────────────────────────────
+function renderCards(dynamicData = null) {
+    _lastRenderDynamic = dynamicData;
+    const el = document.getElementById('plantCards');
+    if (!el) return;
+
+    const sourceData = dynamicData ? dynamicData.map(d => ({
+        plant: d.plant,
+        totalBelow0_5D: d.count, 
+        totalBelow1D: d.count, 
+        totalBelow1_5D: d.count,
+        criticalItems: d.items
+    })) : PLANT_BREAKDOWN;
+
+    const filteredData = sourceData.filter(p => p.plant || (p.criticalItems && p.criticalItems.length > 0));
+    _lastRenderSource = filteredData;
+
+    el.innerHTML = filteredData.map((p, i) => {
+        const color    = plantColor(p.plant, i);
+        const countVal = dynamicData ? (p.criticalItems ? p.criticalItems.length : 0) : (currentLevel === '0.5D' ? p.totalBelow0_5D : currentLevel === '1D' ? p.totalBelow1D : p.totalBelow1_5D);
+        const levelLbl = currentLevel === '0.5D' ? '< 0.5 Days' : currentLevel === '1D' ? '< 1 Day' : '< 1.5 Days';
+
+        const baseItems = p.criticalItems || [];
+        const allItems = filterItems(baseItems);
+        const currentPage = cardPages[i] || 1;
+        const pagedItems = getPageRows(allItems, currentPage);
+
+        if (searchQuery && i === 0) {
+            const totalMatch = filteredData.reduce((acc, plant) => acc + filterItems(plant.criticalItems || []).length, 0);
+            const info = document.getElementById('searchResultInfo');
+            if (info) {
+                info.textContent = `${totalMatch} item ditemukan`;
+                info.style.display = 'inline';
+            }
+        }
+
+        const rowsHtml = allItems.length === 0
+            ? `<tr><td colspan="2" class="p-4 text-center text-muted small">Tidak ada item kritis periode ini 🎉</td></tr>`
+            : pagedItems.map(it => {
+                const dc = it.currentStockLevel ?? 0;
+                const dcClass = dc < 0.5 ? 'stock-level-red' : 
+                               (dc < 1.0 ? 'stock-level-orange' : 
+                               (dc < 1.5 ? 'stock-level-yellow' : 'stock-level-blue'));
+                const displayCode = it.vin || it.itemCode;
+                return `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td class="p-2 ps-4 fw-medium text-light-emphasis" style="font-size: 0.95rem; background: transparent; max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${it.itemName || ''}">
+                        ${displayCode}
+                    </td>
+                    <td class="p-2 text-center" style="background: transparent;">
+                        <span class="badge ${dcClass} rounded-pill" style="font-size: 0.85rem; padding: 0.4rem 0.8rem; font-family: 'JetBrains Mono', monospace; font-weight: 600;">
+                            ${dc.toFixed(1)} D
+                        </span>
+                    </td>
+                </tr>`;
+            }).join('');
+
+        const paginationHtml = renderPagination(i, allItems.length, currentPage, color);
+
+        return `
+        <div class="col-md-6 animate-fade-in">
+            <div class="cyber-card p-0 overflow-hidden" style="border-radius: 16px; background: linear-gradient(145deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%); display: flex; flex-direction: column;">
+                <div class="p-3 d-flex justify-content-between align-items-center" style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;">
+                    <h6 class="mb-0 fw-bold text-uppercase" style="letter-spacing: 2.0px; color: ${color}; font-size: 1rem;">
+                        ${p.plant} (${levelLbl})
+                    </h6>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary px-2 py-1" style="font-size: 0.7rem; letter-spacing: 1px; border-radius: 4px;">${countVal} ITEM</span>
+                    </div>
+                </div>
+                
+                <div class="table-responsive" style="overflow-y: auto; height: 350px; scrollbar-width: thin; scrollbar-color: ${color} rgba(0,0,0,0.2);">
+                    <table class="table table-hover table-sm mb-0" style="table-layout: fixed; border-collapse: separate; border-spacing: 0; color: #cbd5e1;">
+                        <thead style="position: sticky; top: 0; z-index: 20;">
+                            <tr>
+                                <th class="p-2 ps-4 text-uppercase text-muted fw-bold" style="font-size: 0.75rem; letter-spacing: 1px; background: #1a2333; border-bottom: 2px solid ${color}; width: 68%;">Part Kode (VIN)</th>
+                                <th class="p-2 text-center text-uppercase text-muted fw-bold" style="font-size: 0.75rem; letter-spacing: 1px; background: #1a2333; border-bottom: 2px solid ${color}; width: 32%;">Stock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rowsHtml}
+                        </tbody>
+                    </table>
+                </div>
+                ${paginationHtml}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function fetchBreakdownForDate(fullDate, label) {
+    const el = document.getElementById('plantCards');
+    const title = document.getElementById('selectedBreakdownDate');
+    
+    if (title) title.innerText = label;
+    if (el) el.innerHTML = `
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary mb-3"></div>
+            <p class="text-muted">Memuat data tanggal ${label}...</p>
+        </div>`;
+
+    try {
+        const res = await fetch(`/Stock/GetCriticalItemsByDay?date=${fullDate}&level=${currentLevel}`);
+        if (!res.ok) throw new Error('Fetch failed');
+        const data = await res.json();
+        // Reset pagination & search saat ganti tanggal
+        Object.keys(cardPages).forEach(k => delete cardPages[k]);
+        // Clear search when browsing historical dates for cleaner UX
+        const inp = document.getElementById('breakdownSearch');
+        if (inp) { inp.value = ''; searchQuery = ''; }
+        const clearBtn = document.getElementById('btnClearSearch');
+        if (clearBtn) clearBtn.style.display = 'none';
+        const info = document.getElementById('searchResultInfo');
+        if (info) info.style.display = 'none';
+        renderCards(data);
+    } catch (e) {
+        console.error(e);
+        if (el) el.innerHTML = '<div class="col-12 text-center text-danger">Gagal memuat data.</div>';
+    }
+}
+
+// ── Period / level / month filter ──────────────────────────────────────────
+function applyFilter(level, period, status, month) {
+    level = level || '@selectedLevel';
+    status = status || '@statusFilter';
+    month = month !== undefined ? month : '@selectedMonth';
+    
+    let url = `/Stock/TrendCriticalStock?level=${level}&statusFilter=${status}`;
+    if (month) {
+        url += `&month=${month}`;
+    } else if (period) {
+        url += `&period=${period}`;
+    }
+    window.location.href = url;
+}
+
+function onMonthSelectChange(val) {
+    applyFilter('@selectedLevel', '', '@statusFilter', val);
+}
+
+// ── Manual snapshot ─────────────────────────────────────────────────────────
+async function triggerSnapshot() {
+    const btn = document.getElementById('btnTriggerSnapshot');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Mengambil...';
+
+    try {
+        // Ambil antiforgery token dari meta tag atau hidden input
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value
+                   ?? document.querySelector('meta[name="csrf-token"]')?.content
+                   ?? '';
+        console.log('[Snapshot] Sending POST /Stock/TriggerSnapshot, token length:', token.length);
+
+        const res = await fetch('/Stock/TriggerSnapshot', {
+            method : 'POST',
+            headers: {
+                'RequestVerificationToken': token,
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        console.log('[Snapshot] Response status:', res.status, res.statusText);
+
+        if (!res.ok) {
+            const txt = await res.text();
+            console.error('[Snapshot] Error response:', txt.substring(0, 200));
+            btn.innerHTML = '<i class="bi bi-x-circle me-1 text-danger"></i>Gagal (' + res.status + ')';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-camera me-1"></i>Snapshot Manual';
+            }, 3000);
+            return;
+        }
+
+        const data = await res.json();
+        console.log('[Snapshot] Result:', data);
+
+        if (data.success) {
+            btn.innerHTML = '<i class="bi bi-check-circle me-1 text-success"></i>' + data.itemCount + ' item di-capture!';
+            await refreshCriticalStockLive();
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-camera me-1"></i>Snapshot Manual';
+            }, 3000);
+        } else {
+            btn.innerHTML = '<i class="bi bi-exclamation-triangle me-1 text-warning"></i>' + (data.message ?? 'Gagal');
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-camera me-1"></i>Snapshot Manual';
+            }, 4000);
+        }
+    } catch(e) {
+        console.error('[Snapshot] Exception:', e);
+        btn.innerHTML = '<i class="bi bi-x-circle me-1 text-danger"></i>Error – cek Console';
+        setTimeout(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-camera me-1"></i>Snapshot Manual';
+        }, 4000);
+    }
+}
+
+document.getElementById('btnTriggerSnapshot')?.addEventListener('click', triggerSnapshot);
+document.getElementById('btnRepairSnapshotPlant')?.addEventListener('click', repairSnapshotPlant);
+
+// ── Repair Snapshot Plant ────────────────────────────────────────────────────
+async function repairSnapshotPlant() {
+    const btn = document.getElementById('btnRepairSnapshotPlant');
+    if (!btn || btn.disabled) return;
+    if (!confirm('Repair plant di semua snapshot?\nItem dengan plant kosong/salah akan diperbaiki berdasarkan master item.')) return;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Repairing...';
+    try {
+        const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value
+                   ?? document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+        const res = await fetch('/Stock/RepairSnapshotPlant', {
+            method: 'POST',
+            headers: { 'RequestVerificationToken': token, 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        if (data.success) {
+            btn.innerHTML = '<i class="bi bi-check-circle me-1 text-success"></i>' + (data.fixed_ ?? 0) + ' fixed — Updating...';
+            await refreshCriticalStockLive();
+            setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-tools me-1"></i>Repair Snapshot'; }, 3000);
+        } else {
+            btn.innerHTML = '<i class="bi bi-x-circle me-1 text-danger"></i>' + (data.message ?? 'Gagal');
+            setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-tools me-1"></i>Repair Snapshot'; }, 4000);
+        }
+    } catch(e) {
+        btn.innerHTML = '<i class="bi bi-x-circle me-1 text-danger"></i>Error';
+        setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-tools me-1"></i>Repair Snapshot'; }, 4000);
+    }
+}
+
+// ── Live Refresh & SignalR Real-Time ──────────────────────────────────────────
+async function refreshCriticalStockLive() {
+    try {
+        const monthParam = '@selectedMonth';
+        const url = `/Stock/GetTrendCriticalStockData?level=${currentLevel}&period=@selectedPeriod&statusFilter=@statusFilter${monthParam ? '&month=' + monthParam : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        // Update stat cards
+        const shortageEl = document.getElementById('statShortageNum');
+        if (shortageEl) shortageEl.innerText = data.shortageCount;
+
+        const shortageBar = document.getElementById('statShortageBar');
+        if (shortageBar && data.todayTotal > 0) {
+            const pct = Math.round((data.shortageCount / data.todayTotal) * 100);
+            shortageBar.style.width = pct + '%';
+            const pctEl = document.getElementById('statShortagePct');
+            if (pctEl) pctEl.innerText = pct + '% DARI TOTAL';
+            const totalEl = document.getElementById('statShortageTotal');
+            if (totalEl) totalEl.innerText = data.todayTotal + ' ITEM';
+        }
+
+        if (data.lastSnapshotFormatted) {
+            const lastSnapEl = document.querySelector('.snap-info .text-info');
+            if (lastSnapEl) lastSnapEl.innerText = data.lastSnapshotFormatted;
+        }
+
+        // Update globals
+        if (data.plantBreakdown) PLANT_BREAKDOWN = data.plantBreakdown;
+        if (data.dateLabels) DATE_LABELS = data.dateLabels;
+        if (data.dailyDateLabels) DAILY_DATE_LABELS = data.dailyDateLabels;
+        if (data.fullDates) FULL_DATES = data.fullDates;
+
+        // Re-render UI components
+        renderCards();
+        renderPlantInfoTable();
+        renderHistoryTable();
+
+        if (typeof mainApexChart !== 'undefined' && mainApexChart) {
+            mainApexChart.updateOptions({
+                xaxis: { categories: DATE_LABELS },
+                series: buildApexSeries(currentLevel)
+            }, false, true);
+        }
+    } catch (e) {
+        console.error('[SignalR Live Update] Error:', e);
+    }
+}
+
+let stockHubConn = null;
+
+function initSignalR() {
+    if (typeof signalR === 'undefined') {
+        console.warn('[SignalR] signalR library not loaded.');
+        return;
+    }
+
+    stockHubConn = new signalR.HubConnectionBuilder()
+        .withUrl("/stockHub")
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .build();
+
+    stockHubConn.on("criticalStockCaptured", function(info) {
+        console.log('[SignalR] Critical stock snapshot captured:', info);
+        showLiveToast('Capture snapshot baru terdeteksi (' + (info.updatedAt || '') + '). Data diperbarui live!');
+        refreshCriticalStockLive();
+    });
+
+    stockHubConn.on("updateStock", function() {
+        console.log('[SignalR] Update stock event received.');
+        refreshCriticalStockLive();
+    });
+
+    stockHubConn.start()
+        .then(() => console.log('[SignalR] Connected to /stockHub on Trend Critical Stock page.'))
+        .catch(err => console.warn('[SignalR] Connection failed:', err));
+}
+
+function showLiveToast(msg) {
+    let t = document.getElementById('signalrLiveToast');
+    if (!t) {
+        t = document.createElement('div');
+        t.id = 'signalrLiveToast';
+        t.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;background:rgba(16,185,129,0.95);color:#fff;padding:10px 18px;border-radius:8px;font-size:0.8rem;font-weight:600;box-shadow:0 4px 15px rgba(0,0,0,0.4);transition:all 0.3s ease;display:flex;align-items:center;gap:8px;';
+        document.body.appendChild(t);
+    }
+    t.innerHTML = '<i class="bi bi-broadcast fs-6"></i> ' + msg;
+    t.style.opacity = '1';
+    t.style.transform = 'translateY(0)';
+    setTimeout(() => {
+        t.style.opacity = '0';
+        t.style.transform = 'translateY(-10px)';
+    }, 4500);
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+renderCards();
+renderPlantInfoTable();
+renderHistoryTable();
+initSignalR();
+
+function openEditTargetModalTrend() {
+    const select = document.getElementById('editTargetDateTrend');
+    if (select) {
+        select.innerHTML = '';
+        for (let j = 0; j < DAILY_DATE_LABELS.length; j++) {
+            const opt = document.createElement('option');
+            opt.value = j; // we store the index as value
+            opt.text = DAILY_DATE_LABELS[j];
+            select.appendChild(opt);
+        }
+    }
+    const modal = new bootstrap.Modal(document.getElementById('editTargetModalTrend'));
+    modal.show();
+}
+
+function saveTargetTrend() {
+    const dateIdx = document.getElementById('editTargetDateTrend').value;
+    const qty = document.getElementById('editTargetQtyTrend').value;
+    if (dateIdx === '' || qty === '') return;
+    
+    // Find the cell based on date index
+    const id = 'target-cell-trend-' + dateIdx;
+    const cell = document.getElementById(id);
+    if (cell) {
+        cell.innerText = qty;
+    }
+    
+    // Close modal
+    const modalEl = document.getElementById('editTargetModalTrend');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) {
+        modal.hide();
+    }
+}
+
+function openDeleteTargetModalTrend() {
+    const select = document.getElementById('deleteTargetDateTrend');
+    if (select) {
+        select.innerHTML = '<option value="ALL">-- Semua Tanggal --</option>';
+        for (let j = 0; j < DAILY_DATE_LABELS.length; j++) {
+            const opt = document.createElement('option');
+            opt.value = j; // we store the index as value
+            opt.text = DAILY_DATE_LABELS[j];
+            select.appendChild(opt);
+        }
+    }
+    const modal = new bootstrap.Modal(document.getElementById('deleteTargetModalTrend'));
+    modal.show();
+}
+
+function deleteTargetTrend() {
+    const dateIdx = document.getElementById('deleteTargetDateTrend').value;
+    if (!dateIdx) return;
+    
+    if (dateIdx === "ALL") {
+        const cells = document.querySelectorAll('[id^="target-cell-trend-"]');
+        cells.forEach(c => c.innerText = "0");
+    } else {
+        const id = 'target-cell-trend-' + dateIdx;
+        const cell = document.getElementById(id);
+        if (cell) cell.innerText = "0";
+    }
+    
+    const modalEl = document.getElementById('deleteTargetModalTrend');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+}
+</script>
+}
+

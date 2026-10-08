@@ -1,0 +1,579 @@
+﻿@model dashboardKlinik.ViewModels.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+@{
+    var activeTicketId = ViewData["ActiveTicketId"]?.ToString();
+    var activeTicketNumber = ViewData["ActiveTicketNumber"]?.ToString();
+    var activeTicketStatus = ViewData["ActiveTicketStatus"]?.ToString();
+}
+
+<!-- BANNER KEMBALI KE TIKET ANTRIAN PASIEN -->
+<div id="activeTicketBanner" class="fade-in" style="display: @(activeTicketId != null ? "flex" : "none"); margin-bottom: 24px; background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: white; padding: 18px 24px; border-radius: 20px; align-items: center; justify-content: space-between; box-shadow: 0 10px 25px rgba(26, 115, 232, 0.35); flex-wrap: wrap; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 50px; height: 50px; background: rgba(255,255,255,0.2); backdrop-filter: blur(8px); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; border: 1px solid rgba(255,255,255,0.3);">
+            <i class="bi bi-ticket-perforated-fill"></i>
+        </div>
+        <div>
+            <div style="font-size: 12px; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700;">Status Antrian Pasien Aktif</div>
+            <div style="font-size: 18px; font-weight: 800; margin-top: 3px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span>Nomor Antrian:</span>
+                <span id="activeTicketNumText" style="font-family: 'JetBrains Mono', monospace; font-size: 22px; background: rgba(255,255,255,0.2); padding: 2px 10px; border-radius: 8px;">@(activeTicketNumber ?? "")</span>
+                @if (!string.IsNullOrEmpty(activeTicketStatus))
+                {
+                    <span id="activeTicketStatusText" style="font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,0.25); padding: 4px 12px; border-radius: 20px;">@activeTicketStatus</span>
+                }
+            </div>
+        </div>
+    </div>
+    <a id="btnReturnToTicket" href="@(activeTicketId != null ? Url.Action("Tiket", "Antrian", new { id = activeTicketId }) : "#")" class="btn-action" style="background: #ffffff; color: #1a73e8; font-weight: 800; padding: 13px 22px; border-radius: 12px; border: none; font-size: 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: all 0.2s;">
+        <i class="bi bi-arrow-left-circle-fill" style="font-size: 20px;"></i>
+        <span>Kembali ke Nomor Antrian</span>
+    </a>
+</div>
+
+<!-- Stat Cards -->
+<div class="stat-cards" id="stat-cards-row">
+    <div class="stat-card primary fade-in stagger-1 stat-card-clickable" id="card-total-pasien" onclick="loadCardDetail('total-pasien', this)" style="cursor:pointer;" title="Klik untuk melihat detail">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Total Pasien</span>
+            <div class="stat-card-icon"><i class="bi bi-people-fill"></i></div>
+        </div>
+        <div class="stat-card-value" id="val-total-pasien">@Model.TotalPasien</div>
+        <div class="stat-card-sub"><i class="bi bi-person-plus"></i> Terdaftar di sistem</div>
+        <div class="card-click-hint"><i class="bi bi-bar-chart-line"></i> Klik untuk detail</div>
+    </div>
+    <div class="stat-card success fade-in stagger-2 stat-card-clickable" id="card-total-kunjungan" onclick="loadCardDetail('total-kunjungan', this)" style="cursor:pointer;" title="Klik untuk melihat detail">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Total Kunjungan</span>
+            <div class="stat-card-icon"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+        </div>
+        <div class="stat-card-value" id="val-total-kunjungan">@Model.TotalKunjungan</div>
+        <div class="stat-card-sub"><i class="bi bi-calendar-check"></i> Semua periode</div>
+        <div class="card-click-hint"><i class="bi bi-bar-chart-line"></i> Klik untuk detail</div>
+    </div>
+    <div class="stat-card warning fade-in stagger-3 stat-card-clickable" id="card-kunjungan-hari-ini" onclick="loadCardDetail('hari-ini', this)" style="cursor:pointer;" title="Klik untuk melihat detail">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Kunjungan Hari Ini</span>
+            <div class="stat-card-icon"><i class="bi bi-calendar-day"></i></div>
+        </div>
+        <div class="stat-card-value" id="val-hari-ini">@Model.KunjunganHariIni</div>
+        <div class="stat-card-sub"><i class="bi bi-clock"></i> @DateTime.Now.ToString("dd MMM yyyy")</div>
+        <div class="card-click-hint"><i class="bi bi-bar-chart-line"></i> Klik untuk detail</div>
+    </div>
+    <div class="stat-card info fade-in stagger-4 stat-card-clickable" id="card-kunjungan-bulan" onclick="loadCardDetail('bulan-ini', this)" style="cursor:pointer;" title="Klik untuk melihat detail">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Bulan Ini</span>
+            <div class="stat-card-icon"><i class="bi bi-calendar-month"></i></div>
+        </div>
+        <div class="stat-card-value" id="val-bulan-ini">@Model.KunjunganBulanIni</div>
+        <div class="stat-card-sub"><i class="bi bi-bar-chart"></i> @DateTime.Now.ToString("MMMM yyyy")</div>
+        <div class="card-click-hint"><i class="bi bi-bar-chart-line"></i> Klik untuk detail</div>
+    </div>
+</div>
+
+<!-- ===== DRILL-DOWN PANEL ===== -->
+<div id="detail-panel" style="display:none; margin-bottom: 28px;" class="fade-in">
+    <div class="card-custom">
+        <div class="card-header-custom" style="background: linear-gradient(135deg, var(--primary-bg), transparent);">
+            <h6 id="detail-panel-title" style="font-size: 16px; font-weight: 700; color: var(--primary);">
+                <i class="bi bi-bar-chart-fill"></i> Detail
+            </h6>
+            <button onclick="resetDashboard()" class="btn-action btn-outline-custom btn-sm-custom" style="gap: 6px;">
+                <i class="bi bi-arrow-clockwise"></i> Reset Dashboard
+            </button>
+        </div>
+
+        <div style="padding: 24px 24px 0;" id="detail-table-section">
+            <h6 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
+                <i class="bi bi-table"></i> Data Lengkap (<span id="detail-row-count">0</span> baris)
+            </h6>
+            <div class="table-scroll-container" style="max-height: 520px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                <table class="table-custom" id="detail-table">
+                    <thead id="detail-table-head" style="position: sticky; top: 0; z-index: 10; background: var(--bg-body);"></thead>
+                    <tbody id="detail-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Detail Charts Row -->
+        <div class="card-body-custom" id="detail-charts-section">
+            <h6 style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 0.5px;">
+                <i class="bi bi-pie-chart-fill"></i> Analisis Data
+            </h6>
+            <div class="chart-grid" id="detail-chart-grid">
+                <!-- Charts rendered dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== DEFAULT DASHBOARD ===== -->
+<div id="default-dashboard">
+    <!-- Recent Visits Table -->
+    <div class="card-custom fade-in" style="margin-bottom: 28px;" id="recent-visits">
+        <div class="card-header-custom">
+            <h6><i class="bi bi-clock-history" style="color: var(--primary)"></i> Kunjungan Terbaru</h6>
+            @if (!User.IsInRole("Guest"))
+            {
+                <a href="@Url.Action("Index", "Kunjungan")" class="btn-action btn-outline-custom btn-sm-custom">
+                    Lihat Semua <i class="bi bi-arrow-right"></i>
+                </a>
+            }
+        </div>
+        <div class="card-body-custom" style="padding: 0;">
+            @if (Model.KunjunganTerbaru.Any())
+            {
+                <div style="overflow-x: auto;">
+                    <table class="table-custom" id="table-recent">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Nama Pasien</th>
+                                <th>Plant</th>
+                                <th>Departemen</th>
+                                <th>Keluhan</th>
+                                <th>Status</th>
+                                <th>Dokter</th>
+                                @if (!User.IsInRole("Guest"))
+                                {
+                                    <th>Aksi</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.KunjunganTerbaru)
+                            {
+                                <tr>
+                                    <td style="white-space:nowrap">
+                                        <div>@item.TanggalKunjungan.ToString("dd MMM yyyy")</div>
+                                        <small class="text-muted" style="font-size: 11px;">@item.Timestamp.ToString("HH:mm")</small>
+                                    </td>
+                                    <td><strong>@item.NamaPasien</strong></td>
+                                    <td>@item.Plant</td>
+                                    <td>@item.Departemen</td>
+                                    <td>@(item.Keluhan.Length > 20 ? item.Keluhan.Substring(0, 20) + "..." : item.Keluhan)</td>
+                                    <td>
+                                        @{
+                                            var badgeClass = item.Status switch
+                                            {
+                                                "Rawat Jalan" => "rawat-jalan",
+                                                "Perawatan" => "perawatan",
+                                                "Dirujuk" => "dirujuk",
+                                                _ => "rawat-jalan"
+                                            };
+                                        }
+                                        <span class="badge-status @badgeClass">@item.Status</span>
+                                    </td>
+                                    <td>@item.Dokter</td>
+                                    @if (!User.IsInRole("Guest"))
+                                    {
+                                        <td>
+                                            <a href="@Url.Action("Details", "Kunjungan", new { id = item.Id })"
+                                               class="btn-action btn-outline-custom btn-sm-custom" title="Detail">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <h5>Belum ada data kunjungan</h5>
+                    <p>Data kunjungan akan muncul di sini setelah sinkronisasi</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="chart-grid">
+        <div class="card-custom fade-in" id="chart-kunjungan-harian">
+            <div class="card-header-custom">
+                <h6><i class="bi bi-graph-up" style="color: var(--primary)"></i> Kunjungan 7 Hari Terakhir</h6>
+            </div>
+            <div class="card-body-custom">
+                <div class="chart-container">
+                    <canvas id="chartKunjunganHarian"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="card-custom fade-in" id="chart-departemen">
+            <div class="card-header-custom">
+                <h6><i class="bi bi-building" style="color: var(--purple)"></i> Kunjungan Per Departemen</h6>
+            </div>
+            <div class="card-body-custom">
+                <div class="chart-container">
+                    <canvas id="chartDepartemen"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="chart-grid">
+        <div class="card-custom fade-in" id="chart-status">
+            <div class="card-header-custom">
+                <h6><i class="bi bi-pie-chart-fill" style="color: var(--success)"></i> Distribusi Status</h6>
+            </div>
+            <div class="card-body-custom">
+                <div class="chart-container">
+                    <canvas id="chartStatus"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="card-custom fade-in" id="chart-gender">
+            <div class="card-header-custom">
+                <h6><i class="bi bi-gender-ambiguous" style="color: var(--warning)"></i> Distribusi Jenis Kelamin</h6>
+            </div>
+            <div class="card-body-custom">
+                <div class="chart-container">
+                    <canvas id="chartGender"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 3 -->
+    <div class="chart-grid">
+        <div class="card-custom fade-in" id="chart-plant">
+            <div class="card-header-custom">
+                <h6><i class="bi bi-diagram-3-fill" style="color: var(--info)"></i> Kunjungan Per Plant</h6>
+            </div>
+            <div class="card-body-custom">
+                <div class="chart-container">
+                    <canvas id="chartPlant"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="card-custom fade-in" id="chart-diagnosa">
+            <div class="card-header-custom" style="justify-content: center; border-bottom: none; padding-top: 20px;">
+                <h6 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #333; letter-spacing: 0.5px;">
+                    10 DIAGNOSA PENYAKIT IHC BULAN @DateTime.Now.ToString("MMMM").ToUpper()
+                </h6>
+            </div>
+            <div class="card-body-custom">
+                <div class="chart-container">
+                    <canvas id="chartDiagnosa"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // Color palette
+    const colors = {
+        primary: '#1a73e8',
+        primaryLight: 'rgba(26, 115, 232, 0.1)',
+        success: '#0d904f',
+        successLight: 'rgba(13, 144, 79, 0.1)',
+        warning: '#e8710a',
+        warningLight: 'rgba(232, 113, 10, 0.1)',
+        danger: '#d93025',
+        dangerLight: 'rgba(217, 48, 37, 0.1)',
+        purple: '#7c3aed',
+        purpleLight: 'rgba(124, 58, 237, 0.1)',
+        pink: '#ec4899',
+        doughnutColors: ['#1a73e8', '#0d904f', '#e8710a', '#d93025', '#7c3aed', '#ec4899', '#06b6d4', '#84cc16']
+    };
+
+    // Global Datalabels registration and defaults
+    Chart.register(ChartDataLabels);
+    Chart.defaults.set('plugins.datalabels', {
+        color: '#fff',
+        font: { weight: 'bold', size: 11 },
+        formatter: (value) => (value > 0 ? value : ''), // Only show if > 0
+        anchor: 'center',
+        align: 'center',
+        padding: 4
+    });
+
+    // ============================================================
+    // DEFAULT DASHBOARD CHARTS
+    // ============================================================
+
+    // 1. Kunjungan Harian (Line Chart)
+    const ctxHarian = document.getElementById('chartKunjunganHarian').getContext('2d');
+    const gradientHarian = ctxHarian.createLinearGradient(0, 0, 0, 300);
+    gradientHarian.addColorStop(0, 'rgba(26, 115, 232, 0.3)');
+    gradientHarian.addColorStop(1, 'rgba(26, 115, 232, 0.01)');
+    new Chart(ctxHarian, {
+        type: 'line',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerHari.Select(x => x.Label))),
+            datasets: [{ label: 'Kunjungan', data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerHari.Select(x => x.Value))), borderColor: colors.primary, backgroundColor: gradientHarian, borderWidth: 3, fill: true, tension: 0.4, pointBackgroundColor: colors.primary, pointBorderColor: '#fff', pointBorderWidth: 2, pointRadius: 5, pointHoverRadius: 8 }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                datalabels: { display: false } // Disable for line chart
+            }, 
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false } } } 
+        }
+    });
+
+    // 2. Departemen (Bar Chart)
+    new Chart(document.getElementById('chartDepartemen'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerDepartemen.Select(x => x.Label))),
+            datasets: [{ label: 'Kunjungan', data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerDepartemen.Select(x => x.Value))), backgroundColor: colors.doughnutColors.slice(0, @Model.KunjunganPerDepartemen.Count), borderRadius: 8, borderSkipped: false, barThickness: 40 }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                datalabels: { anchor: 'end', align: 'top', color: '#444' } // Labels above bars
+            }, 
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } 
+        }
+    });
+
+    // 3. Status Distribution (Doughnut)
+    new Chart(document.getElementById('chartStatus'), {
+        type: 'doughnut',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.StatusDistribusi.Select(x => x.Label))),
+            datasets: [{ data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.StatusDistribusi.Select(x => x.Value))), backgroundColor: [colors.success, colors.warning, colors.danger], borderWidth: 0, spacing: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // 4. Gender Distribution (Doughnut)
+    new Chart(document.getElementById('chartGender'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Laki-laki', 'Perempuan'],
+            datasets: [{ data: [@Model.PasienLakiLaki, @Model.PasienPerempuan], backgroundColor: [colors.primary, colors.pink], borderWidth: 0, spacing: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // 5. Plant Distribution (Polar Area)
+    new Chart(document.getElementById('chartPlant'), {
+        type: 'polarArea',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerPlant.Select(x => x.Label))),
+            datasets: [{ data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerPlant.Select(x => x.Value))), backgroundColor: ['rgba(26,115,232,0.7)','rgba(13,144,79,0.7)','rgba(232,113,10,0.7)','rgba(124,58,237,0.7)','rgba(217,48,37,0.7)','rgba(236,72,153,0.7)'], borderWidth: 0 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // 6. Top 10 Diagnosa (Vertical Bar / Column)
+    new Chart(document.getElementById('chartDiagnosa'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DiagnosaPopuler.Select(x => x.Label))),
+            datasets: [{ 
+                label: 'Jumlah', 
+                data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DiagnosaPopuler.Select(x => x.Value))), 
+                backgroundColor: '#5ea1d7', // Light blue from image
+                borderRadius: 4, 
+                borderSkipped: false,
+                barThickness: 35
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+                legend: { display: false },
+                datalabels: { 
+                    anchor: 'center', 
+                    align: 'center', 
+                    color: '#000', // Black as in image
+                    font: { weight: 'bold' }
+                }
+            }, 
+            scales: { 
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }, 
+                x: { 
+                    grid: { display: false },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                } 
+            } 
+        }
+    });
+
+    // ============================================================
+    // DRILL-DOWN LOGIC
+    // ============================================================
+    let activeDetailCharts = [];
+
+    function loadCardDetail(filter, cardEl) {
+        // Highlight active card
+        document.querySelectorAll('.stat-card-clickable').forEach(c => c.classList.remove('card-active'));
+        cardEl.classList.add('card-active');
+
+        // Show loading in panel
+        document.getElementById('detail-panel').style.display = 'block';
+        document.getElementById('detail-panel-title').innerHTML = '<i class="bi bi-arrow-repeat spin-animation"></i> Memuat data...';
+        document.getElementById('default-dashboard').style.display = 'none';
+        document.getElementById('detail-table-body').innerHTML = '';
+        document.getElementById('detail-chart-grid').innerHTML = '';
+        document.getElementById('detail-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        fetch(`/Home/GetCardDetail?filter=${filter}`)
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('detail-panel-title').innerHTML =
+                    `<i class="bi bi-bar-chart-fill"></i> ${data.title}`;
+                document.getElementById('detail-row-count').textContent = data.rows.length;
+
+                // Destroy old charts
+                activeDetailCharts.forEach(c => c.destroy());
+                activeDetailCharts = [];
+
+                if (data.type === 'pasien') {
+                    renderPasienPanel(data);
+                } else {
+                    renderKunjunganPanel(data);
+                }
+            })
+            .catch(err => {
+                document.getElementById('detail-panel-title').innerHTML =
+                    '<i class="bi bi-exclamation-triangle"></i> Gagal memuat data';
+            });
+    }
+
+    function renderPasienPanel(data) {
+        const grid = document.getElementById('detail-chart-grid');
+
+        // Chart 1: Per Plant
+        const c1id = 'detail-chart-plant'; const c2id = 'detail-chart-dept'; const c3id = 'detail-chart-gender';
+        grid.innerHTML = `
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-diagram-3-fill" style="color:var(--primary)"></i> Per Plant</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c1id}"></canvas></div></div></div>
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-building" style="color:var(--purple)"></i> Per Departemen</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c2id}"></canvas></div></div></div>
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-gender-ambiguous" style="color:var(--warning)"></i> Gender</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c3id}"></canvas></div></div></div>
+        `;
+
+        activeDetailCharts.push(new Chart(document.getElementById(c1id), {
+            type: 'doughnut',
+            data: { labels: data.charts.plantChart.map(x=>x.label), datasets: [{ data: data.charts.plantChart.map(x=>x.value), backgroundColor: colors.doughnutColors, borderWidth: 0, spacing: 3 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+        }));
+        activeDetailCharts.push(new Chart(document.getElementById(c2id), {
+            type: 'bar',
+            data: { labels: data.charts.deptChartP.map(x=>x.label), datasets: [{ data: data.charts.deptChartP.map(x=>x.value), backgroundColor: colors.doughnutColors, borderRadius: 6, borderSkipped: false }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
+        }));
+        if (document.getElementById(c3id)) {
+            activeDetailCharts.push(new Chart(document.getElementById(c3id), {
+                type: 'doughnut',
+                data: { labels: data.charts.genderChart.map(x=>x.label), datasets: [{ data: data.charts.genderChart.map(x=>x.value), backgroundColor: [colors.primary, colors.pink], borderWidth: 0, spacing: 3 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+            }));
+        }
+
+        // Table
+        document.getElementById('detail-table-head').innerHTML = `<tr><th>No</th><th>Nama Pasien</th><th>NPK</th><th>Plant</th><th>Departemen</th><th>Jenis Kelamin</th><th>Tgl Daftar</th></tr>`;
+        document.getElementById('detail-table-body').innerHTML = data.rows.map((r, i) =>
+            `<tr>
+                <td>${i+1}</td>
+                <td><strong>${r.namaPasien}</strong></td>
+                <td><code style="background:var(--primary-bg);color:var(--primary);padding:2px 8px;border-radius:4px;">${r.npk}</code></td>
+                <td>${r.plant}</td>
+                <td>${r.departemen}</td>
+                <td><span class="badge-gender ${r.jenisKelamin === 'Laki-laki' ? 'laki-laki' : 'perempuan'}">${r.jenisKelamin}</span></td>
+                <td>${r.tanggalDaftar}</td>
+            </tr>`
+        ).join('');
+}
+
+    function renderKunjunganPanel(data) {
+        const grid = document.getElementById('detail-chart-grid');
+        const c1id='dc-status', c2id='dc-dept', c3id='dc-plant', c4id='dc-diagnosa';
+        grid.innerHTML = `
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-pie-chart-fill" style="color:var(--success)"></i> Distribusi Status</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c1id}"></canvas></div></div></div>
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-building" style="color:var(--purple)"></i> Per Departemen</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c2id}"></canvas></div></div></div>
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-diagram-3-fill" style="color:var(--primary)"></i> Per Plant</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c3id}"></canvas></div></div></div>
+            <div class="card-custom"><div class="card-header-custom"><h6><i class="bi bi-bandaid-fill" style="color:var(--danger)"></i> Top Diagnosa</h6></div><div class="card-body-custom"><div class="chart-container"><canvas id="${c4id}"></canvas></div></div></div>
+        `;
+
+        activeDetailCharts.push(new Chart(document.getElementById(c1id), {
+            type: 'doughnut',
+            data: { labels: data.charts.statusChart.map(x=>x.label), datasets: [{ data: data.charts.statusChart.map(x=>x.value), backgroundColor: [colors.success,colors.warning,colors.danger], borderWidth: 0, spacing: 3 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom' } } }
+        }));
+        activeDetailCharts.push(new Chart(document.getElementById(c2id), {
+            type: 'bar',
+            data: { labels: data.charts.deptChart.map(x=>x.label), datasets: [{ data: data.charts.deptChart.map(x=>x.value), backgroundColor: colors.doughnutColors, borderRadius: 6, borderSkipped: false }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
+        }));
+        activeDetailCharts.push(new Chart(document.getElementById(c3id), {
+            type: 'polarArea',
+            data: { labels: data.charts.plantChartK.map(x=>x.label), datasets: [{ data: data.charts.plantChartK.map(x=>x.value), backgroundColor: ['rgba(26,115,232,0.7)','rgba(13,144,79,0.7)','rgba(232,113,10,0.7)','rgba(124,58,237,0.7)','rgba(217,48,37,0.7)'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        }));
+        activeDetailCharts.push(new Chart(document.getElementById(c4id), {
+            type: 'bar',
+            data: { labels: data.charts.diagnosaChart.map(x=>x.label), datasets: [{ label: 'Jumlah', data: data.charts.diagnosaChart.map(x=>x.value), backgroundColor: colors.doughnutColors, borderRadius: 6, borderSkipped: false }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } }, y: { grid: { display: false } } } }
+        }));
+
+        // Table Kunjungan
+        document.getElementById('detail-table-head').innerHTML = `<tr><th>No</th><th>Tanggal</th><th>Nama Pasien</th><th>Plant</th><th>Departemen</th><th>Keluhan</th><th>Status</th><th>Dokter</th></tr>`;
+        const statusBadge = s => {
+            const cls = s === 'Rawat Jalan' ? 'rawat-jalan' : s === 'Perawatan' ? 'perawatan' : 'dirujuk';
+            return `<span class="badge-status ${cls}">${s}</span>`;
+        };
+        document.getElementById('detail-table-body').innerHTML = data.rows.map((r, i) =>
+            `<tr>
+                <td>${i+1}</td>
+                <td style="white-space:nowrap">${r.tanggalKunjungan}</td>
+                <td><strong>${r.namaPasien}</strong></td>
+                <td>${r.plant}</td>
+                <td>${r.departemen}</td>
+                <td>${r.keluhan && r.keluhan.length > 20 ? r.keluhan.substring(0,20)+'...' : r.keluhan}</td>
+                <td>${statusBadge(r.status)}</td>
+                <td>${r.dokter}</td>
+            </tr>`
+        ).join('');
+}
+
+    function resetDashboard() {
+        document.querySelectorAll('.stat-card-clickable').forEach(c => c.classList.remove('card-active'));
+        document.getElementById('detail-panel').style.display = 'none';
+        document.getElementById('default-dashboard').style.display = 'block';
+        // Remove dynamically added gender mini card
+        const mini = document.getElementById('gender-mini-card');
+        if (mini) mini.closest('.card-body-custom').remove();
+        activeDetailCharts.forEach(c => c.destroy());
+        activeDetailCharts = [];
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Sync active ticket return banner from localStorage if available
+    (function() {
+        const banner = document.getElementById('activeTicketBanner');
+        const btn = document.getElementById('btnReturnToTicket');
+        const numText = document.getElementById('activeTicketNumText');
+
+        const ticketId = localStorage.getItem('activeTicketId');
+        const ticketNum = localStorage.getItem('activeTicketNumber');
+
+        if (ticketId && banner && btn) {
+            btn.href = '/Antrian/Tiket/' + ticketId;
+            if (numText && ticketNum && (!numText.textContent || !numText.textContent.trim())) {
+                numText.textContent = ticketNum;
+            }
+            banner.style.display = 'flex';
+        }
+    })();
+</script>
+}

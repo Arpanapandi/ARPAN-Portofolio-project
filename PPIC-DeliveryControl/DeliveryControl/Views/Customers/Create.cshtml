@@ -1,0 +1,308 @@
+@model DeliveryControl.Models.Customer
+
+@{
+    ViewData["Title"] = "Tambah Customer";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-building-add"></i> Tambah Customer Baru</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Customer</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Tambah</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Form Data Customer</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Create" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    
+                    <div class="mb-3">
+                        <label asp-for="CustomerCode" class="form-label"></label>
+                        <input asp-for="CustomerCode" class="form-control" placeholder="Nama Customer (PT...)" required />
+                        <span asp-validation-for="CustomerCode" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="CustomerName" class="form-label"></label>
+                        <input asp-for="CustomerName" class="form-control" placeholder="Dock..." />
+                        <span asp-validation-for="CustomerName" class="text-danger"></span>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Route" class="form-label"></label>
+                            <input asp-for="Route" class="form-control" placeholder="Route/Jalur" />
+                            <span asp-validation-for="Route" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Cycle" class="form-label"></label>
+                            <input asp-for="Cycle" class="form-control" placeholder="Cycle" />
+                            <span asp-validation-for="Cycle" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Start Prep</label>
+                            <input type="text" class="form-control time-input-helper" placeholder="00:15" />
+                            <input type="hidden" asp-for="StartPrepareTime" class="actual-minutes" />
+                            <span asp-validation-for="StartPrepareTime" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">End Prep</label>
+                            <input type="text" class="form-control time-input-helper" placeholder="00:30" />
+                            <input type="hidden" asp-for="StdPrepareTime" class="actual-minutes" />
+                            <span asp-validation-for="StdPrepareTime" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Docking" class="form-label"></label>
+                            <input asp-for="Docking" class="form-control" placeholder="08:00" />
+                            <span asp-validation-for="Docking" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Pickup" class="form-label"></label>
+                            <input asp-for="Pickup" class="form-control" placeholder="10:00" />
+                            <span asp-validation-for="Pickup" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="ETD" class="form-label"></label>
+                            <input asp-for="ETD" class="form-control" placeholder="12:00" />
+                            <span asp-validation-for="ETD" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Range</strong> akan di-calculate otomatis dari <strong>ETD - Pickup</strong>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="SKID" class="form-label"></label>
+                            <input asp-for="SKID" class="form-control" type="text" placeholder="10 SKID" />
+                            <span asp-validation-for="SKID" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Area" class="form-label"></label>
+                            <input asp-for="Area" class="form-control" placeholder="Jakarta" />
+                            <span asp-validation-for="Area" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input asp-for="IsActive" class="form-check-input" type="checkbox" checked />
+                            <label asp-for="IsActive" class="form-check-label">
+                                Status Aktif
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="RemarkOrder" class="form-label">
+                            <i class="bi bi-sticky-fill text-warning"></i> Remark Order
+                        </label>
+                        <textarea asp-for="RemarkOrder" class="form-control" rows="2" placeholder="Catatan order, instruksi khusus, dll..."></textarea>
+                        <span asp-validation-for="RemarkOrder" class="text-danger"></span>
+                        <small class="text-muted">Tampil di Gantt Chart sebagai catatan customer</small>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Simpan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-circle"></i>
+                    <strong>Perhatian!</strong><br/>
+                    Kode Customer (NAMA CUSTOMER) harus diisi manual dan tidak boleh duplikat.
+                </div>
+                <p class="small text-muted">
+                    <strong>Nama Customer:</strong> Nama lengkap perusahaan atau customer (wajib diisi).
+                </p>
+                <p class="small text-muted">
+                    <strong>Route:</strong> Jalur atau rute delivery (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>Cycle:</strong> Siklus delivery (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>Std Prepare:</strong> Standar waktu preparation dalam menit (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>Docking:</strong> Waktu docking (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>Pickup:</strong> Waktu pickup (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>ETD:</strong> Estimated Time of Departure (opsional).
+                </p>
+                <div class="alert alert-info p-2">
+                    <p class="small mb-0">
+                        <strong><i class="bi bi-calculator"></i> Range:</strong> Auto-calculate dari ETD - Pickup<br/>
+                        <small>Contoh: ETD=12:00, Pickup=10:00 → Range=2 Jam</small>
+                    </p>
+                </div>
+                <p class="small text-muted">
+                    <strong>SKID:</strong> Jumlah standar SKID/pallet (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>Area:</strong> Area lokasi customer (opsional).
+                </p>
+                <p class="small text-muted">
+                    <strong>Status Aktif:</strong> Centang jika customer masih aktif melakukan transaksi.
+                </p>
+                <hr class="my-3" />
+                <a asp-action="Index" class="btn btn-outline-primary btn-sm w-100 mb-2">
+                    <i class="bi bi-arrow-left"></i> Kembali ke Daftar
+                </a>
+                <a href="#uploadExcelSection" class="btn btn-outline-success btn-sm w-100">
+                    <i class="bi bi-file-earmark-excel"></i> Upload Excel
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Excel Section -->
+<div class="row mt-4" id="uploadExcelSection">
+    <div class="col-12">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-excel"></i> Upload File Excel - Import Massal</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Petunjuk:</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Download template Excel terlebih dahulu</li>
+                            <li>Isi data dengan format: Nama Customer, Route, Cycle, Docking, Pickup, ETD, SKID, Area</li>
+                            <li><strong>Kode Customer akan di-generate otomatis</strong></li>
+                            <li><strong>Range akan di-calculate otomatis dari ETD - Pickup</strong></li>
+                            <li>Upload file yang sudah diisi</li>
+                            <li>Sistem akan memproses dan menambahkan data secara massal</li>
+                        </ol>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <a asp-action="DownloadTemplate" class="btn btn-success w-100">
+                                <i class="bi bi-download"></i> Download Template Excel
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">Pilih File Excel</label>
+                        <input type="file" class="form-control" id="excelFile" name="file" accept=".xlsx,.xls" required />
+                        <div class="form-text">Format file: .xlsx atau .xls (Max 5MB)</div>
+                    </div>
+
+                    <div class="table-responsive mb-3">
+                        <p class="small fw-bold">Format Kolom Excel:</p>
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Kolom 1</th>
+                                    <th>Kolom 2</th>
+                                    <th>Kolom 3</th>
+                                    <th>Kolom 4</th>
+                                    <th>Kolom 5</th>
+                                    <th>Kolom 6</th>
+                                    <th>Kolom 7</th>
+                                    <th>Kolom 8</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Nama Customer</td>
+                                    <td>Route</td>
+                                    <td>Cycle</td>
+                                    <td>Docking</td>
+                                    <td>Pickup</td>
+                                    <td>ETD</td>
+                                    <td>SKID</td>
+                                    <td>Area</td>
+                                </tr>
+                                <tr class="table-secondary">
+                                    <td><small>PT. ABC</small></td>
+                                    <td><small>Route A</small></td>
+                                    <td><small>Cycle 1</small></td>
+                                    <td><small>08:00</small></td>
+                                    <td><small>10:00</small></td>
+                                    <td><small>12:00</small></td>
+                                    <td><small>10 SKID</small></td>
+                                    <td><small>Jakarta</small></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="small text-success mb-1"><i class="bi bi-magic"></i> <strong>Kode Customer (CUST001, CUST002) akan di-generate otomatis</strong></p>
+                        <p class="small text-info"><i class="bi bi-calculator"></i> <strong>Range akan di-calculate otomatis dari ETD - Pickup (contoh: 12:00 - 10:00 = 2 Jam)</strong></p>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Upload & Import
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        $(document).ready(function() {
+            $('form').on('submit', function() {
+                $('.time-input-helper').each(function() {
+                    var val = $(this).val().trim();
+                    var minutes = 0;
+                    if (val.includes(':')) {
+                        var parts = val.split(':');
+                        if (parts.length >= 2) {
+                            var hours = parseInt(parts[0]) || 0;
+                            var mins = parseInt(parts[1]) || 0;
+                            minutes = (hours * 60) + mins;
+                        }
+                    } else if (!isNaN(val) && val !== '') {
+                        minutes = parseInt(val);
+                    }
+                    $(this).siblings('.actual-minutes').val(minutes);
+                });
+            });
+        });
+    </script>
+}
+

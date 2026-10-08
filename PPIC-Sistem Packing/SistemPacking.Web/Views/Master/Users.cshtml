@@ -1,0 +1,374 @@
+@model IEnumerable<SistemPacking.Web.Models.User>
+@{
+    ViewData["Title"] = "Master User";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">User</li>
+}
+
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h2 class="page-title m-0"><i class="bi bi-people"></i> Master User</h2>
+    <div>
+        <a href="/Master/DownloadTemplateUser" class="btn btn-outline-info me-2">
+            <i class="bi bi-download me-1"></i>Template
+        </a>
+        <button class="btn btn-outline-success me-2" onclick="$('#importModal').modal('show')">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import
+        </button>
+        <a href="/Master/ExportUsers" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Export
+        </a>
+        <button class="btn btn-danger me-2 d-none" id="btnBulkDelete" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="showModal()">
+            <i class="bi bi-plus-circle me-1"></i>Tambah User
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="userTable">
+            <thead>
+                <tr>
+                    <th class="text-center" style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="checkAll">
+                    </th>
+                    <th>No</th>
+                    <th>NPK</th>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int rowNo = 1; }
+                @foreach (var u in Model)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input chk-item" type="checkbox" value="@u.Id">
+                        </td>
+                        <td>@(rowNo++)</td>
+                        <td class="fw-semibold text-primary">@u.NIK</td>
+                        <td>@u.Username</td>
+                        <td>@u.FullName</td>
+                        <td>
+                            <span class="badge bg-primary-subtle text-primary">@(u.Role?.RoleName ?? "-")</span>
+                        </td>
+                        <td>
+                            @if (u.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger">Nonaktif</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-xs btn-outline-primary" onclick="editUser(@u.Id, '@u.NIK', '@u.Username', '@u.FullName', @u.RoleId, @(u.IsActive ? "true" : "false"))">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-xs btn-outline-danger" onclick="deleteUser(@u.Id, '@u.Username')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Master User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="importForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Pilih File Excel (.xlsx) <span class="text-danger">*</span></label>
+                        <input type="file" id="importFile" name="file" class="form-control" accept=".xlsx" required />
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnImport" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i> Upload & Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Form -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Tambah User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <input type="hidden" id="Id" value="0" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">NPK <span class="text-danger">*</span></label>
+                        <input type="text" id="NIK" class="form-control" required />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Username <span class="text-danger">*</span></label>
+                        <input type="text" id="Username" class="form-control" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" id="FullName" class="form-control" required />
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Password <span class="text-muted small fw-normal">(Kosongkan jika tidak diubah)</span></label>
+                        <input type="password" id="Password" class="form-control" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Role</label>
+                        <select id="RoleId" class="form-select">
+                            <!-- Populated in JS or pass from ViewBag -->
+                            <option value="1">Super Admin</option>
+                            <option value="2">Leader</option>
+                            <option value="3">Operator Shopping</option>
+                            <option value="4">Operator Packing</option>
+                            <option value="5">QC / Verifikator</option>
+                            <option value="6">Viewer</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="IsActive" checked />
+                        <label class="form-check-label" for="IsActive">Aktif</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#userTable').DataTable({
+            language: { url: '/js/id.json' },
+            columnDefs: [
+                { targets: 0, orderable: false, className: 'text-center' },
+                { targets: -1, orderable: false }
+            ]
+        });
+
+        // Check All logic
+        $('#checkAll').change(function () {
+            $('.chk-item').prop('checked', $(this).prop('checked'));
+            toggleBulkDeleteBtn();
+        });
+
+        $('#userTable tbody').on('change', '.chk-item', function () {
+            if (!$(this).prop('checked')) {
+                $('#checkAll').prop('checked', false);
+            }
+            toggleBulkDeleteBtn();
+        });
+
+        function toggleBulkDeleteBtn() {
+            var selected = $('.chk-item:checked').length;
+            if (selected > 0) {
+                $('#selectedCount').text(selected);
+                $('#btnBulkDelete').removeClass('d-none');
+            } else {
+                $('#btnBulkDelete').addClass('d-none');
+            }
+        }
+
+        $('#saveBtn').click(function () {
+            if (!$('#NIK').val() || !$('#Username').val() || !$('#FullName').val()) {
+                showToast('warning', 'NPK, Username, Full Name wajib diisi!');
+                return;
+            }
+
+            const data = {
+                Id: parseInt($('#Id').val()),
+                NIK: $('#NIK').val(),
+                Username: $('#Username').val(),
+                FullName: $('#FullName').val(),
+                Password: $('#Password').val(), // Disend sebagai plain, di-hash di backend
+                RoleId: parseInt($('#RoleId').val()),
+                IsActive: $('#IsActive').is(':checked')
+            };
+
+            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.ajax({
+                url: '/Master/SaveUser',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                        $('#saveBtn').prop('disabled', false).text('Simpan');
+                    }
+                }
+            });
+        });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('userModal'));
+
+    function showModal() {
+        $('#modalTitle').text('Tambah User');
+        $('#userForm')[0].reset();
+        $('#Id').val(0);
+        $('#IsActive').prop('checked', true);
+        modal.show();
+    }
+
+    function editUser(id, nik, username, fullname, roleId, isActive) {
+        $('#modalTitle').text('Edit User');
+        $('#Id').val(id);
+        $('#NIK').val(nik);
+        $('#Username').val(username);
+        $('#FullName').val(fullname);
+        $('#Password').val('');
+        $('#RoleId').val(roleId);
+        $('#IsActive').prop('checked', isActive);
+        modal.show();
+    }
+
+    function doImport() {
+        var file = $('#importFile')[0].files[0];
+        if (!file) {
+            Swal.fire('Error', 'Silakan pilih file terlebih dahulu', 'warning');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', file);
+        formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+        $('#btnImport').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Loading...');
+
+        $.ajax({
+            url: '/Master/ImportUsers',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    Swal.fire('Berhasil', res.message, 'success').then(() => location.reload());
+                } else {
+                    var errorMsg = res.message + "<br><br>" + (res.errors ? res.errors.join('<br>') : '');
+                    Swal.fire({
+                        title: 'Import Gagal', 
+                        html: errorMsg, 
+                        icon: 'error',
+                        customClass: { htmlContainer: 'text-start' }
+                    });
+                }
+            },
+            error: function () {
+                Swal.fire('Error', 'Gagal menghubungi server', 'error');
+            },
+            complete: function () {
+                $('#btnImport').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload & Import');
+            }
+        });
+    }
+
+    function deleteUser(id, name) {
+        Swal.fire({
+            title: 'Hapus User?',
+            text: `Yakin ingin menghapus user ${name}?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/DeleteUser/' + id,
+                    type: 'POST',
+                    headers: { "RequestVerificationToken": $('[name="__RequestVerificationToken"]').val() },
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire({ icon: 'success', title: 'Terhapus', showConfirmButton: false, timer: 1500 }).then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    },
+                    error: function () {
+                        Swal.fire('Error', 'Gagal menghubungi server', 'error');
+                    }
+                });
+            }
+        });
+    }
+
+    function bulkDelete() {
+        var selected = [];
+        $('.chk-item:checked').each(function () {
+            selected.push(parseInt($(this).val()));
+        });
+
+        if (selected.length === 0) return;
+
+        Swal.fire({
+            title: 'Hapus Data Terpilih?',
+            text: `Yakin ingin menghapus ${selected.length} data user?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/BulkDeleteUsers',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: { "RequestVerificationToken": $('[name="__RequestVerificationToken"]').val() },
+                    data: JSON.stringify(selected),
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire({ icon: 'success', title: 'Terhapus', text: res.message, showConfirmButton: false, timer: 1500 }).then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    },
+                    error: function () {
+                        Swal.fire('Error', 'Gagal menghubungi server', 'error');
+                    }
+                });
+            }
+        });
+    }
+</script>
+}

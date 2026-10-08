@@ -1,0 +1,266 @@
+@model IEnumerable<dashboardKlinik.Models.KunjunganKlinik>
+@{
+    ViewData["Title"] = "Daftar Kunjungan";
+    var totalPages = (int)(ViewData["TotalPages"] ?? 0);
+    var currentPage = (int)(ViewData["CurrentPage"] ?? 1);
+    var totalItems = (int)(ViewData["TotalItems"] ?? 0);
+    var plants = ViewData["Plants"] as List<string> ?? new List<string>();
+}
+
+<!-- Page Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h5 style="font-size: 20px; font-weight: 800; color: var(--text-primary); margin: 0;">Daftar Kunjungan</h5>
+        <p style="font-size: 14px; color: var(--text-secondary); margin: 4px 0 0;">Total <strong>@totalItems</strong> data kunjungan</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn-action btn-danger-custom" id="btn-bulk-delete" onclick="confirmBulkDelete()">
+            <i class="bi bi-trash"></i> Hapus Terpilih (<span id="selected-count">0</span>)
+        </button>
+        <form asp-controller="Kunjungan" asp-action="Sync" method="post" style="display: inline;">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn-action btn-success-custom" id="btn-sync">
+                <i class="bi bi-arrow-repeat"></i> Sync Google Sheet
+            </button>
+        </form>
+        <a href="@Url.Action("Create")" class="btn-action btn-primary-custom" id="btn-add-kunjungan">
+            <i class="bi bi-plus-lg"></i> Tambah Kunjungan
+        </a>
+    </div>
+</div>
+
+<!-- Search & Filter -->
+<form method="get" class="search-filter-bar" id="filterForm">
+    <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" name="searchString" value="@ViewData["CurrentFilter"]"
+               placeholder="Cari nama, NPK, keluhan, atau diagnosa..." id="searchInput" />
+    </div>
+    <select name="status" class="filter-select" id="filterStatus" onchange="this.form.submit()">
+        <option value="">Semua Status</option>
+        <option value="Rawat Jalan" selected="@(ViewData["CurrentStatus"]?.ToString() == "Rawat Jalan")">Rawat Jalan</option>
+        <option value="Perawatan" selected="@(ViewData["CurrentStatus"]?.ToString() == "Perawatan")">Perawatan</option>
+        <option value="Dirujuk" selected="@(ViewData["CurrentStatus"]?.ToString() == "Dirujuk")">Dirujuk</option>
+    </select>
+    <select name="plant" class="filter-select" id="filterPlant" onchange="this.form.submit()">
+        <option value="">Semua Plant</option>
+        @foreach (var p in plants)
+        {
+            <option value="@p" selected="@(ViewData["CurrentPlant"]?.ToString() == p)">@p</option>
+        }
+    </select>
+    <input type="date" name="startDate" value="@ViewData["CurrentStartDate"]" class="filter-select" placeholder="Dari" style="min-width: 140px;"
+           onchange="this.form.submit()" id="filterStartDate" />
+    <input type="date" name="endDate" value="@ViewData["CurrentEndDate"]" class="filter-select" placeholder="Sampai" style="min-width: 140px;"
+           onchange="this.form.submit()" id="filterEndDate" />
+    <button type="submit" class="btn-action btn-primary-custom">
+        <i class="bi bi-search"></i> Cari
+    </button>
+    @if (!string.IsNullOrEmpty(ViewData["CurrentFilter"]?.ToString()) ||
+         !string.IsNullOrEmpty(ViewData["CurrentStatus"]?.ToString()) ||
+         !string.IsNullOrEmpty(ViewData["CurrentPlant"]?.ToString()) ||
+         !string.IsNullOrEmpty(ViewData["CurrentStartDate"]?.ToString()) ||
+         !string.IsNullOrEmpty(ViewData["CurrentEndDate"]?.ToString()))
+    {
+        <a href="@Url.Action("Index")" class="btn-action btn-outline-custom">
+            <i class="bi bi-x-lg"></i> Reset
+        </a>
+    }
+</form>
+
+<!-- Bulk Delete Form -->
+<form id="deleteMultipleForm" asp-action="DeleteMultiple" method="post">
+    @Html.AntiForgeryToken()
+    <!-- Table -->
+    <div class="card-custom fade-in">
+        <div class="card-body-custom" style="padding: 0;">
+            @if (Model.Any())
+            {
+                <div style="overflow-x: auto;">
+                    <table class="table-custom" id="table-kunjungan">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center;">
+                                    <input type="checkbox" id="selectAll" class="form-check-input-custom" />
+                                </th>
+                                <th style="width: 50px;">No</th>
+                                <th>Tanggal</th>
+                                <th>Nama Pasien</th>
+                                <th>NPK</th>
+                                <th>Plant</th>
+                                <th>Departemen</th>
+                                <th>Keluhan</th>
+                                <th>Diagnosa</th>
+                                <th>Dokter</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                int no = (currentPage - 1) * 10 + 1;
+                            }
+                            @foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td style="text-align: center;">
+                                        <input type="checkbox" name="selectedIds" value="@item.Id" class="form-check-input-custom row-checkbox" />
+                                    </td>
+                                    <td>@(no++)</td>
+                                    <td style="white-space: nowrap;">@item.TanggalKunjungan.ToString("dd MMM yyyy")</td>
+                                    <td><strong>@item.NamaPasien</strong></td>
+                                    <td><code style="background: var(--primary-bg); color: var(--primary); padding: 2px 8px; border-radius: 4px;">@item.NPK</code></td>
+                                    <td>@item.Plant</td>
+                                    <td>@item.Departemen</td>
+                                    <td>@(item.Keluhan.Length > 25 ? item.Keluhan.Substring(0, 25) + "..." : item.Keluhan)</td>
+                                    <td>@(item.Diagnosa.Length > 25 ? item.Diagnosa.Substring(0, 25) + "..." : item.Diagnosa)</td>
+                                    <td>@item.Dokter</td>
+                                    <td>
+                                        @{
+                                            var badgeClass = item.Status switch
+                                            {
+                                                "Rawat Jalan" => "rawat-jalan",
+                                                "Perawatan" => "perawatan",
+                                                "Dirujuk" => "dirujuk",
+                                                _ => "rawat-jalan"
+                                            };
+                                        }
+                                        <span class="badge-status @badgeClass">@item.Status</span>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: 4px;">
+                                            <a href="@Url.Action("Details", new { id = item.Id })"
+                                               class="btn-action btn-outline-custom btn-sm-custom" title="Detail">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="@Url.Action("Riwayat", new { npk = item.NPK })"
+                                               class="btn-action btn-primary-custom btn-sm-custom" title="Riwayat">
+                                                <i class="bi bi-clock-history"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="bi bi-clipboard"></i>
+                    <h5>Tidak ada data kunjungan</h5>
+                    <p>Belum ada kunjungan yang cocok dengan filter pencarian</p>
+                </div>
+            }
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        // Toggle Select All
+        $('#selectAll').on('change', function () {
+            $('.row-checkbox').prop('checked', $(this).prop('checked'));
+            updateDeleteButton();
+        });
+
+        // Individual Checkbox Change
+        $('.row-checkbox').on('change', function () {
+            if (!$(this).prop('checked')) {
+                $('#selectAll').prop('checked', false);
+            } else if ($('.row-checkbox:checked').length === $('.row-checkbox').length) {
+                $('#selectAll').prop('checked', true);
+            }
+            updateDeleteButton();
+        });
+
+        function updateDeleteButton() {
+            const count = $('.row-checkbox:checked').length;
+            $('#selected-count').text(count);
+        }
+    });
+
+    function confirmBulkDelete() {
+        const count = $('.row-checkbox:checked').length;
+        if (count === 0) {
+            alert('Silakan pilih data yang akan dihapus terlebih dahulu.');
+            return;
+        }
+        if (confirm(`Apakah Anda yakin ingin menghapus ${count} data kunjungan yang dipilih?`)) {
+            $('#deleteMultipleForm').submit();
+        }
+    }
+</script>
+}
+
+<!-- Pagination -->
+@if (totalPages > 1)
+{
+    int startPage = Math.Max(1, currentPage - 2);
+    int endPage = Math.Min(totalPages, startPage + 4);
+    if (endPage - startPage < 4)
+    {
+        startPage = Math.Max(1, endPage - 4);
+    }
+
+    <div class="pagination-wrapper">
+        <div class="pagination-custom" id="pagination">
+            @if (currentPage > 1)
+            {
+                <a href="@Url.Action("Index", new { searchString = ViewData["CurrentFilter"], status = ViewData["CurrentStatus"], plant = ViewData["CurrentPlant"], startDate = ViewData["CurrentStartDate"], endDate = ViewData["CurrentEndDate"], page = 1 })" class="page-link" title="Halaman Pertama">
+                    <i class="bi bi-chevron-double-left"></i>
+                </a>
+                <a href="@Url.Action("Index", new { searchString = ViewData["CurrentFilter"], status = ViewData["CurrentStatus"], plant = ViewData["CurrentPlant"], startDate = ViewData["CurrentStartDate"], endDate = ViewData["CurrentEndDate"], page = currentPage - 1 })" class="page-link" title="Halaman Sebelumnya">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            }
+            else
+            {
+                <span class="page-link disabled"><i class="bi bi-chevron-double-left"></i></span>
+                <span class="page-link disabled"><i class="bi bi-chevron-left"></i></span>
+            }
+
+            @if (startPage > 1)
+            {
+                <span class="page-ellipsis">...</span>
+            }
+
+            @for (int i = startPage; i <= endPage; i++)
+            {
+                if (i == currentPage)
+                {
+                    <span class="page-link active">@i</span>
+                }
+                else
+                {
+                    <a href="@Url.Action("Index", new { searchString = ViewData["CurrentFilter"], status = ViewData["CurrentStatus"], plant = ViewData["CurrentPlant"], startDate = ViewData["CurrentStartDate"], endDate = ViewData["CurrentEndDate"], page = i })" class="page-link">@i</a>
+                }
+            }
+
+            @if (endPage < totalPages)
+            {
+                <span class="page-ellipsis">...</span>
+            }
+
+            @if (currentPage < totalPages)
+            {
+                <a href="@Url.Action("Index", new { searchString = ViewData["CurrentFilter"], status = ViewData["CurrentStatus"], plant = ViewData["CurrentPlant"], startDate = ViewData["CurrentStartDate"], endDate = ViewData["CurrentEndDate"], page = currentPage + 1 })" class="page-link" title="Halaman Berikutnya">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+                <a href="@Url.Action("Index", new { searchString = ViewData["CurrentFilter"], status = ViewData["CurrentStatus"], plant = ViewData["CurrentPlant"], startDate = ViewData["CurrentStartDate"], endDate = ViewData["CurrentEndDate"], page = totalPages })" class="page-link" title="Halaman Terakhir">
+                    <i class="bi bi-chevron-double-right"></i>
+                </a>
+            }
+            else
+            {
+                <span class="page-link disabled"><i class="bi bi-chevron-right"></i></span>
+                <span class="page-link disabled"><i class="bi bi-chevron-double-right"></i></span>
+            }
+        </div>
+        <div style="font-size: 12.5px; color: var(--text-secondary);">
+            Halaman <strong>@currentPage</strong> dari <strong>@totalPages</strong> (@totalItems data)
+        </div>
+    </div>
+}

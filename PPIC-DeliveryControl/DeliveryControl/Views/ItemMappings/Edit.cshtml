@@ -1,0 +1,61 @@
+@model DeliveryControl.Models.ItemMapping
+
+@{
+    ViewData["Title"] = "Edit Mapping";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-pencil-square"></i> Edit Mapping</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Item Mapping</a></li>
+                <li class="breadcrumb-item active">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm border-warning border-opacity-25">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Ubah Data Mapping</h5>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Edit">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <input type="hidden" asp-for="MappingId" />
+
+                    <div class="mb-3">
+                        <label asp-for="Customer" class="form-label fw-bold">DOCK (Excel Label)</label>
+                        <input asp-for="Customer" class="form-control" placeholder="Contoh: DOCK-A" />
+                        <div class="form-text text-muted">Gunakan kode DOCK yang muncul di file Excel.</div>
+                        <span asp-validation-for="Customer" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="CustomerPartNumber" class="form-label fw-bold">Part No (External / Excel)</label>
+                        <input asp-for="CustomerPartNumber" class="form-control" />
+                        <span asp-validation-for="CustomerPartNumber" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="VIN" class="form-label fw-bold">VIN (Internal System Code)</label>
+                        <input asp-for="VIN" class="form-control" />
+                        <span asp-validation-for="VIN" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary px-4 rounded-pill">Batal</a>
+                        <button type="submit" class="btn btn-warning px-4 rounded-pill">Update Mapping</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

@@ -1,0 +1,556 @@
+@{
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    var currentAction = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Dashboard Klinik</title>
+    <meta name="description" content="Dashboard Management Klinik PT. Velasto Indonesia - Monitoring kesehatan karyawan" />
+    <link rel="icon" type="image/png" href="~/favicon.png" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@4.0.0/dist/jquery.validate.unobtrusive.min.js"></script>
+
+    <!-- SignalR Client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <!-- Sidebar Overlay (mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+                <img src="~/favicon.png" alt="Logo" style="height: 32px; width: auto; border-radius: 6px;" />
+            <div class="brand-text">
+                <h5>Klinik Dashboard</h5>
+                <small>Management System</small>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <div class="sidebar-nav-label">Menu Utama</div>
+            <a href="@Url.Action("Index", "Home")"
+               class="nav-link @(currentController == "Home" ? "active" : "")"
+               id="nav-dashboard">
+                <i class="bi bi-grid-1x2-fill"></i>
+                <span>Dashboard</span>
+            </a>
+
+            @if (!User.IsInRole("Guest"))
+            {
+                <a href="@Url.Action("Index", "Pasien")"
+                   class="nav-link @(currentController == "Pasien" ? "active" : "")"
+                   id="nav-pasien">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Data Pasien</span>
+                </a>
+                <a href="@Url.Action("Index", "Kunjungan")"
+                   class="nav-link @(currentController == "Kunjungan" && currentAction == "Index" ? "active" : "")"
+                   id="nav-kunjungan">
+                    <i class="bi bi-journal-medical"></i>
+                    <span>Daftar Kunjungan</span>
+                </a>
+                <a href="@Url.Action("Index", "Antrian")"
+                   class="nav-link @(currentController == "Antrian" && currentAction == "Index" ? "active" : "")"
+                   id="nav-antrian">
+                    <i class="bi bi-ticket-perforated-fill"></i>
+                    <span>Antrian Pasien</span>
+                </a>
+                @if (User.IsInRole("Admin"))
+                {
+                    <a href="@Url.Action("Display", "Antrian")" target="_blank"
+                       class="nav-link"
+                       id="nav-antrian-display">
+                        <i class="bi bi-tv-fill"></i>
+                        <span>Layar Display TV</span>
+                    </a>
+                    <a href="@Url.Action("CetakQR", "Antrian")"
+                       class="nav-link @(currentController == "Antrian" && currentAction == "CetakQR" ? "active" : "")"
+                       id="nav-antrian-qr">
+                        <i class="bi bi-qr-code-scan"></i>
+                        <span>Cetak QR Antrian</span>
+                    </a>
+                }
+                <a href="@Url.Action("Create", "Kunjungan")"
+                   class="nav-link @(currentController == "Kunjungan" && currentAction == "Create" ? "active" : "")"
+                   id="nav-kunjungan-create">
+                    <i class="bi bi-ui-radios"></i>
+                    <span>Form Kunjungan</span>
+                </a>
+
+                <div class="sidebar-nav-label">Analisis</div>
+                <a href="@Url.Action("Index", "Laporan")"
+                   class="nav-link @(currentController == "Laporan" ? "active" : "")"
+                   id="nav-laporan">
+                    <i class="bi bi-file-earmark-bar-graph-fill"></i>
+                    <span>Laporan</span>
+                </a>
+
+                @if (User.IsInRole("Admin"))
+                {
+                    <div class="sidebar-nav-label">Master</div>
+                    <a href="@Url.Action("ManagementSetting", "Master")"
+                       class="nav-link @(currentController == "Master" ? "active" : "")"
+                       id="nav-master-setting">
+                        <i class="bi bi-gear-wide-connected"></i>
+                        <span>Management setting</span>
+                    </a>
+                }
+            }
+        </nav>
+
+        <div class="sidebar-footer">
+            <!-- Real-time Status Indicator -->
+            <div class="realtime-status" id="realtimeStatus">
+                <div class="realtime-dot disconnected" id="realtimeDot"></div>
+                <span id="realtimeText">Menghubungkan...</span>
+            </div>
+            <div class="sidebar-footer-info" style="padding: 12px; font-size: 11px; opacity: 0.7; color: white;">
+                <i class="bi bi-info-circle"></i> Sistem Terpusat Internal
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <!-- Top Header -->
+        <header class="top-header">
+            <div class="top-header-left">
+                <button class="btn-sidebar-toggle" onclick="toggleSidebarDesktop()" title="Toggle Sidebar">
+                    <i class="bi bi-list"></i>
+                </button>
+                <button class="btn-fullscreen" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+                    <i class="bi bi-fullscreen" id="fullscreenIcon"></i>
+                </button>
+                <h4 id="pageTitle">@ViewData["Title"]</h4>
+            </div>
+            <div class="top-header-right">
+                <span class="header-time">
+                    <i class="bi bi-clock"></i>
+                    <span id="currentTime"></span>
+                </span>
+                <div class="realtime-badge" id="realtimeBadge" title="Real-time sync active">
+                    <div class="realtime-pulse" id="realtimePulse"></div>
+                    <i class="bi bi-broadcast" id="realtimeBadgeIcon"></i>
+                    <span id="realtimeBadgeText">Live</span>
+                </div>
+                <span class="header-date">
+                    <i class="bi bi-calendar3"></i>
+                    <span id="currentDate"></span>
+                </span>
+
+                @if (User.Identity?.IsAuthenticated == true)
+                {
+                    var fullName = User.Claims.FirstOrDefault(c => c.Type == "FullName")?.Value ?? User.Identity.Name ?? "User";
+                    var role = User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.Role)?.Value ?? "Admin";
+                    var npk = User.Claims.FirstOrDefault(c => c.Type == "NPK")?.Value ?? "";
+
+                    <div class="header-user-profile" style="display: flex; align-items: center; gap: 10px; margin-left: 8px; padding-left: 12px; border-left: 1px solid var(--border-color);">
+                        <div style="width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #6366f1); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;">
+                            @(fullName.Length > 0 ? fullName.Substring(0, 1).ToUpper() : "U")
+                        </div>
+                        <div style="display: flex; flex-direction: column; line-height: 1.2;">
+                            <span style="font-size: 13px; font-weight: 700; color: var(--text-primary);">@fullName</span>
+                            <span style="font-size: 11px; color: var(--text-secondary);">@role @(string.IsNullOrEmpty(npk) ? "" : $"({npk})")</span>
+                        </div>
+                        <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0; margin-left: 4px;" onsubmit="return confirm('Apakah Anda yakin ingin logout?');">
+                            @Html.AntiForgeryToken()
+                            <button type="submit" class="btn-action btn-outline-custom btn-sm-custom" style="padding: 6px 10px; color: var(--danger); border-color: rgba(217, 48, 37, 0.3);" title="Keluar / Logout">
+                                <i class="bi bi-box-arrow-right"></i>
+                            </button>
+                        </form>
+                    </div>
+                }
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main class="page-content">
+            <!-- Toast notifications -->
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert-toast success" id="alertToast">
+                    <i class="bi bi-check-circle-fill"></i>
+                    @TempData["SuccessMessage"]
+                </div>
+            }
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert-toast error" id="alertToast">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    @TempData["ErrorMessage"]
+                </div>
+            }
+
+            <!-- SignalR Toast Container -->
+            <div id="signalrToastContainer"></div>
+
+            @RenderBody()
+        </main>
+    </div>
+
+    <!-- New Data Notification Banner -->
+    <div class="new-data-banner" id="newDataBanner" style="display: none;">
+        <div class="new-data-banner-content">
+            <i class="bi bi-arrow-repeat spin-animation"></i>
+            <span id="newDataMessage">Data baru terdeteksi!</span>
+            <button class="new-data-refresh-btn" onclick="refreshPage()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh Sekarang
+            </button>
+            <button class="new-data-close-btn" onclick="dismissBanner()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Continuous Date & Time Update
+        function updateDateTime() {
+            const now = new Date();
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+            
+            document.getElementById('currentDate').textContent = now.toLocaleDateString('id-ID', dateOptions);
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('id-ID', timeOptions);
+        }
+
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        // Sidebar toggle (Background Overlay for Mobile)
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('show');
+            document.getElementById('sidebarOverlay').classList.toggle('show');
+        }
+
+        // Sidebar Hide/Show (Desktop)
+        function toggleSidebarDesktop() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            
+            sidebar.classList.toggle('sidebar-hidden');
+            mainContent.classList.toggle('main-expanded');
+            
+            const isHidden = sidebar.classList.contains('sidebar-hidden');
+            localStorage.setItem('sidebarHidden', isHidden);
+        }
+
+        // Apply saved sidebar state on load
+        (function() {
+            if (localStorage.getItem('sidebarHidden') === 'true' && window.innerWidth > 992) {
+                document.getElementById('sidebar').classList.add('sidebar-hidden');
+                document.getElementById('mainContent').classList.add('main-expanded');
+            }
+        })();
+
+        // Fullscreen toggle
+        function toggleFullscreen() {
+            const icon = document.getElementById('fullscreenIcon');
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().then(() => {
+                    icon.className = 'bi bi-fullscreen-exit';
+                }).catch(err => {
+                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    icon.className = 'bi bi-fullscreen';
+                }
+            }
+        }
+
+        // Listen for fullscreen change (e.g. via ESC key)
+        document.addEventListener('fullscreenchange', () => {
+             const icon = document.getElementById('fullscreenIcon');
+             if (!document.fullscreenElement) {
+                 icon.className = 'bi bi-fullscreen';
+             }
+        });
+
+        // Auto-hide toast
+        const toast = document.getElementById('alertToast');
+        if (toast) {
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) reverse';
+                setTimeout(() => toast.remove(), 400);
+            }, 4000);
+        }
+
+        // Sync button handler
+        function handleSync(e) {
+            const icon = document.getElementById('syncIcon');
+            const text = document.getElementById('syncText');
+            icon.style.animation = 'spin 0.6s linear infinite';
+            text.textContent = 'Syncing...';
+        }
+
+        // Chart.js Global Defaults
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.font.size = 12;
+        Chart.defaults.color = '#5f6368';
+        Chart.defaults.plugins.legend.labels.usePointStyle = true;
+        Chart.defaults.plugins.legend.labels.padding = 16;
+
+        // ========================
+        // SIGNALR REAL-TIME SYNC
+        // ========================
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/klinikHub")
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        // Track if new data has arrived (for auto-refresh)
+        let hasNewData = false;
+        let lastSyncTimestamp = null;
+
+        // === Connection Status Events ===
+        function updateConnectionStatus(status, text) {
+            const dot = document.getElementById('realtimeDot');
+            const statusText = document.getElementById('realtimeText');
+            const badge = document.getElementById('realtimeBadge');
+            const badgeIcon = document.getElementById('realtimeBadgeIcon');
+            const badgeText = document.getElementById('realtimeBadgeText');
+            const pulse = document.getElementById('realtimePulse');
+
+            dot.className = 'realtime-dot ' + status;
+            statusText.textContent = text;
+
+            if (status === 'connected') {
+                badge.className = 'realtime-badge connected';
+                badgeText.textContent = 'Live';
+                badgeIcon.className = 'bi bi-broadcast';
+                pulse.style.display = 'block';
+            } else if (status === 'reconnecting') {
+                badge.className = 'realtime-badge reconnecting';
+                badgeText.textContent = 'Reconnecting...';
+                badgeIcon.className = 'bi bi-arrow-repeat spin-animation';
+                pulse.style.display = 'none';
+            } else {
+                badge.className = 'realtime-badge disconnected';
+                badgeText.textContent = 'Offline';
+                badgeIcon.className = 'bi bi-wifi-off';
+                pulse.style.display = 'none';
+            }
+        }
+
+        connection.onreconnecting((error) => {
+            updateConnectionStatus('reconnecting', 'Menghubungkan ulang...');
+            console.log('SignalR reconnecting...', error);
+        });
+
+        connection.onreconnected((connectionId) => {
+            updateConnectionStatus('connected', 'Real-time sync aktif');
+            showSignalRToast('success', 'Koneksi real-time berhasil dipulihkan', 'bi-wifi');
+            console.log('SignalR reconnected:', connectionId);
+        });
+
+        connection.onclose((error) => {
+            updateConnectionStatus('disconnected', 'Terputus');
+            console.log('SignalR connection closed', error);
+            // Try to reconnect after a delay
+            setTimeout(startConnection, 5000);
+        });
+
+        // === Hub Event Handlers ===
+
+        // On first connection
+        connection.on("Connected", (data) => {
+            updateConnectionStatus('connected', 'Real-time sync aktif');
+            console.log('Connected to SignalR hub:', data);
+        });
+
+        // Service status
+        connection.on("ServiceStatus", (data) => {
+            console.log('Service status:', data);
+            if (data.status === 'active') {
+                showSignalRToast('info', `Auto-sync aktif (setiap ${data.interval} detik)`, 'bi-clock-history');
+            }
+        });
+
+        // Sync started
+        connection.on("SyncStarted", (data) => {
+            console.log('Sync started:', data);
+            showSignalRToast('info', data.message, 'bi-arrow-repeat');
+            
+            // Animate the sync button
+            const icon = document.getElementById('syncIcon');
+            if (icon) icon.style.animation = 'spin 0.6s linear infinite';
+        });
+
+        // ★ NEW DATA RECEIVED - The main event! ★
+        connection.on("NewDataReceived", (data) => {
+            console.log('New data received:', data);
+            hasNewData = true;
+            lastSyncTimestamp = data.timestamp;
+
+            // Stop sync button animation
+            const icon = document.getElementById('syncIcon');
+            if (icon) icon.style.animation = '';
+
+            // Show success toast
+            showSignalRToast('success', data.message, 'bi-check-circle-fill', 8000);
+
+            // Update stat cards in real-time (if on dashboard)
+            if (data.stats) {
+                updateDashboardStats(data.stats);
+            }
+
+            // Show new data banner
+            showNewDataBanner(data.message);
+
+            // Play notification sound (optional subtle beep)
+            playNotificationSound();
+        });
+
+        // Sync error
+        connection.on("SyncError", (data) => {
+            console.log('Sync error:', data);
+            showSignalRToast('error', data.message, 'bi-exclamation-triangle-fill');
+            const icon = document.getElementById('syncIcon');
+            if (icon) icon.style.animation = '';
+        });
+
+        // === Helper Functions ===
+
+        function showSignalRToast(type, message, icon, duration = 5000) {
+            const container = document.getElementById('signalrToastContainer');
+            const id = 'toast-' + Date.now();
+            
+            const toastHtml = `
+                <div class="alert-toast ${type}" id="${id}" style="position: relative; margin-bottom: 8px;">
+                    <i class="bi ${icon}"></i>
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.remove()" 
+                            style="background:none;border:none;color:white;margin-left:12px;cursor:pointer;font-size:16px;">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', toastHtml);
+
+            setTimeout(() => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.style.animation = 'slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) reverse';
+                    setTimeout(() => el.remove(), 400);
+                }
+            }, duration);
+        }
+
+        function showNewDataBanner(message) {
+            const banner = document.getElementById('newDataBanner');
+            const msgEl = document.getElementById('newDataMessage');
+            msgEl.textContent = message;
+            banner.style.display = 'flex';
+            banner.classList.add('banner-slide-in');
+        }
+
+        function dismissBanner() {
+            const banner = document.getElementById('newDataBanner');
+            banner.style.display = 'none';
+        }
+
+        function refreshPage() {
+            window.location.reload();
+        }
+
+        function updateDashboardStats(stats) {
+            // Only update if we're on the dashboard page
+            const totalPasienEl = document.querySelector('#card-total-pasien .stat-card-value');
+            const totalKunjunganEl = document.querySelector('#card-total-kunjungan .stat-card-value');
+            const kunjunganHariIniEl = document.querySelector('#card-kunjungan-hari-ini .stat-card-value');
+            const kunjunganBulanEl = document.querySelector('#card-kunjungan-bulan .stat-card-value');
+
+            if (totalPasienEl) {
+                animateNumber(totalPasienEl, parseInt(totalPasienEl.textContent), stats.totalPasien);
+            }
+            if (totalKunjunganEl) {
+                animateNumber(totalKunjunganEl, parseInt(totalKunjunganEl.textContent), stats.totalKunjungan);
+            }
+            if (kunjunganHariIniEl) {
+                animateNumber(kunjunganHariIniEl, parseInt(kunjunganHariIniEl.textContent), stats.kunjunganHariIni);
+            }
+            if (kunjunganBulanEl) {
+                animateNumber(kunjunganBulanEl, parseInt(kunjunganBulanEl.textContent), stats.kunjunganBulanIni);
+            }
+
+            // Flash animation on updated cards
+            document.querySelectorAll('.stat-card').forEach(card => {
+                card.classList.add('stat-card-updated');
+                setTimeout(() => card.classList.remove('stat-card-updated'), 1500);
+            });
+        }
+
+        function animateNumber(element, from, to) {
+            if (from === to) return;
+            const duration = 600;
+            const start = performance.now();
+
+            function update(currentTime) {
+                const elapsed = currentTime - start;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = Math.round(from + (to - from) * easeOut);
+                element.textContent = current;
+                if (progress < 1) requestAnimationFrame(update);
+            }
+            requestAnimationFrame(update);
+        }
+
+        function playNotificationSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) { /* Audio not supported or blocked */ }
+        }
+
+        // === Start Connection ===
+        async function startConnection() {
+            try {
+                await connection.start();
+                console.log('SignalR connection established');
+            } catch (err) {
+                console.error('SignalR connection error:', err);
+                updateConnectionStatus('disconnected', 'Gagal terhubung');
+                setTimeout(startConnection, 5000);
+            }
+        }
+
+        startConnection();
+    </script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

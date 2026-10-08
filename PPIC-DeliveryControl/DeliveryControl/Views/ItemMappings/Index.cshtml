@@ -1,0 +1,174 @@
+@model IEnumerable<DeliveryControl.Models.ItemMapping>
+
+@{
+    ViewData["Title"] = "Master Item Customer (Mapping)";
+}
+
+<div class="row mb-4 align-items-center">
+    <div class="col-md-5">
+        <h2 class="mb-0">
+            <i class="bi bi-arrow-left-right"></i> Item Mapping Customer
+            <span class="badge bg-warning text-dark fs-6 ms-2">v1.2 (Fix Duplicate)</span>
+        </h2>
+    </div>
+    <div class="col-md-7 text-end">
+        <div class="btn-group gap-2 flex-wrap">
+            <a asp-action="DownloadTemplate" class="premium-btn btn-glass-success shadow-sm">
+                <i class="bi bi-file-earmark-spreadsheet-fill me-1"></i> Template Excel
+            </a>
+            <button type="button" class="premium-btn btn-glass-info shadow-sm" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="bi bi-box-arrow-in-down me-1"></i> Import Mapping
+            </button>
+            <a asp-action="Create" class="premium-btn btn-primary shadow-sm">
+                <i class="bi bi-plus-circle-fill me-1"></i> Tambah Data
+            </a>
+            <form asp-action="BulkDeleteAll" method="post" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus SELURUH data mapping?')">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="premium-btn btn-glass-danger shadow-sm">
+                    <i class="bi bi-trash-fill me-1"></i> Hapus Semua Data
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .premium-btn {
+        padding: 0.5rem 1.25rem;
+        border-radius: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255,255,255,0.1);
+        font-size: 0.9rem;
+    }
+    .premium-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+        filter: brightness(1.1);
+    }
+    .btn-glass-success {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981 !important;
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+    .btn-glass-info {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6 !important;
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+    .btn-glass-danger {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444 !important;
+        border-color: rgba(239, 68, 68, 0.3);
+    }
+    .bg-dark-blue { background: #0f172a !important; }
+    .table-hover tbody tr:hover { background: rgba(59, 130, 246, 0.05); }
+    .mapping-table-wrapper { overflow-x: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+    th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; vertical-align: middle; border: 1px solid rgba(255,255,255,0.05) !important; }
+    td { font-size: 0.85rem; vertical-align: middle; border: 1px solid rgba(255,255,255,0.05) !important; color: #cbd5e1; }
+</style>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form asp-action="Index" method="get" class="row g-3">
+            <div class="col-md-10">
+                <input type="text" class="form-control" name="searchString" value="@ViewData["CurrentFilter"]" 
+                       placeholder="Cari DOCK, Part No, atau VIN..." />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Cari
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="mapping-table-wrapper">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th class="bg-dark-blue text-white text-center" style="width: 50px;">NO</th>
+                        <th class="bg-dark-blue text-white">DOCK</th>
+                        <th class="bg-dark-blue text-white">PART NO (EKSTERNAL)</th>
+                        <th class="bg-dark-blue text-white">VIN (INTERNAL)</th>
+                        <th class="bg-dark-blue text-white text-center" style="width: 150px;">ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ 
+                        int pageSize = 20;
+                        int currentPage = ViewBag.CurrentPage as int? ?? 1;
+                        int i = (currentPage - 1) * pageSize + 1; 
+                    }
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="text-center">@(i++)</td>
+                            <td class="fw-bold text-info">@(item.Customer ?? "-")</td>
+                            <td class="fw-bold text-warning">@(item.CustomerPartNumber ?? "-")</td>
+                            <td class="fw-bold text-success">@(item.VIN ?? "-")</td>
+                            <td class="text-center">
+                                <div class="btn-group" role="group">
+                                    <a asp-action="Edit" asp-route-id="@item.MappingId" class="btn btn-sm btn-warning text-white" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a asp-action="Delete" asp-route-id="@item.MappingId" class="btn btn-sm btn-danger" title="Hapus">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                <i class="bi bi-info-circle fs-4 d-block mb-2 text-muted"></i>
+                                <span class="text-muted">Belum ada data mapping.</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="row mt-2 mb-4">
+        <div class="col-12 text-center">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+    </div>
+</div>
+
+@section Modals {
+    <!-- Modal Import -->
+    <div class="modal fade" id="importModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-upload"></i> Import Mapping</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info small">
+                            Format Excel: <strong>DOCK, Part No, VIN</strong> (Mulai baris ke-2).
+                        </div>
+                        <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Import Sekarang</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}

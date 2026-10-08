@@ -1,0 +1,460 @@
+@model DeliveryControl.Models.Item
+
+@{
+    ViewData["Title"] = "Edit Item";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-pencil-square"></i> Edit Item</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Item</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Form Edit Item</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    
+                    <input type="hidden" asp-for="ItemId" />
+                    <input type="hidden" asp-for="CreatedDate" />
+                    <input type="hidden" name="returnPage" value="@(ViewBag.ReturnPage ?? 1)" />
+                    <input type="hidden" name="returnSearch" value="@(ViewBag.ReturnSearch ?? "")" />
+                    <input type="hidden" name="returnCategory" value="@(ViewBag.ReturnCategory ?? "")" />
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="ItemCode" class="form-label text-info fw-bold">VIN (Unique Code)</label>
+                            <input asp-for="ItemCode" class="form-control" />
+                            <span asp-validation-for="ItemCode" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="ItemName" class="form-label fw-bold">LOKASI RACK</label>
+                            <input asp-for="ItemName" class="form-control" />
+                            <span asp-validation-for="ItemName" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Customer" class="form-label fw-bold">Customer (CUST)</label>
+                            <input asp-for="Customer" class="form-control" />
+                            <span asp-validation-for="Customer" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label">Deskripsi</label>
+                        <textarea asp-for="Description" class="form-control" rows="2"></textarea>
+                        <span asp-validation-for="Description" class="text-danger"></span>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Unit" class="form-label">Unit</label>
+                            <select asp-for="Unit" class="form-select">
+                                <option value="">-- Pilih Unit --</option>
+                                @if (ViewBag.Units is List<string> units)
+                                {
+                                    @foreach (var unit in units)
+                                    {
+                                        <option value="@unit" selected="@(Model.Unit == unit)">@unit</option>
+                                    }
+                                }
+                            </select>
+                            <span asp-validation-for="Unit" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mt-3 mt-md-0">
+                            <label asp-for="Category" class="form-label">PROD Kategori</label>
+                            <select asp-for="Category" class="form-select">
+                                <option value="Internal">Internal</option>
+                                <option value="Subcon">Subcon</option>
+                            </select>
+                            <span asp-validation-for="Category" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6 mt-3">
+                             <label asp-for="Plant" class="form-label">Plant</label>
+                             <select asp-for="Plant" class="form-select">
+                                 <option value="">-- Pilih Plant --</option>
+                                 <option value="Molded" selected="@(Model.Plant == "Molded")">Molded</option>
+                                 <option value="Hose" selected="@(Model.Plant == "Hose")">Hose</option>
+                                 <option value="RVI" selected="@(Model.Plant == "RVI")">RVI</option>
+                                 <option value="BTR" selected="@(Model.Plant == "BTR")">BTR</option>
+                             </select>
+                            <span asp-validation-for="Plant" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+                    <h5 class="mb-3 text-primary"><i class="bi bi-geo-alt-fill"></i> Location & Lot Capacity</h5>
+
+                    @* ═══════════════════════════════════════════════════════════
+                         MULTI-RACK BADGE MANAGER
+                         Setiap lokasi = satu baris di tabel Items (VIN sama)
+                    ═══════════════════════════════════════════════════════════ *@
+                    <input type="hidden" asp-for="Rack" id="rakHiddenInput" />
+                    <input type="hidden" asp-for="NoRack" id="noRakHiddenInput" />
+                    <input type="hidden" id="rackLocationsJsonInput" name="rackLocationsJson" />
+
+                    <div class="card mb-3" style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.25);border-radius:10px;">
+                        <div class="card-body pt-3 pb-3 px-3">
+
+                        <div class="d-flex align-items-center gap-2 flex-wrap mb-3" id="rackBadgeList">
+                                <span class="text-muted small fw-bold me-1">Lokasi Rak:</span>
+                                @{
+                                    // Primary item's rack
+                                    var allLocs = new List<(string Rack, int NoRack)>();
+                                    if (!string.IsNullOrEmpty(Model.Rack)) allLocs.Add((Model.Rack, Model.NoRack ?? 0));
+                                    // Siblings
+                                    if (ViewBag.SiblingRacks is List<DeliveryControl.Models.Item> sibs)
+                                    {
+                                        foreach (var s in sibs)
+                                            if (!string.IsNullOrEmpty(s.Rack))
+                                                allLocs.Add((s.Rack, s.NoRack ?? 0));
+                                    }
+                                }
+                                @foreach (var loc in allLocs)
+                                {
+                                    <span class="badge bg-primary rack-badge px-3 py-2" data-rack="@loc.Rack" data-norack="@loc.NoRack" style="font-size:0.9rem;cursor:default;">
+                                        @(loc.Rack + "." + loc.NoRack)
+                                        <button type="button" class="btn-close btn-close-white btn-sm ms-2 remove-rack-badge" style="font-size:0.6rem;vertical-align:middle;" title="Hapus lokasi ini"></button>
+                                    </span>
+                                }
+                            </div>
+                            <div class="border-top pt-3">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <span class="text-muted small fw-bold">Tambah Lokasi Rak:</span>
+                                    <span id="addRackStatus" class="text-info small"></span>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label d-block text-muted small fw-bold">RAK (A - L)</label>
+                                    <div class="rak-button-grid" id="rakGrid">
+                                        @foreach (var r in "ABCDEFGHIJKL")
+                                        {
+                                            <button type="button" class="btn rak-option btn-outline-primary" data-rak="@r">@r</button>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="mt-2 mb-2" id="noRakContainer" style="display:none;">
+                                    <label class="form-label d-block text-muted small fw-bold">NO RAK (1 - 33)</label>
+                                    <div class="no-rak-button-grid" id="noRakGrid">
+                                        @for (int i = 1; i <= 33; i++)
+                                        {
+                                            <button type="button" class="btn btn-sm no-rak-option btn-outline-secondary" data-norak="@i">@i</button>
+                                        }
+                                    </div>
+                                </div>
+                                <button type="button" id="btnAddRackLoc" class="btn btn-success btn-sm rounded-pill mt-2" style="display:none;">
+                                    <i class="bi bi-plus-circle"></i> Tambah ke Daftar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    @* RAK ALTERNATIF *@
+                    <div class="card mt-3 mb-3" style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.25);border-radius:10px;">
+                        <div class="card-body pb-2 pt-3 px-3">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <i class="bi bi-arrow-left-right text-warning"></i>
+                                <span class="fw-bold text-warning small">RAK ALTERNATIF <span class="text-muted fw-normal">(opsional — dipakai otomatis jika rak utama penuh)</span></span>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-5">
+                                    <label class="form-label d-block text-muted small fw-bold">RAK ALT (A - L)</label>
+                                    <input type="hidden" asp-for="RackAlt" id="rakAltHiddenInput" />
+                                    <div class="rak-button-grid" style="gap:4px;">
+                                        <button type="button" class="btn btn-outline-secondary rak-alt-option @(string.IsNullOrEmpty(Model.RackAlt) ? "btn-secondary text-white" : "")" data-rak-alt="-">—</button>
+                                        @foreach (var r in "ABCDEFGHIJKL")
+                                        {
+                                            <button type="button" class="btn btn-outline-warning rak-alt-option @(Model.RackAlt == r.ToString() ? "btn-warning text-dark" : "")" data-rak-alt="@r">@r</button>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="col-md-4" id="noRakAltContainer" style="@(string.IsNullOrEmpty(Model.RackAlt) ? "display:none;" : "")">
+                                    <label class="form-label d-block text-muted small fw-bold">NO RAK ALT (1 - 33)</label>
+                                    <input type="hidden" asp-for="NoRackAlt" id="noRakAltHiddenInput" />
+                                    <div class="no-rak-button-grid" style="gap:4px;">
+                                        @for (int i = 1; i <= 33; i++)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-secondary no-rak-alt-option @(Model.NoRackAlt == i ? "btn-secondary text-white" : "")" data-no-rak-alt="@i">@i</button>
+                                        }
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label text-warning fw-bold small">KAPASITAS RAK ALT</label>
+                                    <input asp-for="RackAltCapacity" class="form-control" type="number" min="1" placeholder="Default = MAX 2D" />
+                                    <small class="text-muted" style="font-size:0.72rem;">Kosongkan = pakai nilai MAX 2D</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label asp-for="QtyLot" class="form-label text-info fw-bold">QPC (Qty/Lot)</label>
+                            <input asp-for="QtyLot" class="form-control" type="number" />
+                            <span asp-validation-for="QtyLot" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="RackMin" class="form-label text-danger fw-bold">MIN 0,5D</label>
+                            <input asp-for="RackMin" class="form-control" type="number" />
+                            <span asp-validation-for="RackMin" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="ROP" class="form-label text-warning fw-bold">ROP 1D</label>
+                            <input asp-for="ROP" class="form-control" type="number" />
+                            <span asp-validation-for="ROP" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="RackMax" class="form-label text-success fw-bold">MAX 2D</label>
+                            <input asp-for="RackMax" class="form-control" type="number" />
+                            <span asp-validation-for="RackMax" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3 mt-3">
+                        <label asp-for="VIN" class="form-label fw-bold">VIN Number</label>
+                        <input asp-for="VIN" class="form-control" />
+                        <span asp-validation-for="VIN" class="text-danger"></span>
+                    </div>
+
+                    <hr class="my-4" />
+                    <h5 class="mb-3 text-muted small fw-bold"><i class="bi bi-info-circle"></i> Physical & Other Info</h5>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6 mt-3 mt-md-0">
+                             <label asp-for="StatusItem" class="form-label text-warning fw-bold">Status Item</label>
+                             <select asp-for="StatusItem" class="form-select border-warning">
+                                 <option value="Reguler">Reguler</option>
+                                 <option value="PMSP FM">PMSP FM (Fast Moving)</option>
+                                 <option value="PMSP SM">PMSP SM (Slow Moving)</option>
+                                 <option value="After Market">After Market</option>
+                                 <option value="PMSP">PMSP (Legacy)</option>
+                                 <option value="No Order">No Order</option>
+                             </select>
+                            <span asp-validation-for="StatusItem" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="Weight" class="form-label">Weight</label>
+                            <div class="input-group">
+                                <input asp-for="Weight" class="form-control form-control-sm" type="number" step="0.1" />
+                                <span class="input-group-text small">KG</span>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="Volume" class="form-label">Volume</label>
+                            <div class="input-group">
+                                <input asp-for="Volume" class="form-control form-control-sm" type="number" step="0.1" />
+                                <span class="input-group-text small">M³</span>
+                            </div>
+                        </div>
+                        <input type="hidden" asp-for="MinStock" />
+                        <input type="hidden" asp-for="MaxStock" />
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary px-4 rounded-pill">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4 rounded-pill">
+                            <i class="bi bi-save"></i> Simpan Perubahan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi Master</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    <strong>Item:</strong> @Model.ItemCode - @Model.ItemName
+                </p>
+                <p class="small text-muted mb-0">
+                    <strong>Dibuat:</strong> @Model.CreatedDate.ToString("dd/MM/yyyy HH:mm")
+                </p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-primary border-opacity-25">
+            <div class="card-header bg-light">
+                <h6 class="mb-0 text-primary"><i class="bi bi-geo-alt"></i> Info Mapping</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted mb-2">
+                    Gunakan grid tombol untuk memilih lokasi rak. Pemilihan rak baris (A-I) akan mengaktifkan pemilihan nomor rak (1-33).
+                </p>
+                <div class="alert alert-warning p-2 small mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Data mapping digunakan untuk proses auto-pulling.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        $(document).ready(function () {
+
+            // ── Initialize rack locations array from existing badges ──
+            var rackLocations = [];
+            $('#rackBadgeList .rack-badge').each(function() {
+                rackLocations.push({
+                    Rack: $(this).data('rack').toString(),
+                    NoRack: parseInt($(this).data('norack'))
+                });
+            });
+            syncHiddenFields();
+
+            // ── Remove badge ──
+            $(document).on('click', '.remove-rack-badge', function(e) {
+                e.stopPropagation();
+                var badge = $(this).closest('.rack-badge');
+                var rack = badge.data('rack').toString();
+                var noRack = parseInt(badge.data('norack'));
+                if (rackLocations.length <= 1) {
+                    alert('Minimal harus ada 1 lokasi rak.');
+                    return;
+                }
+                rackLocations = rackLocations.filter(function(l) {
+                    return !(l.Rack === rack && l.NoRack === noRack);
+                });
+                badge.remove();
+                syncHiddenFields();
+            });
+
+            // ── RAK picker ──
+            var pendingRack = null;
+            var pendingNoRack = null;
+
+            $('.rak-option').click(function() {
+                $('.rak-option').removeClass('btn-primary text-white').addClass('btn-outline-primary');
+                $(this).removeClass('btn-outline-primary').addClass('btn-primary text-white');
+                pendingRack = $(this).data('rak').toString();
+                pendingNoRack = null;
+                $('.no-rak-option').removeClass('btn-secondary text-white').addClass('btn-outline-secondary');
+                $('#addRackStatus').text('Pilih nomor rak...');
+                $('#btnAddRackLoc').hide();
+                $('#noRakContainer').fadeIn();
+            });
+
+            $('.no-rak-option').click(function() {
+                $('.no-rak-option').removeClass('btn-secondary text-white').addClass('btn-outline-secondary');
+                $(this).removeClass('btn-outline-secondary').addClass('btn-secondary text-white');
+                pendingNoRack = parseInt($(this).data('norak'));
+                $('#addRackStatus').text('Lokasi: ' + pendingRack + '.' + pendingNoRack);
+                $('#btnAddRackLoc').show();
+            });
+
+            // ── Add to badge list ──
+            $('#btnAddRackLoc').click(function() {
+                if (!pendingRack || !pendingNoRack) return;
+                // Check duplicate
+                var dup = rackLocations.some(function(l) {
+                    return l.Rack === pendingRack && l.NoRack === pendingNoRack;
+                });
+                if (dup) {
+                    $('#addRackStatus').html('<span class="text-warning">Lokasi sudah ada!</span>');
+                    return;
+                }
+                rackLocations.push({ Rack: pendingRack, NoRack: pendingNoRack });
+                // Add badge to DOM
+                var badge = $('<span class="badge bg-primary rack-badge px-3 py-2" style="font-size:0.9rem;cursor:default;">' +
+                    pendingRack + '.' + pendingNoRack +
+                    ' <button type="button" class="btn-close btn-close-white btn-sm ms-2 remove-rack-badge" style="font-size:0.6rem;vertical-align:middle;" title="Hapus lokasi ini"></button>' +
+                    '</span>');
+                badge.attr('data-rack', pendingRack).attr('data-norack', pendingNoRack);
+                $('#rackBadgeList').append(badge);
+                syncHiddenFields();
+
+                // Reset picker
+                pendingRack = null; pendingNoRack = null;
+                $('.rak-option').removeClass('btn-primary text-white').addClass('btn-outline-primary');
+                $('.no-rak-option').removeClass('btn-secondary text-white').addClass('btn-outline-secondary');
+                $('#noRakContainer').hide();
+                $('#btnAddRackLoc').hide();
+                $('#addRackStatus').text('');
+            });
+
+            function syncHiddenFields() {
+                $('#rackLocationsJsonInput').val(JSON.stringify(rackLocations));
+                // Keep primary Rack/NoRack hidden fields in sync with first location
+                if (rackLocations.length > 0) {
+                    $('#rakHiddenInput').val(rackLocations[0].Rack);
+                    $('#noRakHiddenInput').val(rackLocations[0].NoRack);
+                }
+            }
+
+            // ── Before submit: ensure JSON is set ──
+            $('form').on('submit', function() {
+                syncHiddenFields();
+            });
+
+            // ────────────────────────────────────────────────────────────────────
+            // RAK ALTERNATIF
+            // ────────────────────────────────────────────────────────────────────
+            $('.rak-alt-option').click(function() {
+                $('.rak-alt-option').removeClass('btn-warning text-dark').addClass('btn-outline-warning');
+                $(this).removeClass('btn-outline-warning').addClass('btn-warning text-dark');
+                const rakAlt = $(this).data('rak-alt');
+                if (rakAlt === '-') {
+                    $('#rakAltHiddenInput').val('');
+                    $('#noRakAltContainer').fadeOut();
+                    $('#noRakAltHiddenInput').val('');
+                } else {
+                    $('#rakAltHiddenInput').val(rakAlt);
+                    $('#noRakAltContainer').fadeIn();
+                }
+            });
+
+            $('.no-rak-alt-option').click(function() {
+                $('.no-rak-alt-option').removeClass('btn-secondary text-white').addClass('btn-outline-secondary');
+                $(this).removeClass('btn-outline-secondary').addClass('btn-secondary text-white');
+                $('#noRakAltHiddenInput').val($(this).data('no-rak-alt'));
+            });
+        });
+    </script>
+}
+
+<style>
+    .rak-button-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 8px;
+    }
+
+    .no-rak-button-grid {
+        display: grid;
+        grid-template-columns: repeat(11, 1fr);
+        gap: 5px;
+    }
+    
+    .rak-option, .no-rak-option {
+        padding: 10px 0;
+        font-weight: 600;
+        border-radius: 6px;
+    }
+
+    .no-rak-option {
+        padding: 5px 0;
+        font-size: 0.85rem;
+    }
+
+
+    .btn-remove-rack:hover {
+        color: #ef4444;
+    }
+</style>
+

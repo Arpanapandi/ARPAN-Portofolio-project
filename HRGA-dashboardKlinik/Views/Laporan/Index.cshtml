@@ -1,0 +1,296 @@
+@model dashboardKlinik.ViewModels.LaporanViewModel
+@{
+    ViewData["Title"] = "Laporan";
+}
+
+<!-- Page Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h5 style="font-size: 20px; font-weight: 800; color: var(--text-primary); margin: 0;">Laporan Bulanan</h5>
+        <p style="font-size: 14px; color: var(--text-secondary); margin: 4px 0 0;">Periode: <strong>@Model.NamaBulan</strong></p>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <!-- Month/Year Selector -->
+        <form method="get" style="display: flex; gap: 8px; align-items: center;" id="filterPeriodForm">
+            <select name="bulan" class="filter-select" id="filterBulan" onchange="this.form.submit()">
+                @for (int m = 1; m <= 12; m++)
+                {
+                    <option value="@m" selected="@(Model.Bulan == m)">
+                        @(new DateTime(2026, m, 1).ToString("MMMM"))
+                    </option>
+                }
+            </select>
+            <select name="tahun" class="filter-select" id="filterTahun" onchange="this.form.submit()">
+                @for (int y = DateTime.Now.Year - 2; y <= DateTime.Now.Year + 1; y++)
+                {
+                    <option value="@y" selected="@(Model.Tahun == y)">@y</option>
+                }
+            </select>
+        </form>
+        <a href="@Url.Action("ExportExcel", new { bulan = Model.Bulan, tahun = Model.Tahun })"
+           class="btn-action btn-success-custom" id="btn-export">
+            <i class="bi bi-file-earmark-excel"></i> Export Excel
+        </a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="stat-cards" style="grid-template-columns: repeat(5, 1fr);">
+    <div class="stat-card primary fade-in stagger-1">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Total Kunjungan</span>
+            <div class="stat-card-icon"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+        </div>
+        <div class="stat-card-value">@Model.TotalKunjungan</div>
+    </div>
+    <div class="stat-card info fade-in stagger-2">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Pasien Unik</span>
+            <div class="stat-card-icon"><i class="bi bi-people-fill"></i></div>
+        </div>
+        <div class="stat-card-value">@Model.TotalPasienUnik</div>
+    </div>
+    <div class="stat-card success fade-in stagger-3">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Rawat Jalan</span>
+            <div class="stat-card-icon"><i class="bi bi-check-circle-fill"></i></div>
+        </div>
+        <div class="stat-card-value">@Model.RawatJalan</div>
+    </div>
+    <div class="stat-card warning fade-in stagger-4">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Perawatan</span>
+            <div class="stat-card-icon"><i class="bi bi-bandaid-fill"></i></div>
+        </div>
+        <div class="stat-card-value">@Model.Perawatan</div>
+    </div>
+    <div class="stat-card primary fade-in" style="--info: var(--danger);">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Dirujuk</span>
+            <div class="stat-card-icon" style="background: var(--danger-bg); color: var(--danger);"><i class="bi bi-building"></i></div>
+        </div>
+        <div class="stat-card-value">@Model.Dirujuk</div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="card-custom fade-in" id="table-laporan" style="margin-bottom: 28px;">
+    <div class="card-header-custom">
+        <h6><i class="bi bi-table" style="color: var(--primary)"></i> Data Kunjungan - @Model.NamaBulan</h6>
+        <span style="font-size: 13px; color: var(--text-muted);">@Model.DataKunjungan.Count data</span>
+    </div>
+    <div class="card-body-custom" style="padding: 0;">
+        @if (Model.DataKunjungan.Any())
+        {
+            <div style="overflow-x: auto;">
+                <table class="table-custom">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Tanggal</th>
+                            <th>Jam</th>
+                            <th>Nama Pasien</th>
+                            <th>NPK</th>
+                            <th>Plant</th>
+                            <th>Departemen</th>
+                            <th>Keluhan</th>
+                            <th>Diagnosa</th>
+                            <th>Dokter</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int no = 1;
+                        }
+                        @foreach (var item in Model.DataKunjungan)
+                        {
+                            <tr>
+                                <td>@(no++)</td>
+                                <td style="white-space: nowrap;">@item.TanggalKunjungan.ToString("dd/MM/yyyy")</td>
+                                <td><span style="font-weight: 600; color: var(--primary);">@item.Timestamp.ToString("HH:mm")</span></td>
+                                <td><strong>@item.NamaPasien</strong></td>
+                                <td><code style="background: var(--primary-bg); color: var(--primary); padding: 2px 8px; border-radius: 4px;">@item.NPK</code></td>
+                                <td>@item.Plant</td>
+                                <td>@item.Departemen</td>
+                                <td>@(item.Keluhan.Length > 20 ? item.Keluhan.Substring(0, 20) + "..." : item.Keluhan)</td>
+                                <td>@(item.Diagnosa.Length > 20 ? item.Diagnosa.Substring(0, 20) + "..." : item.Diagnosa)</td>
+                                <td>@item.Dokter</td>
+                                <td>
+                                    @{
+                                        var badgeClass = item.Status switch
+                                        {
+                                            "Rawat Jalan" => "rawat-jalan",
+                                            "Perawatan" => "perawatan",
+                                            "Dirujuk" => "dirujuk",
+                                            _ => "rawat-jalan"
+                                        };
+                                    }
+                                    <span class="badge-status @badgeClass">@item.Status</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                <h5>Tidak ada data kunjungan</h5>
+                <p>Tidak ada kunjungan pada periode @Model.NamaBulan</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="chart-grid">
+    <div class="card-custom fade-in" id="chart-kunjungan-harian">
+        <div class="card-header-custom">
+            <h6><i class="bi bi-bar-chart-fill" style="color: var(--primary)"></i> Kunjungan Per Hari</h6>
+        </div>
+        <div class="card-body-custom">
+            <div class="chart-container" style="height: 250px;">
+                <canvas id="chartHarian"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="card-custom fade-in" id="chart-departemen-laporan">
+        <div class="card-header-custom">
+            <h6><i class="bi bi-building" style="color: var(--purple)"></i> Per Departemen</h6>
+        </div>
+        <div class="card-body-custom">
+            <div class="chart-container" style="height: 250px;">
+                <canvas id="chartDeptLaporan"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Diagnosa Chart -->
+<div class="card-custom fade-in" style="margin-bottom: 28px;" id="chart-diagnosa-laporan">
+    <div class="card-header-custom" style="justify-content: center; border-bottom: none; padding-top: 20px;">
+        <h6 style="font-size: 16px; font-weight: 800; text-transform: uppercase; color: #333; letter-spacing: 1px;">
+            DATA 10 DIAGNOSA PENYAKIT IHC PT. VELASTO BULAN @Model.NamaBulan.ToUpper()
+        </h6>
+    </div>
+    <div class="card-body-custom">
+        <div class="chart-container" style="height: 300px;">
+            <canvas id="chartDiagnosaLaporan"></canvas>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const colors = ['#1a73e8', '#0d904f', '#e8710a', '#d93025', '#7c3aed', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#8b5cf6'];
+
+    // Register & Defaults Datalabels
+    Chart.register(ChartDataLabels);
+    Chart.defaults.set('plugins.datalabels', {
+        color: '#fff',
+        font: { weight: 'bold', size: 10 },
+        formatter: (value) => (value > 0 ? value : ''),
+        anchor: 'center',
+        align: 'center'
+    });
+
+    // Chart Kunjungan Harian
+    const ctxHarian = document.getElementById('chartHarian').getContext('2d');
+    const gradientHarian = ctxHarian.createLinearGradient(0, 0, 0, 250);
+    gradientHarian.addColorStop(0, 'rgba(26, 115, 232, 0.4)');
+    gradientHarian.addColorStop(1, 'rgba(26, 115, 232, 0.02)');
+
+    new Chart(ctxHarian, {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerHari.Select(x => x.Label))),
+            datasets: [{
+                label: 'Kunjungan',
+                data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerHari.Select(x => x.Value))),
+                backgroundColor: 'rgba(26, 115, 232, 0.7)',
+                borderColor: '#1a73e8',
+                borderWidth: 1,
+                borderRadius: 4,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                datalabels: { anchor: 'end', align: 'top', color: '#444' }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 15 } }
+            }
+        }
+    });
+
+    // Chart Departemen
+    new Chart(document.getElementById('chartDeptLaporan'), {
+        type: 'doughnut',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerDepartemen.Select(x => x.Label))),
+            datasets: [{
+                data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.KunjunganPerDepartemen.Select(x => x.Value))),
+                backgroundColor: colors.slice(0, @Model.KunjunganPerDepartemen.Count),
+                borderWidth: 0,
+                spacing: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: { 
+                legend: { position: 'bottom' },
+                datalabels: { color: '#fff', font: { weight: 'bold' } }
+            }
+        }
+    });
+
+    // Chart Diagnosa (Vertical Bar / Column)
+    new Chart(document.getElementById('chartDiagnosaLaporan'), {
+        type: 'bar',
+        data: {
+            labels: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DiagnosaPopuler.Select(x => x.Label))),
+            datasets: [{
+                label: 'Jumlah',
+                data: @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DiagnosaPopuler.Select(x => x.Value))),
+                backgroundColor: '#5ea1d7',
+                borderRadius: 4,
+                borderSkipped: false,
+                barThickness: 45
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: false },
+                datalabels: { 
+                    anchor: 'center', 
+                    align: 'center', 
+                    color: '#000',
+                    font: { weight: 'bold' }
+                }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 }, grid: { color: 'rgba(0,0,0,0.04)' } },
+                x: { 
+                    grid: { display: false },
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    }
+                }
+            }
+        }
+    });
+</script>
+}

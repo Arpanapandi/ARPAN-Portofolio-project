@@ -1,0 +1,167 @@
+@model DeliveryControl.Models.DeliveryItem
+
+@{
+    ViewData["Title"] = "Edit Delivery Item";
+    var schedule = ViewBag.Schedule as DeliveryControl.Models.DeliverySchedule;
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-pencil-square"></i> Edit Delivery Item</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-controller="DeliverySchedules" asp-action="Index">Delivery Schedule</a></li>
+                @if (schedule != null)
+                {
+                    <li class="breadcrumb-item">
+                        <a asp-controller="DeliverySchedules" asp-action="Details" asp-route-id="@schedule.ScheduleId">
+                            @schedule.ScheduleNumber
+                        </a>
+                    </li>
+                }
+                <li class="breadcrumb-item active" aria-current="page">Edit Item</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-box"></i> Form Edit Item Delivery</h5>
+            </div>
+            <div class="card-body">
+                @{
+                    var qtyLot   = (int)(ViewBag.QtyLot ?? 1);
+                    var kbnTarget = (int)(ViewBag.KbnTarget ?? 0);
+                    var kbnActual = (int)(ViewBag.KbnActual ?? 0);
+                }
+                <form asp-action="Edit" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+                    <input type="hidden" asp-for="DeliveryItemId" />
+                    <input type="hidden" asp-for="ScheduleId" />
+                    <input type="hidden" asp-for="CreatedDate" />
+                    <input type="hidden" asp-for="Quantity" />
+                    <input type="hidden" asp-for="ActualQuantity" />
+                    <input type="hidden" asp-for="Unit" />
+
+                    <div class="mb-3">
+                        <label class="form-label">Item</label>
+                        <input type="text" class="form-control" value="@(Model.Item?.ItemName ?? "-")" readonly />
+                        <input type="hidden" asp-for="ItemId" />
+                    </div>
+
+                    <div class="alert alert-info py-2 mb-3" style="font-size:0.85rem;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Pack Size (QtyLot):</strong> @qtyLot pcs/KBN &nbsp;|&nbsp;
+                        <strong>Target Kanban:</strong> @kbnTarget KBN (@Model.Quantity pcs)
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Actual Kanban <span class="badge bg-primary ms-1">KBN</span></label>
+                        <div class="input-group">
+                            <button type="button" class="btn btn-outline-secondary" onclick="adjustKbn(-1)">
+                                <i class="bi bi-dash-lg"></i>
+                            </button>
+                            <input type="number" id="kbnActualInput" name="kanbanActualInput"
+                                   class="form-control text-center fw-bold fs-5"
+                                   value="@kbnActual" min="0" max="@kbnTarget" step="1"
+                                   oninput="updateKbnDisplay()" />
+                            <button type="button" class="btn btn-outline-secondary" onclick="adjustKbn(1)">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                            <span class="input-group-text">/ @kbnTarget KBN</span>
+                        </div>
+                        <div id="kbnQtyDisplay" class="form-text mt-1">
+                            = <span id="kbnQtyValue">@(kbnActual * qtyLot)</span> pcs
+                            @if (kbnActual >= kbnTarget && kbnTarget > 0)
+                            {
+                                <span class="badge bg-success ms-1">COMPLETE</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Notes" class="form-label">Notes</label>
+                        <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="Notes" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Simpan
+                        </button>
+                        @if (schedule != null)
+                        {
+                            <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Kembali
+                            </a>
+                        }
+                        else
+                        {
+                            <a asp-controller="Home" asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Kembali
+                            </a>
+                        }
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @if (schedule != null)
+    {
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-info-circle"></i> Info Schedule</h6>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Manifest</dt>
+                        <dd class="col-sm-7">@schedule.ScheduleNumber</dd>
+                        <dt class="col-sm-5">Tanggal</dt>
+                        <dd class="col-sm-7">@schedule.ScheduledDate.ToString("dd MMM yyyy")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        var qtyLot = @(ViewBag.QtyLot ?? 1);
+        var kbnTarget = @(ViewBag.KbnTarget ?? 0);
+
+        function adjustKbn(delta) {
+            var input = document.getElementById('kbnActualInput');
+            var val = parseInt(input.value) || 0;
+            val = Math.max(0, val + delta);
+            input.value = val;
+            updateKbnDisplay();
+        }
+
+        function updateKbnDisplay() {
+            var input = document.getElementById('kbnActualInput');
+            var val = parseInt(input.value) || 0;
+            var pcs = val * qtyLot;
+            document.getElementById('kbnQtyValue').textContent = pcs;
+            var display = document.getElementById('kbnQtyDisplay');
+            var badge = display.querySelector('.badge');
+            if (val >= kbnTarget && kbnTarget > 0) {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'badge bg-success ms-1';
+                    badge.textContent = 'COMPLETE';
+                    display.appendChild(badge);
+                }
+            } else {
+                if (badge) badge.remove();
+            }
+        }
+    </script>
+}

@@ -1,0 +1,87 @@
+@model dashboardKlinik.Models.Pasien
+@{
+    ViewData["Title"] = "Tambah Pasien";
+}
+
+<div style="margin-bottom: 24px;">
+    <a href="@Url.Action("Index")" class="btn-action btn-outline-custom">
+        <i class="bi bi-arrow-left"></i> Kembali
+    </a>
+</div>
+
+<div style="max-width: 700px;">
+    <div class="card-custom fade-in">
+        <div class="card-header-custom">
+            <h6><i class="bi bi-person-plus-fill" style="color: var(--primary)"></i> Tambah Pasien Baru</h6>
+        </div>
+        <div class="card-body-custom">
+            <form asp-action="Create" method="post" id="createPasienForm">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" style="color: var(--danger); margin-bottom: 16px;"></div>
+
+                <div class="form-row">
+                    <div class="form-group-custom">
+                        <label asp-for="NamaPasien">Nama Pasien *</label>
+                        <input asp-for="NamaPasien" class="form-control-custom" placeholder="Masukkan nama lengkap" />
+                        <span asp-validation-for="NamaPasien" style="color: var(--danger); font-size: 12px;"></span>
+                    </div>
+                    <div class="form-group-custom">
+                        <label asp-for="NPK">NPK *</label>
+                        <input asp-for="NPK" class="form-control-custom" placeholder="Nomor Pokok Karyawan" />
+                        <span asp-validation-for="NPK" style="color: var(--danger); font-size: 12px;"></span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group-custom">
+                        <label asp-for="Plant">Plant *</label>
+                        <select asp-for="Plant" class="form-control-custom" id="selectPlant">
+                            <option value="">Pilih Plant</option>
+                            <option value="RVI">RVI</option>
+                            <option value="MIXING">MIXING</option>
+                            <option value="BTR">BTR</option>
+                            <option value="MOLDED">MOLDED</option>
+                            <option value="HOSE">HOSE</option>
+                        </select>
+                        <span asp-validation-for="Plant" style="color: var(--danger); font-size: 12px;"></span>
+                    </div>
+                    <div class="form-group-custom">
+                        <label asp-for="Departemen">Departemen *</label>
+                        <select asp-for="Departemen" class="form-control-custom" id="selectDepartemen">
+                            <option value="">Pilih Departemen</option>
+                            <option value="PRODUKSI">PRODUKSI</option>
+                            <option value="MAINTENANCE">MAINTENANCE</option>
+                            <option value="QC">QC</option>
+                            <option value="HRD">HRD</option>
+                            <option value="GENERAL">GENERAL</option>
+                            <option value="DIGITALISASI">DIGITALISASI</option>
+                            <option value="FINANCE">FINANCE</option>
+                            <option value="MARKETING">MARKETING</option>
+                            <option value="IT">IT</option>
+                            <option value="R&D">R&D</option>
+                            <option value="OTHER">OTHER</option>
+                        </select>
+                        <span asp-validation-for="Departemen" style="color: var(--danger); font-size: 12px;"></span>
+                    </div>
+                </div>
+
+                <div class="form-group-custom">
+                    <label asp-for="JenisKelamin">Jenis Kelamin *</label>
+                    <select asp-for="JenisKelamin" class="form-control-custom" id="selectGender">
+                        <option value="">Pilih Jenis Kelamin</option>
+                        <option value="L">Laki-laki</option>
+                        <option value="P">Perempuan</option>
+                    </select>
+                    <span asp-validation-for="JenisKelamin" style="color: var(--danger); font-size: 12px;"></span>
+                </div>
+
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="submit" class="btn-action btn-primary-custom" id="btn-submit">
+                        <i class="bi bi-check-lg"></i> Simpan
+                    </button>
+                    <a href="@Url.Action("Index")" class="btn-action btn-outline-custom">Batal</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,1495 @@
+@{
+    ViewData["Title"] = "Stock Opname";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<style>
+    /* ── Header ── */
+    .opname-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+    .opname-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #a78bfa;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    /* ── Filter panel ── */
+    .opname-filter-panel {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        border: 1px solid rgba(167, 139, 250, 0.2);
+        border-radius: 12px;
+        padding: 14px 20px;
+        margin-bottom: 18px;
+    }
+    .opname-label { font-size: 0.84rem; color: #94a3b8; font-weight: 600; white-space: nowrap; }
+    /* ── Table ── */
+    #opnameTable { width: max-content; min-width: 100%; table-layout: auto; }
+    #opnameTable thead th {
+        background: #1e293b;
+        color: #94a3b8;
+        font-size: 0.88rem;
+        letter-spacing: .04em;
+        padding: 10px 10px;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        white-space: nowrap;
+    }
+    #opnameTable tbody td {
+        padding: 8px 10px;
+        font-size: 0.95rem;
+        vertical-align: middle;
+        border-color: rgba(255,255,255,0.05);
+        white-space: nowrap;
+    }
+    #opnameTable tbody tr:hover { background: rgba(167,139,250,0.04); }
+    /* ── Editable act input ── */
+    .act-input {
+        width: 72px;
+        text-align: center;
+        background: rgba(167,139,250,0.12);
+        border: 1px solid rgba(167,139,250,0.4);
+        border-radius: 6px;
+        color: #e2e8f0;
+        font-weight: 700;
+        font-size: 1rem;
+        padding: 3px 6px;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .act-input:focus {
+        outline: none;
+        border-color: #a78bfa;
+        background: rgba(167,139,250,0.22);
+        box-shadow: 0 0 0 2px rgba(167,139,250,0.2);
+    }
+    .act-input.changed {
+        border-color: #f59e0b;
+        background: rgba(245,158,11,0.15);
+        color: #fbbf24;
+    }
+    /* ── Editable rack input ── */
+    .rack-input {
+        width: 68px;
+        text-align: center;
+        background: rgba(100,116,139,0.12);
+        border: 1px solid rgba(100,116,139,0.3);
+        border-radius: 6px;
+        color: #e2e8f0;
+        font-weight: 600;
+        font-size: 0.88rem;
+        padding: 3px 5px;
+        transition: border-color 0.2s, background 0.2s;
+        text-transform: uppercase;
+    }
+    .rack-input:focus {
+        outline: none;
+        border-color: #67e8f9;
+        background: rgba(103,232,249,0.1);
+        box-shadow: 0 0 0 2px rgba(103,232,249,0.15);
+    }
+    .rack-input.rack-changed {
+        border-color: #f59e0b;
+        background: rgba(245,158,11,0.15);
+        color: #fbbf24;
+    }
+    /* ── Save bar ── */
+    .opname-save-bar {
+        position: sticky;
+        bottom: 0;
+        z-index: 10;
+        background: linear-gradient(135deg, #0f172a, #1e293b);
+        border-top: 1px solid rgba(167,139,250,0.25);
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        border-radius: 0 0 12px 12px;
+        margin-top: 4px;
+    }
+    /* ── Indicator cards ── */
+    .opname-indicator { transition: all 0.3s ease; border-width: 2px !important; }
+    .opname-indicator:hover { transform: translateY(-3px); }
+    /* Table scroll container */
+    #opnameTableCard .table-responsive {
+        max-height: calc(100vh - 340px);
+        min-height: 200px;
+        overflow-y: auto;
+        overflow-x: auto;
+    }
+    /* Highlight row dengan perubahan */
+    tr.row-changed td { background: rgba(245,158,11,0.06) !important; }
+    /* Toast notification */
+    #opnameToast {
+        position: fixed;
+        bottom: 80px;
+        right: 24px;
+        z-index: 9999;
+        min-width: 280px;
+    }
+</style>
+
+<!-- ① Header -->
+<div class="opname-header">
+    <div class="opname-title">
+        <i class="bi bi-clipboard2-check-fill"></i>
+        Stock Opname — Pemeriksaan &amp; Koreksi Stok FG
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <div style="font-size:0.8rem;color:#64748b;">
+            <i class="bi bi-person-badge me-1"></i>
+            @(Context.Session.GetString("FullName") ?? Context.Session.GetString("Username") ?? "-")
+        </div>
+        <div style="background:rgba(15,23,42,0.7);border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:5px 14px;font-size:0.9rem;font-weight:700;color:#a78bfa;letter-spacing:0.06em;">
+            <i class="bi bi-clock-fill me-1"></i>
+            <span id="opnameClock">--:--:--</span>
+        </div>
+    </div>
+</div>
+
+<!-- ② Filter panel -->
+<div class="opname-filter-panel">
+    <span class="opname-label">Lokasi Rak:</span>
+    <select id="opnamePlant" class="custom-select-input">
+        <option value="Overall">Overall</option>
+        <option value="Molded">Molded</option>
+        <option value="Hose">Hose</option>
+        <option value="RVI">RVI</option>
+        <option value="BTR">BTR</option>
+    </select>
+    <span class="opname-label ms-3">Cari:</span>
+    <input type="text" id="opnameSearch" class="form-control form-control-sm bg-dark text-white border-secondary"
+           placeholder="Cari VIN / Item Name / Part No..." autocomplete="off"
+           style="min-width:240px;border-radius:8px;max-width:320px;" />
+    <div class="ms-auto d-flex gap-2">
+        @if (new[] { "Super Admin", "Admin", "STO" }.Contains(Context.Session.GetString("Role")))
+        {
+            <button class="btn btn-sm" id="btnAdjustStock"
+                    style="background:rgba(59,130,246,0.1);color:#3b82f6;border:1px solid rgba(59,130,246,0.3);border-radius:8px;font-weight:600;display:flex;align-items:center;gap:6px;transition:all 0.2s;height:35px;"
+                    onmouseover="this.style.background='rgba(59,130,246,0.2)'"
+                    onmouseout="this.style.background='rgba(59,130,246,0.1)'">
+                <i class="bi bi-sliders"></i>
+                <span>Adjust Stock</span>
+            </button>
+        }
+        <button id="btnTarikData" class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1"
+                style="border-radius:8px;padding:6px 16px;">
+            <i class="bi bi-arrow-down-circle"></i>
+            <span>Tarik Data FG</span>
+        </button>
+        <span id="lastPullTime" class="align-self-center text-muted" style="font-size:0.78rem;"></span>
+    </div>
+</div>
+
+<!-- ③ Indicator cards -->
+<div class="row mb-3" id="opnameIndicatorRow">
+    <div class="col-md-3 mb-2">
+        <div class="cyber-card p-3 text-center border-danger opname-indicator">
+            <small class="text-muted d-block text-uppercase">Shortage</small>
+            <h2 class="fw-bold mb-0 text-danger" id="opnameIndShortage">-</h2>
+            <small class="text-white-50">Low Stock Items</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-2">
+        <div class="cyber-card p-3 text-center opname-indicator" style="border-color:#f59e0b!important;">
+            <small class="text-muted d-block text-uppercase">Normal</small>
+            <h2 class="fw-bold mb-0" style="color:#f59e0b;" id="opnameIndNormal">-</h2>
+            <small class="text-white-50">Safe Stock Items</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-2">
+        <div class="cyber-card p-3 text-center border-info opname-indicator">
+            <small class="text-muted d-block text-uppercase">Over</small>
+            <h2 class="fw-bold mb-0 text-info" id="opnameIndOver">-</h2>
+            <small class="text-white-50">Excessive Stock</small>
+        </div>
+    </div>
+    <div class="col-md-3 mb-2">
+        <div class="cyber-card p-3 text-center opname-indicator" style="border-color:#a78bfa!important;">
+            <small class="text-muted d-block text-uppercase">Total Baris</small>
+            <h2 class="fw-bold mb-0" style="color:#a78bfa;" id="opnameIndTotal">-</h2>
+            <small class="text-white-50" id="opnameIndChanged">0 perubahan</small>
+        </div>
+    </div>
+</div>
+
+<!-- ④ Tabel -->
+<div class="cyber-card" id="opnameTableCard">
+    <div class="card-header" style="border-bottom:1px solid rgba(167,139,250,0.2);display:flex;align-items:center;justify-content:space-between;">
+        <span class="fw-bold" style="color:#a78bfa;">
+            <i class="bi bi-table me-2"></i>
+            <span id="opnameTableTitle">Klik "Tarik Data FG" untuk memulai opname</span>
+        </span>
+        <small class="text-muted" id="opnameItemCount"></small>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" id="opnameTable"
+               style="border-collapse:separate;border-spacing:0;">
+            <thead>
+                <tr>
+                    <th class="text-center" style="min-width:42px;">NO</th>
+                    <th style="min-width:110px;">LOKASI <small style="color:#f59e0b;font-size:0.75em;">(EDIT)</small></th>
+                    <th style="min-width:160px;">ITEM / VIN</th>
+                    <th style="min-width:180px;">PART NO</th>
+                    <th class="text-center" style="min-width:60px;">QPC</th>
+                    <th class="text-center" style="min-width:90px;color:#a78bfa;">ACT (EDIT)</th>
+                    <th class="text-center" style="min-width:68px;color:#67e8f9;">SISTEM</th>
+                    <th class="text-center text-danger" style="min-width:60px;">MIN</th>
+                    <th class="text-center" style="min-width:60px;color:#f59e0b;">ROP</th>
+                    <th class="text-center text-success" style="min-width:60px;">MAX</th>
+                    <th class="text-center" style="min-width:84px;">LEVEL</th>
+                    <th class="text-center" style="min-width:90px;">STATUS</th>
+                    <th class="text-center" style="min-width:70px;">SELISIH</th>
+                    @if (Context.Session.GetString("Role") == "Super Admin" || Context.Session.GetString("Role") == "Admin")
+                    {
+                        <th class="text-center" style="min-width:80px;">ACTION</th>
+                    }
+                </tr>
+            </thead>
+            <tbody id="opnameTableBody">
+                <tr>
+                    <td colspan="14" class="text-center py-5 text-muted">
+                        Klik <strong>Tarik Data FG</strong> untuk memuat data stok aktual.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ⑤ Save bar (sticky bottom) -->
+    <div class="opname-save-bar" id="opnameSaveBar">
+        <div class="d-flex align-items-center gap-2 flex-wrap flex-grow-1">
+            <span class="text-muted" style="font-size:0.85rem;" id="opnameSaveInfo">
+                <i class="bi bi-info-circle me-1"></i>
+                Edit kolom <strong style="color:#a78bfa;">ACT</strong> untuk koreksi stok, lalu klik Simpan.
+            </span>
+        </div>
+        <button id="btnResetChanges" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
+                style="border-radius:8px;" disabled>
+            <i class="bi bi-arrow-counterclockwise"></i>
+            <span>Reset</span>
+        </button>
+        <button id="btnSaveOpname" class="btn btn-sm btn-warning fw-bold d-flex align-items-center gap-1"
+                style="border-radius:8px;padding:7px 22px;font-size:0.95rem;" disabled>
+            <i class="bi bi-save2-fill"></i>
+            <span>Simpan Opname</span>
+        </button>
+    </div>
+</div>
+
+<!-- ⑥ Toast notification -->
+<div id="opnameToast" style="display:none;">
+    <div id="opnameToastInner" class="alert alert-success border-0 shadow-lg" style="border-radius:10px;">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <span id="opnameToastMsg"></span>
+    </div>
+</div>
+
+<!-- Modal konfirmasi save -->
+<div class="modal fade" id="opnameSaveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark border border-warning">
+            <div class="modal-header border-warning py-2">
+                <h6 class="modal-title text-warning">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Konfirmasi Simpan Opname
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3">
+                <p class="text-white mb-2" id="opnameSaveModalText"></p>
+                <p class="text-warning small mb-0">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Stok Dashboard FG akan langsung diperbarui setelah disimpan.
+                </p>
+            </div>
+            <div class="modal-footer border-warning py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning btn-sm fw-bold" id="btnConfirmSave">
+                    <i class="bi bi-save2-fill me-1"></i> Ya, Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+
+<!-- ===== MANUAL ADJUST STOCK MODAL ===== -->
+<div id="modalAdjustStock" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:#1e293b;border-radius:12px;padding:28px 32px;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.5);color:#e2e8f0;position:relative;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;border-bottom:1px solid #334155;padding-bottom:15px;">
+            <i id="adjModalIcon" class="bi bi-sliders" style="font-size:1.3rem;color:#f59e0b;"></i>
+            <h5 id="adjModalTitle" style="margin:0;font-weight:700;color:#f1f5f9;">Manual Adjust Stock</h5>
+            <button id="btnCloseAdjust" style="margin-left:auto;background:none;border:none;color:#94a3b8;font-size:1.4rem;cursor:pointer;line-height:1;">&times;</button>
+        </div>
+
+        <div style="margin-bottom:16px;">
+            <label style="font-size:0.82rem;color:#94a3b8;margin-bottom:6px;display:block;">Item <span style="color:#ef4444;">*</span></label>
+            <input type="text" id="adjItemSearch" placeholder="Ketik kode / nama item..." autocomplete="off"
+                   style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.88rem;">
+            <div id="adjItemDropdown" style="display:none;position:absolute;z-index:10000;background:#1e293b;border:1px solid #334155;border-radius:8px;max-height:200px;overflow-y:auto;width:416px;margin-top:2px;"></div>
+            <input type="hidden" id="adjItemId">
+            <div id="adjItemSelected" style="display:none;margin-top:0;padding:12px;background:rgba(125, 211, 252, 0.05);border-radius:10px;border:1px solid rgba(125, 211, 252, 0.2);color:#7dd3fc;">
+                <div style="font-size:0.65rem;text-transform:uppercase;font-weight:700;margin-bottom:4px;color:#38bdf8;">Item Terpilih</div>
+                <div id="adjItemDetailText" style="font-size:0.95rem;font-weight:700;"></div>
+            </div>
+        </div>
+
+        <!-- Modal Mode Toggle -->
+        <div id="adjModeToggle" style="display:flex;gap:10px;margin-bottom:20px;background:rgba(0,0,0,0.2);padding:4px;border-radius:10px;border:1px solid rgba(255,255,255,0.05);">
+            <button type="button" id="btnModeAdjust" onclick="setAdjMode('adjust')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;background:#3b82f6;color:#fff;transition:all 0.2s;">
+                <i class="bi bi-plus-slash-minus me-1"></i>ADJUST QTY
+            </button>
+            <button type="button" id="btnModeRelocate" onclick="setAdjMode('relocate')" style="flex:1;padding:8px;border:none;border-radius:7px;font-size:0.75rem;font-weight:700;cursor:pointer;background:transparent;color:#94a3b8;transition:all 0.2s;">
+                <i class="bi bi-arrow-left-right me-1"></i>PINDAH RAK
+            </button>
+        </div>
+
+        <!-- Lokasi RAK (Dropdown) -->
+        <div id="adjRackSection" style="display:none;margin-bottom:16px;padding:15px;background:#0f172a;border-radius:12px;border:1px solid #334155;">
+            <label style="font-size:0.82rem;color:#94a3b8;margin-bottom:10px;display:block;font-weight:600;">
+                <i class="bi bi-geo-alt-fill text-primary"></i> LOKASI RAK
+            </label>
+            <div style="display:flex;gap:15px;align-items:center;">
+                <div style="flex:1;">
+                    <select id="adjRackDropdown" style="width:100%;padding:10px 14px;border-radius:10px;border:1px solid #1e293b;background:#1e293b;color:#e2e8f0;font-size:0.95rem;cursor:pointer;outline:none;transition:border-color 0.2s;">
+                        <option value="">-- Pilih Rak --</option>
+                    </select>
+                    <div style="font-size:0.7rem;color:#64748b;margin-top:5px;"><i class="bi bi-info-circle"></i> Pilih rak yang ada atau "Tambah Rak Baru"</div>
+                </div>
+                <div id="rackStockIndicator" style="background:rgba(59, 130, 246, 0.08);padding:8px 15px;border-radius:12px;border:1px solid rgba(59, 130, 246, 0.15);min-width:110px;text-align:center;box-shadow:inset 0 0 10px rgba(0,0,0,0.2);">
+                    <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:0.5px;margin-bottom:2px;">Stok Saat Ini</div>
+                    <div id="currentRackStockText" style="font-size:1.4rem;font-weight:800;color:#3b82f6;line-height:1;">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Rak Baru (Manual) -->
+        <div id="newRackSection" style="display:none;margin-bottom:16px;padding:15px;background:rgba(59, 130, 246, 0.05);border-radius:12px;border:1px dashed #3b82f6;">
+             <label style="font-size:0.82rem;color:#3b82f6;margin-bottom:10px;display:block;font-weight:700;">
+                <i class="bi bi-plus-circle-fill"></i> INPUT RAK BARU
+             </label>
+             <div style="display:flex;gap:10px;align-items:center;">
+                <div style="flex:1;">
+                    <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">Nama/Kode Rak</span>
+                    <input type="text" id="newRackCode" maxlength="10" placeholder="Contoh: A, L, M" 
+                           style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.95rem;text-transform:uppercase;">
+                </div>
+                <div style="flex:1;">
+                    <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">No. Urut (Kolom)</span>
+                    <input type="number" id="newNoRack" min="0" max="999" placeholder="0-99" 
+                           style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.95rem;">
+                </div>
+             </div>
+             <div style="font-size:0.7rem;color:#64748b;margin-top:8px;"><i class="bi bi-info-circle"></i> Masukkan lokasi fisik rak untuk mendaftarkan stok di lokasi baru</div>
+        </div>
+
+        <div id="adjQtySection" style="margin-bottom:16px;">
+            <label id="adjQtyLabel" style="font-size:0.82rem;color:#94a3b8;margin-bottom:6px;display:block;">Stok Baru di Rak Terpilih <span style="color:#ef4444;">*</span></label>
+            <div style="display:flex;gap:12px;align-items:center;">
+                <div style="flex:1;position:relative;">
+                    <input type="number" id="adjQty" placeholder="Berapa qty total baru?" step="1"
+                           style="width:100%;padding:12px;border-radius:10px;border:2px solid #334155;background:#0f172a;color:#fff;font-size:1.1rem;font-weight:700;outline:none;transition:border-color 0.2s;">
+                    <div id="adjQtyDeltaBadge" style="display:none;position:absolute;right:45px;top:50%;transform:translateY(-50%);padding:4px 10px;border-radius:20px;font-size:0.75rem;font-weight:800;"></div>
+                </div>
+            </div>
+            <div id="adjQtyWarning" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(245, 158, 11, 0.08);border:1px solid rgba(245, 158, 11, 0.2);border-radius:10px;font-size:0.78rem;">
+                <div id="adjQtyWarningText" style="line-height:1.4;"></div>
+            </div>
+        </div>
+
+        <!-- Relocation Target Section -->
+        <div id="relocateSection" style="display:none;margin-bottom:16px;padding:12px;background:rgba(59, 130, 246, 0.05);border-radius:10px;border:1px dashed #3b82f6;">
+             <label style="font-size:0.82rem;color:#3b82f6;margin-bottom:8px;display:block;font-weight:700;"><i class="bi bi-arrow-right-circle-fill"></i> Lokasi TUJUAN (RELOKASI)</label>
+             <div style="display:flex;gap:10px;align-items:center;">
+                <div style="flex:1;">
+                    <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">Target Rack</span>
+                    <input type="text" id="targetRack" maxlength="5" placeholder="A-K" 
+                           style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;text-transform:uppercase;">
+                </div>
+                <div style="flex:1;">
+                    <span style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:700;">Target No. Rak</span>
+                    <input type="number" id="targetNoRack" min="1" max="99" placeholder="1-20" 
+                           style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.9rem;">
+                </div>
+             </div>
+             <div style="margin-top:12px;">
+                  <label style="font-size:0.8rem;color:#94a3b8;margin-bottom:4px;display:block;">Qty yang akan dipindahkan</label>
+                  <input type="number" id="relocateQty" placeholder="Berapa qty?" 
+                         style="width:100%;padding:7px 10px;border-radius:6px;border:1px solid #334155;background:#0f172a;color:#7dd3fc;font-size:0.9rem;font-weight:600;">
+                  <span style="font-size:0.75rem;color:#64748b;">(Kosongkan untuk pindah semua qty di rak ini)</span>
+             </div>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <label style="font-size:0.82rem;color:#94a3b8;margin-bottom:6px;display:block;">Catatan / Alasan <span style="color:#94a3b8;font-size:0.75rem;">(opsional)</span></label>
+            <textarea id="adjNote" rows="3" placeholder="Manual Stock Adjustment"
+                      style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;font-size:0.88rem;resize:vertical;"></textarea>
+        </div>
+
+        <div id="adjResultMsg" style="display:none;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:0.85rem;"></div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <button id="btnCancelAdjust" style="padding:8px 18px;border-radius:8px;border:1px solid #334155;background:transparent;color:#94a3b8;cursor:pointer;font-size:0.85rem;">Batal</button>
+            <button id="btnSubmitAdjust" style="padding:8px 18px;border-radius:8px;border:none;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem;">
+                <i class="bi bi-check2-circle"></i> Simpan
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+    // Diagnostic error catcher
+    window.onerror = function(message, source, lineno, colno, error) {
+        alert("JavaScript Error detected:\nMessage: " + message + "\nLine: " + lineno + "\nSource: " + source);
+        return false;
+    };
+        window.refreshDashboard = function() {
+        $.ajax({
+            url: '/Stock/GetOpnameData?plant=' + encodeURIComponent($('#opnamePlant').val() || 'Overall'),
+            method: 'GET',
+            cache: false,
+            success: function (freshData) {
+                if (!freshData) return;
+                var addedOrUpdated = false;
+                freshData.forEach(function(fd) {
+                    var existing = allData.find(d => (d.vin || '').trim().toUpperCase() === (fd.vin || '').trim().toUpperCase() && d.rack === fd.rack && d.noRack === fd.noRack);
+                    if (existing) {
+                        if (existing.act !== fd.act) {
+                            existing.act = fd.act;
+                            existing.totalAct = fd.totalAct;
+                            var origIdx = existing._origIdx !== undefined ? existing._origIdx : allData.indexOf(existing);
+                            delete window.editedRows[origIdx];
+                            delete window.editedRacks[origIdx];
+                            addedOrUpdated = true;
+                        }
+                    } else {
+                        var maxIdx = -1;
+                        allData.forEach(function(d) { if(d._origIdx > maxIdx) maxIdx = d._origIdx; });
+                        fd._origIdx = maxIdx + 1;
+                        allData.push(fd);
+                        addedOrUpdated = true;
+                    }
+                });
+                if (addedOrUpdated) {
+                    allData.sort(function(a, b) {
+                        var rA = (a.rack || '').toString().toLowerCase();
+                        var rB = (b.rack || '').toString().toLowerCase();
+                        if (rA === rB) return (a.noRack || 0) - (b.noRack || 0);
+                        return rA.localeCompare(rB);
+                    });
+                    window.renderTable(allData);
+                    window.updateChangedCount();
+                }
+            }
+        });
+    };
+
+// Adjustment Modal Logic (Exposed to Global)
+    (function () {
+        var allItems = [];
+        var selectedItemId = 0;
+        var currentMode = 'adjust'; // adjust or relocate
+
+                window.openAdjustmentModal = function(prefillId, prefillName, prefillRack) {
+            if (typeof allData === 'undefined' || allData.length === 0) {
+                alert('Silakan tarik data terlebih dahulu sebelum melakukan Adjust Stock.');
+                return;
+            }
+            document.getElementById('modalAdjustStock').style.display = 'flex';
+            resetForm();
+            if (allItems.length === 0) loadAllItems();
+            
+            if (prefillId) {
+                selectedItemId = prefillId;
+                document.getElementById('adjItemId').value = prefillId;
+                document.getElementById('adjModalTitle').textContent = 'Edit Item: ' + (prefillName || '');
+                document.getElementById('adjModalIcon').className = 'bi bi-pencil-square';
+                document.getElementById('adjModalIcon').style.color = '#3b82f6';
+                
+                // HIDE Search box, show result directly
+                const searchGroup = document.getElementById('adjItemSearch').parentElement;
+                if (searchGroup) searchGroup.style.display = 'none';
+
+                // Gunakan GetRackDetail karena mengembalikan info LENGKAP termasuk breakdown rak (Sinkronkan dengan filter tanggal dashboard)
+                const filterDate = document.getElementById('filterDate')?.value || '';
+                fetch(`/Stock/GetRackDetail?itemId=${prefillId}&date=${filterDate}`)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            var selArea = document.getElementById('adjItemSelected');
+                            document.getElementById('adjItemDetailText').textContent = data.itemName + ' - ' + data.vin;
+                            selArea.style.display = 'block';
+                            
+                            // Langsung proses breakdown untuk dropdown di sini
+                            renderRackOptions(data.breakdown, prefillRack);
+                        }
+                    });
+            }
+        };
+
+        function populateRackDropdown(itemId, prefillRack) {
+            // Loading state
+            const dropdown = document.getElementById('adjRackDropdown');
+            dropdown.innerHTML = '<option value="">-- Meload data rak... --</option>';
+            document.getElementById('adjRackSection').style.display = 'block';
+
+            const filterDate = document.getElementById('filterDate')?.value || '';
+            fetch(`/Stock/GetRackDetail?itemId=${itemId}&date=${filterDate}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.breakdown) {
+                        renderRackOptions(data.breakdown, prefillRack);
+                    } else {
+                        dropdown.innerHTML = '<option value="">Gagal memuat rak</option>';
+                    }
+                });
+        }
+
+        function renderRackOptions(breakdown, prefillRack) {
+            const dropdown = document.getElementById('adjRackDropdown');
+            const indicator = document.getElementById('currentRackStockText');
+            const qtyInput = document.getElementById('adjQty');
+            
+            document.getElementById('adjRackSection').style.display = 'block';
+
+            let optionsHtml = '';
+            
+            if (!breakdown || breakdown.length === 0) {
+                optionsHtml = '<option value="">-- Tidak ada riwayat rak --</option>';
+            } else {
+                optionsHtml = breakdown.map(b => 
+                    `<option value="${b.rack}|${b.column}" data-stock="${b.stock}">${b.rack}.${b.column} (Stok: ${b.stock})</option>`
+                ).join('');
+            }
+            
+            // Selalu tambahkan opsi Tambah Rak Baru
+            optionsHtml += '<option value="NEW_RACK" style="color:#10b981;font-weight:700;">+ TAMBAH RAK BARU</option>';
+            dropdown.innerHTML = optionsHtml;
+            
+            // Reset indicator
+            indicator.textContent = '0';
+            qtyInput.value = '';
+            qtyInput.dataset.baseStock = 0;
+            document.getElementById('newRackSection').style.display = 'none';
+
+            // Jika ada prefill rack (format: "H.5"), coba select
+            if (prefillRack) {
+                const parts = prefillRack.split('.');
+                if (parts.length === 2) {
+                    const val = `${parts[0].trim().toUpperCase()}|${parts[1].trim()}`;
+                    const exists = Array.from(dropdown.options).some(o => o.value === val);
+                    if (exists) dropdown.value = val;
+                }
+            }
+            
+            dropdown.dispatchEvent(new Event('change'));
+        }
+
+        window.setAdjMode = function(mode) {
+            currentMode = mode;
+            const b1 = document.getElementById('btnModeAdjust');
+            const b2 = document.getElementById('btnModeRelocate');
+            const s1 = document.getElementById('adjQtySection');
+            const s2 = document.getElementById('relocateSection');
+            
+            if (mode === 'adjust') {
+                b1.style.background = '#3b82f6'; b1.style.color = '#fff';
+                b2.style.background = 'transparent'; b2.style.color = '#94a3b8';
+                s1.style.display = 'block';
+                s2.style.display = 'none';
+            } else {
+                b2.style.background = '#3b82f6'; b2.style.color = '#fff';
+                b1.style.background = 'transparent'; b1.style.color = '#94a3b8';
+                s2.style.display = 'block';
+                s1.style.display = 'none';
+            }
+        };
+
+        function closeModal() {
+            document.getElementById('modalAdjustStock').style.display = 'none';
+        }
+
+        function resetForm() {
+            document.getElementById('adjModalTitle').textContent = 'Manual Adjust Stock';
+            document.getElementById('adjModalIcon').className = 'bi bi-sliders';
+            document.getElementById('adjModalIcon').style.color = '#f59e0b';
+            
+            const searchGroup = document.getElementById('adjItemSearch').parentElement;
+            if (searchGroup) searchGroup.style.display = 'block';
+            
+            document.getElementById('adjItemSearch').value = '';
+            document.getElementById('adjItemId').value = '';
+            document.getElementById('adjItemSelected').style.display = 'none';
+            document.getElementById('adjItemDropdown').style.display = 'none';
+            document.getElementById('adjRackSection').style.display = 'none';
+            
+            // Clear dropdown
+            const rackDropdown = document.getElementById('adjRackDropdown');
+            if (rackDropdown) {
+                rackDropdown.innerHTML = '<option value="">-- Pilih Rak --</option>';
+            }
+            document.getElementById('currentRackStockText').textContent = '0';
+
+            document.getElementById('adjQty').value = '';
+            document.getElementById('adjQtyWarning').style.display = 'none';
+            document.getElementById('adjNote').value = '';
+            document.getElementById('adjResultMsg').style.display = 'none';
+            document.getElementById('targetRack').value = '';
+            document.getElementById('targetNoRack').value = '';
+            document.getElementById('relocateQty').value = '';
+            
+            // New inputs
+            document.getElementById('newRackCode').value = '';
+            document.getElementById('newNoRack').value = '';
+            document.getElementById('newRackSection').style.display = 'none';
+            
+            selectedItemId = 0;
+            setAdjMode('adjust');
+        }
+
+        function loadAllItems() {
+            $.ajax({
+                url: '/Pulling/GetAllItemsForAdjust',
+                type: 'GET',
+                success: function (data) {
+                    if (data.success) allItems = data.items;
+                }
+            });
+        }
+
+        function showDropdown(query) {
+            var dd = document.getElementById('adjItemDropdown');
+            if (!query) { dd.style.display = 'none'; return; }
+            var q = query.toLowerCase();
+            var filtered = allItems.filter(i =>
+                (i.itemCode && i.itemCode.toLowerCase().includes(q)) ||
+                (i.itemName && i.itemName.toLowerCase().includes(q)) ||
+                (i.vin && i.vin.toLowerCase().includes(q))
+            ).slice(0, 20);
+
+            if (filtered.length === 0) { dd.style.display = 'none'; return; }
+
+            dd.innerHTML = filtered.map(i =>
+                '<div data-id="' + i.itemId + '" data-code="' + (i.itemCode||'') + '" data-name="' + (i.itemName||'') + '" data-vin="' + (i.vin||'') + '" data-plant="' + (i.plant||'') + '" data-rack="' + (i.rack||'') + '" data-norack="' + (i.noRack||'') + '"' +
+                ' style="padding:9px 12px;cursor:pointer;font-size:0.83rem;border-bottom:1px solid #0f172a;" ' +
+                ' onmouseover="this.style.background=\'#334155\'" onmouseout="this.style.background=\'\'">' +
+                '<span style="color:#7dd3fc;font-weight:600;">' + (i.itemCode||'-') + '</span>' +
+                ' &mdash; ' + (i.itemName||'-') +
+                '<br><span style="color:#94a3b8;font-size:0.75rem;">' + (i.vin||'') + ' | ' + (i.plant||'') + ' | RAK: ' + (i.rack||'-') + '.' + (i.noRack||'-') + '</span>' +
+                '</div>'
+            ).join('');
+
+            dd.querySelectorAll('div[data-id]').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    selectedItemId = parseInt(el.getAttribute('data-id'));
+                    document.getElementById('adjItemId').value = selectedItemId;
+                    document.getElementById('adjItemSearch').value = el.getAttribute('data-code') + ' - ' + el.getAttribute('data-name');
+                    var selArea = document.getElementById('adjItemSelected');
+                    document.getElementById('adjItemDetailText').textContent = el.getAttribute('data-code') + ' - ' + el.getAttribute('data-name');
+                    selArea.style.display = 'block';
+                    populateRackDropdown(selectedItemId);
+                    dd.style.display = 'none';
+                });
+            });
+            dd.style.display = 'block';
+        }
+
+        var btnOpen = document.getElementById('btnAdjustStock');
+        if (btnOpen) btnOpen.addEventListener('click', () => window.openAdjustmentModal());
+
+        document.getElementById('btnCloseAdjust').addEventListener('click', closeModal);
+        document.getElementById('btnCancelAdjust').addEventListener('click', closeModal);
+
+        document.getElementById('adjItemSearch').addEventListener('input', function () {
+            showDropdown(this.value.trim());
+            selectedItemId = 0;
+            document.getElementById('adjItemId').value = '';
+            document.getElementById('adjItemSelected').style.display = 'none';
+            document.getElementById('adjRackSection').style.display = 'none';
+        });
+
+        document.getElementById('adjRackDropdown').addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            
+            // Toggle new rack section if "NEW_RACK" selected
+            const qtyInput = document.getElementById('adjQty');
+            const newRackSec = document.getElementById('newRackSection');
+            
+            if (this.value === 'NEW_RACK') {
+                newRackSec.style.display = 'block';
+                document.getElementById('currentRackStockText').textContent = '0';
+                qtyInput.value = '0';
+                qtyInput.dataset.baseStock = 0;
+                document.getElementById('adjQtyLabel').innerHTML = `Stok Terdaftar di <b>Rak Baru</b> <span style="color:#ef4444;">*</span>`;
+                qtyInput.dispatchEvent(new Event('input'));
+                return;
+            } else {
+                newRackSec.style.display = 'none';
+            }
+
+            if (opt && opt.dataset && opt.dataset.stock !== undefined) {
+                const stock = parseInt(opt.dataset.stock);
+                document.getElementById('currentRackStockText').textContent = stock;
+                
+                qtyInput.value = stock;
+                qtyInput.dataset.baseStock = stock;
+                
+                // Update label to show selected rack
+                document.getElementById('adjQtyLabel').innerHTML = `Stok Baru di Rak <b>${opt.text.split(' ')[0]}</b> <span style="color:#ef4444;">*</span>`;
+                
+                // Trigger input event to update badges/warnings
+                qtyInput.dispatchEvent(new Event('input'));
+            }
+        });
+
+        document.getElementById('adjQty').addEventListener('input', function () {
+            const newVal = parseInt(this.value);
+            const baseVal = parseInt(this.dataset.baseStock || 0);
+            
+            var warningEl = document.getElementById('adjQtyWarning');
+            var warningText = document.getElementById('adjQtyWarningText');
+            var deltaBadge = document.getElementById('adjQtyDeltaBadge');
+            
+            if (isNaN(newVal)) {
+                warningEl.style.display = 'none';
+                deltaBadge.style.display = 'none';
+                return;
+            }
+
+            const delta = newVal - baseVal;
+            
+            if (newVal === 0) {
+                 warningText.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> <b>STO (Stock To Zero)</b><br>Seluruh stok di rak ini akan dihapus dari sistem.';
+                 warningEl.style.display = 'block'; warningEl.style.background = 'rgba(239, 68, 68, 0.1)'; warningEl.style.color = '#ef4444'; warningEl.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                 deltaBadge.innerHTML = 'STO'; deltaBadge.style.display = 'block'; deltaBadge.style.background = '#ef4444'; deltaBadge.style.color = '#fff';
+            } else if (delta < 0) {
+                 warningText.innerHTML = `Stok di rak ini akan <b>berkurang ${Math.abs(delta)} pcs</b> (menjadi ${newVal})`;
+                 warningEl.style.display = 'block'; warningEl.style.background = 'rgba(245, 158, 11, 0.1)'; warningEl.style.color = '#f59e0b'; warningEl.style.borderColor = 'rgba(245, 158, 11, 0.2)';
+                 deltaBadge.innerHTML = `${delta}`; deltaBadge.style.display = 'block'; deltaBadge.style.background = '#f59e0b'; deltaBadge.style.color = '#1e293b';
+            } else if (delta > 0) {
+                 warningText.innerHTML = `Stok di rak ini akan <b>bertambah +${delta} pcs</b> (menjadi ${newVal})`;
+                 warningEl.style.display = 'block'; warningEl.style.background = 'rgba(16, 185, 129, 0.1)'; warningEl.style.color = '#10b981'; warningEl.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+                 deltaBadge.innerHTML = `+${delta}`; deltaBadge.style.display = 'block'; deltaBadge.style.background = '#10b981'; deltaBadge.style.color = '#1e293b';
+            } else {
+                 warningEl.style.display = 'none';
+                 deltaBadge.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            var dd = document.getElementById('adjItemDropdown');
+            if (dd && !dd.contains(e.target) && e.target.id !== 'adjItemSearch') dd.style.display = 'none';
+            if (e.target.id === 'modalAdjustStock') closeModal();
+            if (e.target.id === 'modalItemDetail') closeItemDetail();
+        });
+
+        document.getElementById('btnSubmitAdjust').addEventListener('click', function () {
+            var itemId = parseInt(document.getElementById('adjItemId').value) || 0;
+            var note = document.getElementById('adjNote').value.trim();
+            var msgEl = document.getElementById('adjResultMsg');
+
+            if (itemId <= 0) { showMsg(msgEl, 'error', 'Pilih item terlebih dahulu.'); return; }
+
+            var btn = document.getElementById('btnSubmitAdjust');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Memproses...';
+
+            // Get selected rack from dropdown
+            const rackSelect = document.getElementById('adjRackDropdown');
+            if (!rackSelect.value) { showMsg(msgEl, 'error', 'Pilih lokasi rak.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+            
+            let rack, noRack;
+            if (rackSelect.value === 'NEW_RACK') {
+                rack = document.getElementById('newRackCode').value.trim();
+                noRack = parseInt(document.getElementById('newNoRack').value);
+                if (!rack) { showMsg(msgEl, 'error', 'Isi kode/nama rak baru.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+                if (isNaN(noRack)) { showMsg(msgEl, 'error', 'Isi nomor urut rak.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+            } else {
+                [rack, noRack] = rackSelect.value.split('|');
+            }
+
+            let endpoint = '/Pulling/ManualAdjust';
+            let payload = { 
+                itemId: selectedItemId, 
+                targetQty: parseInt(document.getElementById('adjQty').value), 
+                rack: rack, 
+                noRack: noRack, 
+                note: note,
+                plant: $('#opnamePlant').val() || 'Overall'
+            };
+
+            if (currentMode === 'adjust') {
+                const newQty = parseInt(document.getElementById('adjQty').value);
+                if (isNaN(newQty)) { showMsg(msgEl, 'error', 'Qty harus valid.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+                
+                payload.targetQty = newQty;
+            } else {
+                endpoint = '/Pulling/RelocateStock';
+                payload.sourceRack = rack;
+                payload.sourceNoRack = parseInt(noRack);
+                payload.targetRack = document.getElementById('targetRack').value.trim().toUpperCase();
+                payload.targetNoRack = parseInt(document.getElementById('targetNoRack').value) || 0;
+                var moveQty = parseInt(document.getElementById('relocateQty').value);
+                if (!isNaN(moveQty) && moveQty > 0) payload.qty = moveQty;
+                
+                if (!payload.targetRack) { showMsg(msgEl, 'error', 'Pilih lokasi tujuan.'); btn.disabled = false; btn.innerHTML = 'Simpan'; return; }
+            }
+
+            // Revert back to $.ajax for better Antiforgery Token handling
+            $.ajax({
+                url: endpoint,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (data) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-check2-circle"></i> Simpan';
+                    if (data.success) {
+                        showMsg(msgEl, 'success', data.message);
+                        window.refreshDashboard(); 
+                        
+                        // [CRITICAL] Refresh modal content immediately so user sees the change
+                        if (selectedItemId) {
+                            populateRackDropdown(selectedItemId);
+                        }
+
+                        setTimeout(() => { resetForm(); }, 2000);
+                    } else {
+                        showMsg(msgEl, 'error', data.message || 'Gagal.');
+                    }
+                },
+                error: function (xhr) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Simpan';
+                    const errorMsg = xhr.responseJSON ? xhr.responseJSON.message : 'Terjadi kesalahan koneksi.';
+                    showMsg(msgEl, 'error', errorMsg);
+                }
+            });
+        });
+
+        function showMsg(el, type, msg) {
+            el.style.display = 'block';
+            el.style.background = type === 'success' ? '#064e3b' : '#450a0a';
+            el.style.color = type === 'success' ? '#6ee7b7' : '#fca5a5';
+            el.style.border = '1px solid ' + (type === 'success' ? '#059669' : '#dc2626');
+            el.innerHTML = (type === 'success' ? '<i class="bi bi-check-circle"></i> ' : '<i class="bi bi-x-circle"></i> ') + msg;
+        }
+    })();
+
+var allData = [];
+$(document).ready(function () {
+    // ── State ──────────────────────────────────────────────────────────────────
+    var isSuperAdmin = '@Context.Session.GetString("Role")' === 'Super Admin' || '@Context.Session.GetString("Role")' === 'Admin';
+    // allData global
+    var editedRows  = {};          // rowIdx → newQty (hanya yang berubah)
+    var editedRacks = {};          // rowIdx → { newRack, newNoRack }
+    var deletedRows = new Set();   // rowIdx yg dihapus
+    var currentPlant = 'Overall';
+    var _saveModal  = new bootstrap.Modal(document.getElementById('opnameSaveModal'));
+
+    // ── Clock ──────────────────────────────────────────────────────────────────
+    function tickClock() {
+        var now = new Date();
+        var h = String(now.getHours()).padStart(2,'0');
+        var m = String(now.getMinutes()).padStart(2,'0');
+        var s = String(now.getSeconds()).padStart(2,'0');
+        $('#opnameClock').text(h + ':' + m + ':' + s);
+    }
+    tickClock();
+    setInterval(tickClock, 1000);
+
+    // ── Filter Lokasi Rak ──────────────────────────────────────────────────────
+    $('#opnamePlant').on('change', function () {
+        currentPlant = $(this).val();
+    });
+
+    // ── Tarik Data FG ─────────────────────────────────────────────────────────
+    $('#btnTarikData').on('click', function () {
+        editedRows = {};
+        editedRacks = {};
+        deletedRows.clear();
+        updateChangedCount();
+
+        var $btn = $(this);
+        $btn.prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-1"></span> Mengambil...');
+
+        $('#opnameTableBody').html(
+            '<tr><td colspan="14" class="text-center py-4">' +
+            '<div class="spinner-border text-primary me-2"></div>Mengambil data dari Dashboard FG...</td></tr>'
+        );
+        $('#opnameTableTitle').text('Memuat data...');
+        $('#opnameItemCount').text('');
+
+        $.ajax({
+            url: '/Stock/GetOpnameData?plant=' + encodeURIComponent($('#opnamePlant').val() || 'Overall'),
+            method: 'GET',
+            cache: false
+        })
+        .done(function (data) {
+            allData = data || [];
+            renderTable(allData);
+            var now = new Date();
+            $('#lastPullTime').text('Terakhir diambil: ' +
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0') + ':' +
+                String(now.getSeconds()).padStart(2,'0'));
+        })
+        .fail(function () {
+                $('#opnameTableBody').html(
+                    '<tr><td colspan="13" class="text-center py-4 text-danger">' +
+                    '<i class="bi bi-exclamation-triangle-fill me-2"></i>Gagal mengambil data. Coba lagi.</td></tr>'
+                );
+                $('#opnameTableTitle').text('Gagal memuat');
+            })
+            .always(function () {
+                $btn.prop('disabled', false)
+                    .html('<i class="bi bi-arrow-down-circle"></i> <span>Tarik Data FG</span>');
+            });
+    });
+
+    // ── Render tabel ──────────────────────────────────────────────────────────
+    function renderTable(data) {
+        // Filter search
+        var q = $('#opnameSearch').val().trim().toLowerCase();
+        var filtered = q === ''
+            ? data
+            : data.filter(function (d) {
+                return (d.vin || '').toLowerCase().includes(q)
+                    || (d.itemName || '').toLowerCase().includes(q)
+                    || (d.partNo || '').toLowerCase().includes(q)
+                    || (d.lokasi || '').toLowerCase().includes(q);
+            });
+
+        if (filtered.length === 0) {
+            $('#opnameTableBody').html(
+                '<tr><td colspan="14" class="text-center py-4 text-muted">Tidak ada item yang cocok.</td></tr>'
+            );
+            updateIndicators(filtered);
+            return;
+        }
+
+        var rows = '';
+        filtered.forEach(function (d, idx) {
+            var origIdx = d._origIdx !== undefined ? d._origIdx : idx;
+            var currentAct = editedRows.hasOwnProperty(origIdx) ? editedRows[origIdx] : d.act;
+            var isChanged = editedRows.hasOwnProperty(origIdx) && editedRows[origIdx] !== d.act;
+            var isRackChanged = editedRacks.hasOwnProperty(origIdx);
+            var diff = currentAct - d.act;
+
+            // Rack display value
+            var rackVal = isRackChanged
+                ? (editedRacks[origIdx].newRack + (editedRacks[origIdx].newNoRack > 0 ? editedRacks[origIdx].newNoRack : ''))
+                : (d.rack + (d.noRack > 0 ? d.noRack : ''));
+
+            // Level & Status: gunakan totalAct (total stok VIN semua rak) bukan per-rak,
+            // agar Level dan Status konsisten dengan Dashboard FG.
+            // Jika baris ini sudah di-edit: hitung totalAct baru = totalAct - actLama + actBaru
+            var vinTotalAct = isChanged
+                ? Math.max(0, (d.totalAct != null ? d.totalAct : d.act) - d.act + currentAct)
+                : (d.totalAct != null ? d.totalAct : d.act);
+            var lv = isChanged ? computeLevel(vinTotalAct, d.min) : d.level;
+            var status = isChanged ? computeStatus(vinTotalAct, lv, d.max) : d.status;
+
+            var statusBadge = status === 'Shortage'
+                ? '<span class="badge bg-danger">Shortage</span>'
+                : status === 'Over'
+                ? '<span class="badge bg-info text-dark">Over</span>'
+                : '<span class="badge bg-success">Normal</span>';
+
+            var levelBadge = lv < 1.5
+                ? '<span class="stock-badge stock-level-red px-2 py-1"><i class="bi bi-exclamation-triangle-fill"></i> ' + lv.toFixed(2) + 'D</span>'
+                : lv < 2.0
+                ? '<span class="stock-badge stock-level-yellow px-2 py-1"><i class="bi bi-info-circle-fill"></i> ' + lv.toFixed(2) + 'D</span>'
+                : lv <= 3.0
+                ? '<span class="stock-badge stock-level-green px-2 py-1"><i class="bi bi-check-circle-fill"></i> ' + lv.toFixed(2) + 'D</span>'
+                : '<span class="stock-badge stock-level-blue px-2 py-1"><i class="bi bi-star-fill"></i> ' + lv.toFixed(2) + 'D</span>';
+
+            var diffHtml = diff === 0
+                ? '<span class="text-muted">—</span>'
+                : diff > 0
+                ? '<span class="text-success fw-bold">+' + diff + '</span>'
+                : '<span class="text-danger fw-bold">' + diff + '</span>';
+
+            var isDeleted = d.isDeletedDirect;
+            if (isDeleted) return; // Hide deleted rows immediately
+
+            var rowClass = (isChanged || isRackChanged) ? 'row-changed' : '';
+            var inputClass = 'act-input' + (isChanged ? ' changed' : '');
+            var rackInputClass = 'rack-input' + (isRackChanged ? ' rack-changed' : '');
+            var actColor = currentAct <= 0 ? 'color:#ef4444;' : currentAct < d.min ? 'color:#f59e0b;' : 'color:#10b981;';
+            var inputDisabled = '';
+
+            var actionHtml = '';
+            if (isSuperAdmin) {
+                actionHtml = '<td class="text-center"><button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="toggleDeleteOpnameRow(this, ' + origIdx + ')" title="Hapus Lokasi Rak Secara Permanen"><i class="bi bi-trash"></i></button></td>';
+            }
+
+            rows +=
+                '<tr class="' + rowClass + '" data-orig-idx="' + origIdx + '">' +
+                '<td class="text-center text-muted" style="font-size:0.85rem;">' + (idx + 1) + '</td>' +
+                '<td>' +
+                    '<input type="text" class="' + rackInputClass + '" value="' + escHtml(rackVal) + '"' +
+                    ' data-orig-idx="' + origIdx + '"' +
+                    ' data-orig-rack="' + escHtml(d.rack) + '"' +
+                    ' data-orig-no-rack="' + d.noRack + '"' +
+                    ' maxlength="8" placeholder="' + escHtml(d.rack + (d.noRack > 0 ? d.noRack : '')) + '">' +
+                '</td>' +
+                '<td>' +
+                    '<div class="fw-bold text-white" style="font-size:0.95rem;">' + escHtml(d.vin) + '</div>' +
+                    '<small class="text-muted">' + escHtml(d.itemName) + '</small>' +
+                '</td>' +
+                '<td>' +
+                    (d.partNo ? '<span class="badge bg-secondary" style="font-size:0.85rem;">' + escHtml(d.partNo) + '</span>' : '<span class="text-muted">—</span>') +
+                '</td>' +
+                '<td class="text-center fw-bold text-info">' + d.qpc + '</td>' +
+                '<td class="text-center">' +
+                    '<input type="number" class="' + inputClass + '" min="0" value="' + currentAct + '"' +
+                    ' data-orig-idx="' + origIdx + '" data-orig-act="' + d.act + '">' +
+                '</td>' +
+                '<td class="text-center fw-bold" style="' + actColor + '">' + d.act + '</td>' +
+                '<td class="text-center fw-bold text-danger">' + d.min + '</td>' +
+                '<td class="text-center fw-bold" style="color:#f59e0b;">' + d.rop + '</td>' +
+                '<td class="text-center fw-bold text-success">' + d.max + '</td>' +
+                '<td class="text-center">' + levelBadge + '</td>' +
+                '<td class="text-center">' + statusBadge + '</td>' +
+                '<td class="text-center">' + diffHtml + '</td>' +
+                actionHtml +
+                '</tr>';
+        });
+
+        $('#opnameTableBody').html(rows);
+        updateIndicators(filtered);
+
+        var title = currentPlant === 'Overall' ? 'Semua Lokasi Rak' : currentPlant;
+        $('#opnameTableTitle').html('<i class="bi bi-clipboard2-check me-2"></i>Opname — ' + title);
+        $('#opnameItemCount').text(filtered.length + ' baris');
+    }
+
+    // ── Live search ───────────────────────────────────────────────────────────
+    $('#opnameSearch').on('input', function () {
+        if (allData.length > 0) renderTable(allData);
+    });
+
+    // ── Inline edit: input change ─────────────────────────────────────────────
+    $(document).on('input', '.act-input', function () {
+        var origIdx = parseInt($(this).data('orig-idx'), 10);
+        var origAct = parseInt($(this).data('orig-act'), 10);
+        var newVal  = parseInt($(this).val(), 10);
+        if (isNaN(newVal) || newVal < 0) newVal = 0;
+
+        var $tr = $(this).closest('tr');
+
+        if (newVal !== origAct) {
+            editedRows[origIdx] = newVal;
+            $(this).addClass('changed');
+            $tr.addClass('row-changed');
+        } else {
+            delete editedRows[origIdx];
+            $(this).removeClass('changed');
+            $tr.removeClass('row-changed');
+        }
+
+        // Update diff cell
+        var diff = newVal - origAct;
+        var diffHtml = diff === 0
+            ? '<span class="text-muted">—</span>'
+            : diff > 0
+            ? '<span class="text-success fw-bold">+' + diff + '</span>'
+            : '<span class="text-danger fw-bold">' + diff + '</span>';
+        $tr.find('td:last-child').html(diffHtml);
+
+        // Update level & status in row — hitung dari totalAct (total VIN), bukan per-rak
+        var d = allData.find(function(x) { return (x._origIdx !== undefined ? x._origIdx : allData.indexOf(x)) === origIdx; });
+        if (!d) d = allData[origIdx];
+        if (d) {
+            var vinTotalAct = Math.max(0, (d.totalAct != null ? d.totalAct : d.act) - d.act + newVal);
+            var lv = computeLevel(vinTotalAct, d.min);
+            var status = computeStatus(vinTotalAct, lv, d.max);
+            var statusBadge = status === 'Shortage'
+                ? '<span class="badge bg-danger">Shortage</span>'
+                : status === 'Over'
+                ? '<span class="badge bg-info text-dark">Over</span>'
+                : '<span class="badge bg-success">Normal</span>';
+            var levelBadge = lv < 1.5
+                ? '<span class="stock-badge stock-level-red px-2 py-1"><i class="bi bi-exclamation-triangle-fill"></i> ' + lv.toFixed(2) + 'D</span>'
+                : lv < 2.0
+                ? '<span class="stock-badge stock-level-yellow px-2 py-1"><i class="bi bi-info-circle-fill"></i> ' + lv.toFixed(2) + 'D</span>'
+                : lv <= 3.0
+                ? '<span class="stock-badge stock-level-green px-2 py-1"><i class="bi bi-check-circle-fill"></i> ' + lv.toFixed(2) + 'D</span>'
+                : '<span class="stock-badge stock-level-blue px-2 py-1"><i class="bi bi-star-fill"></i> ' + lv.toFixed(2) + 'D</span>';
+            $tr.find('td:nth-child(11)').html(levelBadge);
+            $tr.find('td:nth-child(12)').html(statusBadge);
+        }
+
+        updateChangedCount();
+    });
+
+    // ── Inline edit: rack location change ─────────────────────────────────────
+    $(document).on('change', '.rack-input', function () {
+        var $input   = $(this);
+        var origIdx  = parseInt($input.data('orig-idx'), 10);
+        var origRack   = String($input.data('orig-rack') || '').toUpperCase();
+        var origNoRack = parseInt($input.data('orig-no-rack') || '0', 10);
+
+        var val = $input.val().trim().toUpperCase().replace(/^RAK\s*/i, ''); // strip 'Rak ' prefix
+
+        if (val === '') {
+            // Kosong = revert ke original
+            $input.val(origRack + (origNoRack > 0 ? origNoRack : ''));
+            delete editedRacks[origIdx];
+            $input.removeClass('rack-changed');
+            if (!editedRows.hasOwnProperty(origIdx)) $(this).closest('tr').removeClass('row-changed');
+            updateChangedCount();
+            return;
+        }
+
+        // Parse format: huruf = rack, angka di belakang = noRack. Contoh: "D12", "A", "B3"
+        var match = val.match(/^([A-Z]+)(\d*)$/);
+        if (!match) {
+            showToast('Format rak tidak valid. Gunakan contoh: "D", "D12", "A1".', 'danger');
+            var revertVal = editedRacks.hasOwnProperty(origIdx)
+                ? (editedRacks[origIdx].newRack + (editedRacks[origIdx].newNoRack > 0 ? editedRacks[origIdx].newNoRack : ''))
+                : (origRack + (origNoRack > 0 ? origNoRack : ''));
+            $input.val(revertVal);
+            return;
+        }
+
+        var newRack   = match[1];
+        var newNoRack = match[2] ? parseInt(match[2], 10) : 0;
+
+        // Tidak berubah dari original
+        if (newRack === origRack && newNoRack === origNoRack) {
+            delete editedRacks[origIdx];
+            $input.val(newRack + (newNoRack > 0 ? newNoRack : ''));
+            $input.removeClass('rack-changed');
+            if (!editedRows.hasOwnProperty(origIdx)) $(this).closest('tr').removeClass('row-changed');
+            updateChangedCount();
+            return;
+        }
+
+        // Cek duplikat: VIN yang sama sudah punya lokasi rack ini di baris lain
+        var d = allData[origIdx];
+        if (d) {
+            var dupExists = allData.some(function (x, i) {
+                return i !== origIdx
+                    && x.vin === d.vin
+                    && (x.rack || '').toUpperCase() === newRack
+                    && x.noRack === newNoRack;
+            });
+            if (dupExists) {
+                var lokasiDup = 'Rak ' + newRack + (newNoRack > 0 ? newNoRack : '');
+                showToast('Lokasi ' + lokasiDup + ' sudah ada untuk ' + d.vin + '. Pilih lokasi lain.', 'danger');
+                var revertVal = editedRacks.hasOwnProperty(origIdx)
+                    ? (editedRacks[origIdx].newRack + (editedRacks[origIdx].newNoRack > 0 ? editedRacks[origIdx].newNoRack : ''))
+                    : (origRack + (origNoRack > 0 ? origNoRack : ''));
+                $input.val(revertVal);
+                return;
+            }
+        }
+
+        editedRacks[origIdx] = { newRack: newRack, newNoRack: newNoRack };
+        $input.val(newRack + (newNoRack > 0 ? newNoRack : ''));
+        $input.addClass('rack-changed');
+        $(this).closest('tr').addClass('row-changed');
+        updateChangedCount();
+    });
+
+    function computeLevel(act, min) {
+        if (!min || min <= 0) return 0;
+        return act / min;
+    }
+    function computeStatus(act, level, max) {
+        if (level < 1.5) return 'Shortage';
+        if (act > max)   return 'Over';
+        return 'Normal';
+    }
+
+    window.toggleDeleteOpnameRow = function(param1, param2) {
+        try {
+            var btnElement = null;
+            var origIdx = null;
+
+            // Cek tipe parameter secara dinamis agar kompatibel dengan model lama maupun baru
+            if (param1 && (param1 instanceof HTMLElement || typeof param1 === 'object')) {
+                btnElement = param1;
+                origIdx = param2;
+            } else {
+                origIdx = param1;
+                btnElement = $('button[onclick*="toggleDeleteOpnameRow(' + origIdx + ')"]').get(0) || null;
+            }
+
+            var d = allData[origIdx];
+            if (!d) {
+                console.error("toggleDeleteOpnameRow: Item data not found for index", origIdx);
+                return;
+            }
+
+            var loc = d.rack + (d.noRack > 0 ? d.noRack : '');
+            if (!confirm('Apakah Anda yakin ingin menghapus lokasi ' + loc + ' untuk item ' + d.vin + ' secara permanen? Data riwayat akan disembunyikan dan master data lokasi ini akan dihapus.')) return;
+
+            var $btn = $(btnElement);
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+            // Simpan referensi rack untuk pencocokan saat splice
+            var deletedRack   = d.rack;
+            var deletedNoRack = d.noRack;
+            var deletedItemId = d.itemId;
+
+            $.ajax({
+                url: '/Stock/DeleteOpnameRackDirect',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    ItemId: deletedItemId,
+                    Rack: deletedRack,
+                    NoRack: deletedNoRack
+                }),
+                success: function(res) {
+                    if (res.success) {
+                        showToast(res.message, 'success');
+
+                        // Hapus dari allData agar tidak muncul lagi walau Tarik Data belum diklik
+                        allData = allData.filter(function(row) {
+                            return !(row.itemId === deletedItemId &&
+                                     (row.rack  || '').toUpperCase() === (deletedRack  || '').toUpperCase() &&
+                                     row.noRack === deletedNoRack);
+                        });
+
+                        // Bersihkan state edit jika ada
+                        delete editedRows[origIdx];
+                        delete editedRacks[origIdx];
+                        deletedRows.delete(origIdx);
+
+                        updateChangedCount();
+                        renderTable(allData);
+                    } else {
+                        showToast('Gagal: ' + res.message, 'danger');
+                        $btn.prop('disabled', false).html('<i class="bi bi-trash"></i>');
+                    }
+                },
+                error: function() {
+                    showToast('Terjadi kesalahan saat menghapus lokasi.', 'danger');
+                    $btn.prop('disabled', false).html('<i class="bi bi-trash"></i>');
+                }
+            });
+        } catch(err) {
+            console.error("Exception inside toggleDeleteOpnameRow:", err);
+            showToast('Terjadi kesalahan tidak terduga.', 'danger');
+        }
+    };
+
+    // ── Update changed count badge ────────────────────────────────────────────
+    function updateChangedCount() {
+        // Gabungkan index dari editedRows dan editedRacks
+        var changedIdxs = new Set();
+        Object.keys(editedRows).forEach(function (k) { changedIdxs.add(k); });
+        Object.keys(editedRacks).forEach(function (k) { changedIdxs.add(k); });
+        deletedRows.forEach(function (k) { changedIdxs.add(k); });
+        var cnt = changedIdxs.size;
+        $('#opnameIndChanged').text(cnt + ' perubahan');
+        $('#btnSaveOpname').prop('disabled', cnt === 0);
+        $('#btnResetChanges').prop('disabled', cnt === 0);
+        if (cnt > 0) {
+            $('#opnameSaveInfo').html(
+                '<i class="bi bi-pencil-fill me-1 text-warning"></i> ' +
+                '<strong style="color:#fbbf24;">' + cnt + ' item</strong> telah diubah. Klik Simpan untuk menyinkronkan ke Dashboard FG.'
+            );
+        } else {
+            $('#opnameSaveInfo').html(
+                '<i class="bi bi-info-circle me-1"></i>' +
+                'Edit kolom <strong style="color:#a78bfa;">ACT</strong> untuk koreksi stok, lalu klik Simpan.'
+            );
+        }
+    }
+
+    // ── Update indicator cards ────────────────────────────────────────────────
+    // Group by VIN untuk hitung status per VIN (bukan per baris rak),
+    // konsisten dengan Dashboard FG yang menampilkan 1 baris per VIN.
+    // Hanya item ACTIVE yang dihitung (sama dengan Dashboard FG).
+    function updateIndicators(filtered) {
+        // Kumpulkan total stok per VIN dari semua baris rak yang terfilter
+        var vinMap = {};
+        filtered.forEach(function (d) {
+            var vinKey = (d.vin && d.vin !== '-') ? d.vin : ('__CODE_' + (d.itemCode || d.itemId || allData.indexOf(d)));
+            var idx = d._origIdx !== undefined ? d._origIdx : allData.indexOf(d);
+            var actThisRack = editedRows.hasOwnProperty(idx) ? editedRows[idx] : d.act;
+            if (!vinMap[vinKey]) {
+                vinMap[vinKey] = { total: 0, min: d.min, max: d.max, isActive: d.isActive !== false };
+            }
+            vinMap[vinKey].total += actThisRack;
+        });
+        var s = 0, n = 0, o = 0;
+        Object.values(vinMap).forEach(function (v) {
+            if (!v.isActive) return; // skip inactive — konsisten dengan Dashboard FG
+            var lv = computeLevel(v.total, v.min);
+            var st = computeStatus(v.total, lv, v.max);
+            if (st === 'Shortage') s++;
+            else if (st === 'Over') o++;
+            else n++;
+        });
+        $('#opnameIndShortage').text(s);
+        $('#opnameIndNormal').text(n);
+        $('#opnameIndOver').text(o);
+        $('#opnameIndTotal').text(filtered.length);
+    }
+
+    // ── Reset Changes ─────────────────────────────────────────────────────────
+    $('#btnResetChanges').on('click', function () {
+        editedRows  = {};
+        editedRacks = {};
+        deletedRows.clear();
+        updateChangedCount();
+        renderTable(allData);
+    });
+
+    // ── Simpan Opname (konfirmasi modal) ──────────────────────────────────────
+    $('#btnSaveOpname').on('click', function () {
+        var changedIdxs = new Set();
+        Object.keys(editedRows).forEach(function (k) { changedIdxs.add(k); });
+        Object.keys(editedRacks).forEach(function (k) { changedIdxs.add(k); });
+        deletedRows.forEach(function (k) { changedIdxs.add(k); });
+        var cnt = changedIdxs.size;
+        if (cnt === 0) return;
+        $('#opnameSaveModalText').text(
+            'Anda akan menyimpan ' + cnt + ' baris perubahan. ' +
+            'Perubahan qty akan disesuaikan, perubahan lokasi rak akan dipindahkan.'
+        );
+        _saveModal.show();
+    });
+
+    $('#btnConfirmSave').on('click', function () {
+        $(this).blur();
+        _saveModal.hide();
+        doSave();
+    });
+
+    function doSave() {
+        var $btn = $('#btnSaveOpname');
+        $btn.prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...');
+
+        // Kumpulkan semua index yang berubah (qty atau rack atau delete)
+        var changedIdxs = new Set();
+        Object.keys(editedRows).forEach(function (k) { changedIdxs.add(parseInt(k, 10)); });
+        Object.keys(editedRacks).forEach(function (k) { changedIdxs.add(parseInt(k, 10)); });
+        deletedRows.forEach(function (k) { changedIdxs.add(parseInt(k, 10)); });
+
+        // Build request payload
+        var items = [];
+        changedIdxs.forEach(function (idx) {
+            var d = allData[idx];
+            if (!d) return;
+            var rackInfo = editedRacks.hasOwnProperty(idx) ? editedRacks[idx] : null;
+            var newQty   = editedRows.hasOwnProperty(idx)  ? editedRows[idx]  : d.act;
+            items.push({
+                VIN:       d.vin && d.vin !== '-' ? d.vin : null,
+                ItemCode:  d.itemCode || null,
+                ItemId:    d.itemId || null,
+                Plant:     d.plant || null,
+                Rack:      d.rack || '-',
+                NoRack:    d.noRack || 0,
+                NewRack:   rackInfo ? rackInfo.newRack   : null,
+                NewNoRack: rackInfo ? rackInfo.newNoRack : null,
+                NewQty:    newQty,
+                Act:       d.act,
+                IsDeleted: deletedRows.has(idx)
+            });
+        });
+
+        $.ajax({
+            url:         '/Stock/SaveOpname',
+            type:        'POST',
+            contentType: 'application/json',
+            data:        JSON.stringify({ plant: currentPlant, items: items }),
+            success: function (res) {
+                if (res.success) {
+                    showToast(res.message, 'success');
+                    // Bersihkan tabel ke kondisi awal (tidak re-pull otomatis)
+                    allData     = [];
+                    editedRows  = {};
+                    editedRacks = {};
+                    deletedRows.clear();
+                    updateChangedCount();
+                    resetToInitialState();
+                } else {
+                    showToast('Gagal: ' + res.message, 'danger');
+                    $btn.prop('disabled', false)
+                        .html('<i class="bi bi-save2-fill"></i> <span>Simpan Opname</span>');
+                }
+            },
+            error: function () {
+                showToast('Terjadi kesalahan saat menyimpan. Coba lagi.', 'danger');
+                $btn.prop('disabled', false)
+                    .html('<i class="bi bi-save2-fill"></i> <span>Simpan Opname</span>');
+            }
+        });
+    }
+
+    // ── Reset ke kondisi awal (sesudah save berhasil) ──────────────────────────
+    function resetToInitialState() {
+        $('#opnameTableBody').html(
+            '<tr><td colspan="14" class="text-center py-5 text-muted">' +
+            'Klik <strong>Tarik Data FG</strong> untuk memuat data stok aktual.' +
+            '</td></tr>'
+        );
+        $('#opnameTableTitle').text('Klik "Tarik Data FG" untuk memulai opname');
+        $('#opnameItemCount').text('');
+        $('#lastPullTime').text('');
+        $('#opnameIndShortage').text('-');
+        $('#opnameIndNormal').text('-');
+        $('#opnameIndOver').text('-');
+        $('#opnameIndTotal').text('-');
+        $('#opnameIndChanged').text('0 perubahan');
+        $('#btnSaveOpname').prop('disabled', true)
+            .html('<i class="bi bi-save2-fill"></i> <span>Simpan Opname</span>');
+        $('#btnResetChanges').prop('disabled', true);
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    function showToast(msg, type) {
+        var $t = $('#opnameToast');
+        var cls = type === 'success' ? 'alert-success' : 'alert-danger';
+        $('#opnameToastInner').attr('class', 'alert ' + cls + ' border-0 shadow-lg');
+        var icon = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill';
+        $('#opnameToastMsg').text(msg);
+        $('#opnameToastInner').html('<i class="bi ' + icon + ' me-2"></i>' + escHtml(msg));
+        $t.fadeIn(250);
+        setTimeout(function () { $t.fadeOut(400); }, 5500);
+    }
+
+    // ── HTML escape ───────────────────────────────────────────────────────────
+    function escHtml(str) {
+        if (!str) return '';
+        return $('<div>').text(String(str)).html();
+    }
+
+    // ── Assign _origIdx ke allData saat di-load ───────────────────────────────
+    var _origRenderTable = renderTable;
+    renderTable = function(data) {
+        data.forEach(function(d, i) { d._origIdx = i; });
+        _origRenderTable(data);
+    };
+        window.editedRows = editedRows;
+    window.editedRacks = editedRacks;
+    window.deletedRows = deletedRows;
+    window.renderTable = renderTable;
+    window.updateChangedCount = updateChangedCount;
+});
+</script>
+}
+
+

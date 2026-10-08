@@ -1,0 +1,214 @@
+Using launch settings from C:\DeliveryControl\DeliveryControl\Properties\launchSettings.json...
+Building...
+info: Program[0]
+      Applying SQL Server migrations...
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand (4ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+      CREATE TABLE [ActivityLogs] (
+          [LogId] int NOT NULL IDENTITY,
+          [Module] nvarchar(100) NOT NULL,
+          [Action] nvarchar(50) NOT NULL,
+          [EntityName] nvarchar(200) NULL,
+          [EntityId] int NULL,
+          [Description] nvarchar(max) NULL,
+          [OldData] nvarchar(500) NULL,
+          [NewData] nvarchar(500) NULL,
+          [Timestamp] datetime2 NOT NULL,
+          [PerformedBy] nvarchar(100) NOT NULL,
+          [IpAddress] nvarchar(50) NULL,
+          [UserAgent] nvarchar(200) NULL,
+          CONSTRAINT [PK_ActivityLogs] PRIMARY KEY ([LogId])
+      );
+warn: Program[0]
+      Migration failed (possibly database already exists without migration history): There is already an object named 'ActivityLogs' in the database.
+info: Program[0]
+      Ensured Remark column on PullingRecords.
+info: Program[0]
+      Ensured Remark column on PreparationRecords.
+info: Program[0]
+      Ensured Leader Verification columns on DeliverySchedules.
+info: Program[0]
+      Ensured RemarkOrder column on Customers.
+info: Program[0]
+      Ensured ScanNGLogs table and structure.
+info: Program[0]
+      Ensured SystemSettings table exists.
+info: Program[0]
+      Ensured ManifestNumber column and index on PreparationRecords.
+info: Program[0]
+      Database initialization completed. SmartImportHeaderMaps count: 8
+--- STARTING ITEMCODE GUID REMOVAL ---
+No GUID-based ItemCodes found.
+--- GUID REMOVAL FINISHED ---
+info: DeliveryControl.Services.StockSnapshotService[0]
+      StockSnapshotService started. Cutoff: 08:00 setiap hari.
+info: DeliveryControl.Services.StockSnapshotService[0]
+      Next stock snapshot: 03/04/2026 08:00 (dalam 1097 menit)
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: https://0.0.0.0:7081
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://0.0.0.0:5206
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
+info: Microsoft.Hosting.Lifetime[0]
+      Hosting environment: Production
+info: Microsoft.Hosting.Lifetime[0]
+      Content root path: C:\DeliveryControl\DeliveryControl
+info: DeliveryControl.Controllers.AccountController[0]
+      User admin (Role: Admin) logged in successfully
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Processing 'test tmmin.xlsx' (10708 bytes, .xlsx)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'AHM' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'ADM' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'TMMIN' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'SANOH' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'AWI' matched 0/1 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'KAYABA' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'DENSO' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'HINO' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'TMMIN_TXT' matched 3/2 keywords: [807B, RM13, 2026-]
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Detected 'TMMIN_TXT' (3/8 keywords)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel extraction: Cust='TMMIN_TXT', LastRow=9, LastCol=100, MappingsCount=3
+warn: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel TMMIN_TXT: Kolom tanggal jadwal TIDAK ditemukan — akan fallback ke DateTime.Today
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel: No structured header, using pattern matching
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel (No Header): dataStartRow=2, lastRow=9, lastCol=100
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport TMMIN_TXT NoHeader: Kolom tanggal terdeteksi dari fingerprint = 14/N (hits=8)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport TMMIN_TXT NoHeader: Kolom tanggal final = 14/N
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Detected (Dynamic): Manifest=1, PartNo=11, Qty=17
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport TMMIN_TXT NoHeader: Tanggal pertama = 2026-03-17 (baris 3, kolom 14)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel NoHeader: 1 unique items extracted (manifest=1261103622, partNoCol=11, qtyCol=17, dateCol=14)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Matched 19 dock(s) for 'TMMIN_TXT' (route='-') — best: 'TMMIN' (ID=201)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Done — Customer=TMMIN_TXT, Items=1, Success=True
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: CustomerId=201, Items=1
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: Using Customer 'TMMIN' Dock='DOCK 43' (ID=201)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Processing 'ADM SAP.xlsx' (27759 bytes, .xlsx)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'AHM' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'ADM' matched 2/2 keywords: [DAIHATSU MOTOR, DAIHATSU]
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Detected 'ADM' (2/14 keywords)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel extraction: Cust='ADM', LastRow=108, LastCol=37, MappingsCount=6
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Kolom tanggal jadwal terdeteksi di kolom 13 (header='CALC. DATE')
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Header row 4 — [1/A=Plant Code] [2/B=Shop Code] [3/C=Part Category] [4/D=Route] [5/E=LP] [6/F=Trip] [7/G=Vendor Code] [8/H=Vendor Alias] [9/I=Vendor Site] [10/J=Vendor Site Alias] [11/K=Order No] [12/L=PO Number] [13/M=Calc. Date] [14/N=Order Date] [15/O=Order Time] [16/P=Order Cycle] [17/Q=Del. Type] [18/R=Del. Date] [19/S=Del. Time] [20/T=Del. Cycle] [21/U=Doc No] [22/V=Total/Kanban] [23/W=Rec Status] [24/X=DN Type] [25/Y=Rec. Date] [26/Z=Rec. By] [27/[=Part No] [28/\=Part Name] [29/]=Job No] [30/^=Lane] [31/_=Qty/Kbn] [32/`=Order(Kbn)] [33/a=Order(Pcs)] [34/b=Qty Receive] [35/c=Qty Balance] [36/d=Cancel Status] [37/e=Remark] 
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Data row 5 cols T-AI — [20/T=1 type=Number] [21/U=B.04 type=Text] [22/V=1 type=Number] [23/W=Open type=Text] [24/X=Normal type=Text] [27/[=45517-BZ030-00 type=Text] [28/\=GROMMET, STEERING RACK HOUSING, LH type=Text] [29/]=GT-0163 type=Text] [30/^=10 type=Number] [31/_=64 type=Number] [32/`=1 type=Number] [33/a=64 type=Number] [34/b=0 type=Number] [35/c=64 type=Number] 
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel: Header at row 4, PartNo=col27, Qty=col35, ScheduledDate=col13
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Tanggal pertama berhasil dibaca = 2026-03-17 (baris 5, kolom 13)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: DetectedScheduledDate = 2026-03-17
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Matched 13 dock(s) for 'ADM' (route='-') — best: 'ADM' (ID=165)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Done — Customer=ADM, Items=104, Success=True
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: CustomerId=165, Items=104
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: Using Customer 'ADM' Dock='ADM KAP ASSY 3' (ID=165)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Processing 'PrintDN.pdf' (125672 bytes, .pdf)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport PDF: 1 halaman, 22 lines total, 932 chars
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'AHM' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'ADM' matched 1/2 keywords: [DELIVERY NOTE]
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'TMMIN' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'SANOH' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'AWI' matched 0/1 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'KAYABA' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'DENSO' matched 1/2 keywords: [DELIVERY NOTE]
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'HINO' matched 7/2 keywords: [HINO MOTORS, HINO MOTORS MANUFACTURING, SUPP. COD, Uniq No, PROCESS NO, S. PLACE, PAD/FR]
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Detected 'HINO' (7/7 keywords)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport HINO raw text (500 chars): 'PAD/FR/LAS/00/011PT. HINO MOTORS MANUFACTURING INDONESIAPLANT ADMINISTRATION DIVISIONDELIVERY NOTEOP. DATE :17/03/2026 - 13:00/1SUPP. COD: 2202S. PLACE: Factory 2/SMALL/02NO: 2103902535NAME: VELASTO INDONESIA PT.DEL. DATE: 18/03/2026PAGE:1/1C. ISSUE: 1-1-1TIME/SEQPROCESS NO: 001: 13:00/1TOTAL: 14NOSupplyAreaAdress PartPart No.Uniq No.Part NameTotalPackPcs/PackTotalQtyRemarks1L17FRC02-02-0148344-0W030-00VIN010STOPPER, BUMPER, RR55252L19BP01-02-0312361-0W020-A0VIN001INSULATOR,E/G MNTNG,FR39273L19B'
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport HINO: DEL. DATE terdeteksi = 18/03/2026 (match: 'DEL. DATE: 18/03/2026')
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport HINO: 6 items extracted, manifest='2103902535', DEL.DATE=18/03/2026
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport HINO Page 1/1: 6 items, manifest='2103902535'
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport HINO Total: 6 items dari 1 halaman (after merge)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Matched 1 dock(s) for 'HINO' (route='-') — best: 'HINO' (ID=185)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Done — Customer=HINO, Items=6, Success=True
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: CustomerId=185, Items=6
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: Using Customer 'HINO' Dock='HINO' (ID=185)
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: PartNo='48344-0W030-00' VinFromPreview='HN0100' → MATCHED, VIN='HN0100', ItemId=221
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: PartNo='12361-0W020-A0' VinFromPreview='TA0180' → MATCHED, VIN='TA0180', ItemId=237
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: PartNo='31126-36070-A0' VinFromPreview='TA0140' → MATCHED, VIN='TA0140', ItemId=233
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: PartNo='52306-0W010-00' VinFromPreview='TA0120' → MATCHED, VIN='TA0120', ItemId=223
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: PartNo='52307-0W010-00' VinFromPreview='TA0130' → MATCHED, VIN='TA0130', ItemId=224
+info: DeliveryControl.Controllers.PreparationScheduleController[0]
+      SmartImportConfirm: PartNo='44773-F1020-00' VinFromPreview='HN0560' → MATCHED, VIN='HN0560', ItemId=357
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Processing 'ADM SAP.xlsx' (27759 bytes, .xlsx)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'AHM' matched 0/2 keywords: []
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport DetectCustomer: Profile 'ADM' matched 2/2 keywords: [DAIHATSU MOTOR, DAIHATSU]
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Detected 'ADM' (2/14 keywords)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel extraction: Cust='ADM', LastRow=108, LastCol=37, MappingsCount=6
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Kolom tanggal jadwal terdeteksi di kolom 13 (header='CALC. DATE')
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Header row 4 — [1/A=Plant Code] [2/B=Shop Code] [3/C=Part Category] [4/D=Route] [5/E=LP] [6/F=Trip] [7/G=Vendor Code] [8/H=Vendor Alias] [9/I=Vendor Site] [10/J=Vendor Site Alias] [11/K=Order No] [12/L=PO Number] [13/M=Calc. Date] [14/N=Order Date] [15/O=Order Time] [16/P=Order Cycle] [17/Q=Del. Type] [18/R=Del. Date] [19/S=Del. Time] [20/T=Del. Cycle] [21/U=Doc No] [22/V=Total/Kanban] [23/W=Rec Status] [24/X=DN Type] [25/Y=Rec. Date] [26/Z=Rec. By] [27/[=Part No] [28/\=Part Name] [29/]=Job No] [30/^=Lane] [31/_=Qty/Kbn] [32/`=Order(Kbn)] [33/a=Order(Pcs)] [34/b=Qty Receive] [35/c=Qty Balance] [36/d=Cancel Status] [37/e=Remark] 
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Data row 5 cols T-AI — [20/T=1 type=Number] [21/U=B.04 type=Text] [22/V=1 type=Number] [23/W=Open type=Text] [24/X=Normal type=Text] [27/[=45517-BZ030-00 type=Text] [28/\=GROMMET, STEERING RACK HOUSING, LH type=Text] [29/]=GT-0163 type=Text] [30/^=10 type=Number] [31/_=64 type=Number] [32/`=1 type=Number] [33/a=64 type=Number] [34/b=0 type=Number] [35/c=64 type=Number] 
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel: Header at row 4, PartNo=col27, Qty=col35, ScheduledDate=col13
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: Tanggal pertama berhasil dibaca = 2026-03-17 (baris 5, kolom 13)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport Excel ADM: DetectedScheduledDate = 2026-03-17
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Matched 13 dock(s) for 'ADM' (route='-') — best: 'ADM' (ID=165)
+info: DeliveryControl.Services.SmartImportService[0]
+      SmartImport: Done — Customer=ADM, Items=104, Success=True

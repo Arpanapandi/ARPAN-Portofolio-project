@@ -1,0 +1,336 @@
+@model DeliveryControl.Models.PremiumFreight
+
+@{
+    ViewData["Title"] = "Buat Premium Freight";
+    var schedules = ViewBag.Schedules as IEnumerable<dynamic>;
+}
+
+<!-- Custom Dark Theme Styles for Create Premium Freight -->
+<style>
+    .create-container {
+        background-color: #0f172a;
+        color: #f1f5f9;
+    }
+    .create-card {
+        border-radius: 16px;
+        background: #1e293b !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: #f1f5f9 !important;
+    }
+    .create-card .card-body {
+        background: #1e293b !important;
+        border-radius: 16px;
+    }
+    .create-card .form-label {
+        color: #cbd5e1 !important;
+    }
+    .create-card .form-control,
+    .create-card .form-select,
+    .create-card textarea {
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        border-radius: 8px;
+    }
+    .create-card .form-control:focus,
+    .create-card .form-select:focus,
+    .create-card textarea:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25) !important;
+    }
+    .create-card select option {
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
+    }
+    .section-block {
+        background: #0f172a !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 12px;
+    }
+    .info-card {
+        background: #1e293b !important;
+        border: 1px solid rgba(59, 130, 246, 0.2) !important;
+        color: #f1f5f9 !important;
+        border-radius: 16px;
+    }
+</style>
+
+<div class="create-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="mb-1 fw-bold text-white"><i class="bi bi-truck-flatbed me-2 text-primary"></i>Buat Premium Freight Baru</h4>
+            <p class="text-secondary mb-0">Input Data Premium Freight, No. Truck, Driver, Kategori & Jenis Armada Truck</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="Dashboard" class="btn btn-outline-primary d-flex align-items-center gap-2">
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+            <a asp-action="Index" class="btn btn-outline-light d-flex align-items-center gap-2">
+                <i class="bi bi-arrow-left"></i> Kembali
+            </a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card create-card shadow-sm">
+                <div class="card-body p-4">
+                    <form asp-action="Create">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <!-- STEP 1: Opsi Pengisian Data Shipping (Dropdown vs Manual Input) -->
+                        <div class="section-block p-3 mb-4">
+                            <h6 class="fw-bold text-primary mb-3">
+                                <i class="bi bi-gear-fill me-2"></i> 1. Metode Pengisian Data Shipping (Customer / Dock, Route, Cycle) <span class="text-danger">*</span>
+                            </h6>
+
+                            <!-- Radio Mode Selector -->
+                            <div class="d-flex flex-column flex-sm-row gap-3 mb-3 p-3 bg-dark rounded border border-secondary border-opacity-25">
+                                <div class="form-check me-3">
+                                    <input class="form-check-input" type="radio" name="inputMode" id="modeDropdown" value="dropdown" checked>
+                                    <label class="form-check-label fw-bold text-white cursor-pointer" for="modeDropdown">
+                                        <i class="bi bi-list-ul text-primary me-1"></i> Opsi 1: Pilih dari Dropdown (Dashboard Shipping)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="inputMode" id="modeManual" value="manual">
+                                    <label class="form-check-label fw-bold text-white cursor-pointer" for="modeManual">
+                                        <i class="bi bi-pencil-square text-info me-1"></i> Opsi 2: Input Manual (Dock, Route, Cycle)
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Opsi 1: Container Dropdown Jadwal Shipping -->
+                            <div id="containerDropdown">
+                                <div class="mb-3">
+                                    <label asp-for="ScheduleId" class="form-label fw-semibold">Pilih Jadwal Shipping / Ref Customer <span class="text-danger">*</span></label>
+                                    <select id="scheduleSelect" asp-for="ScheduleId" class="form-select shadow-none">
+                                        <option value="">-- Pilih Jadwal Delivery (Wajib) --</option>
+                                        @if (schedules != null)
+                                        {
+                                            foreach (var s in schedules)
+                                            {
+                                                <option value="@s.ScheduleId">
+                                                    @s.ScheduleNumber - @s.CustomerName (@s.Route @(string.IsNullOrEmpty(s.Cycle) ? "" : $"- Cycle {s.Cycle}")) [@s.ScheduledDateStr] Truck: @(string.IsNullOrEmpty(s.VehicleNumber) ? "Belum diset" : s.VehicleNumber)
+                                                </option>
+                                            }
+                                        }
+                                    </select>
+                                    <span asp-validation-for="ScheduleId" class="text-danger small mt-1 d-block"></span>
+                                    <span class="form-text text-secondary small">
+                                        Memilih jadwal dari Dashboard Shipping akan mengisi data customer, dock, route, cycle, truk, dan driver secara otomatis.
+                                    </span>
+                                </div>
+
+                                <!-- Auto-filled Info Preview -->
+                                <div id="schedulePreviewBlock" class="p-3 bg-dark rounded border border-primary border-opacity-25 d-none">
+                                    <div class="row g-2 small">
+                                        <div class="col-md-4">
+                                            <span class="text-secondary d-block">Customer / Dock:</span>
+                                            <strong id="prevCustomer" class="text-white">-</strong>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <span class="text-secondary d-block">Route:</span>
+                                            <strong id="prevRoute" class="text-white">-</strong>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <span class="text-secondary d-block">Cycle:</span>
+                                            <strong id="prevCycle" class="text-primary">-</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Opsi 2: Container Input Manual (Dock / Customer, Route, Cycle) -->
+                            <div id="containerManual" class="d-none">
+                                <div class="row g-3 mb-2">
+                                    <div class="col-md-6">
+                                        <label asp-for="CustomerName" class="form-label fw-semibold">Customer / Dock (Contoh: DOCK 43) <span class="text-danger">*</span></label>
+                                        <input type="text" asp-for="CustomerName" id="inputCustomerName" class="form-control shadow-none" placeholder="Misal: DOCK 43 / ADM / TMMIN">
+                                        <span asp-validation-for="CustomerName" class="text-danger small mt-1 d-block"></span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label asp-for="Route" class="form-label fw-semibold">Route (Opsional)</label>
+                                        <input type="text" asp-for="Route" id="inputRoute" class="form-control shadow-none" placeholder="Misal: RC25">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label asp-for="Cycle" class="form-label fw-semibold">Cycle (Opsional)</label>
+                                        <input type="text" asp-for="Cycle" id="inputCycle" class="form-control shadow-none" placeholder="Misal: C1 / 01">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- STEP 2: Input No. Truck & Nama Driver (Opsional) -->
+                        <h6 class="fw-bold text-primary mb-3">
+                            <i class="bi bi-person-vcard me-2"></i> 2. Input No. Truck & Driver (Opsional)
+                        </h6>
+
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label asp-for="VehicleNumber" class="form-label fw-semibold">No. Truck (Opsional)</label>
+                                <input type="text" asp-for="VehicleNumber" id="inputVehicleNumber" class="form-control shadow-none" placeholder="Contoh: B 1234 XYZ / T 1234 AB">
+                                <span asp-validation-for="VehicleNumber" class="text-danger small mt-1 d-block"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="DriverName" class="form-label fw-semibold">Nama Driver (Opsional)</label>
+                                <input type="text" asp-for="DriverName" id="inputDriverName" class="form-control shadow-none" placeholder="Contoh: Budi Santoso">
+                                <span asp-validation-for="DriverName" class="text-danger small mt-1 d-block"></span>
+                            </div>
+                        </div>
+
+                        <!-- STEP 3: Input Kategori & Jenis Armada (Wajib / Required) -->
+                        <h6 class="fw-bold text-primary mb-3">
+                            <i class="bi bi-truck me-2"></i> 3. Penentuan Kategori & Jenis Truck Armada <span class="text-danger">*</span>
+                        </h6>
+
+                        <div class="mb-3">
+                            <label asp-for="KategoriPengiriman" class="form-label fw-semibold">Kategori Pengiriman <span class="text-danger">*</span></label>
+                            <select asp-for="KategoriPengiriman" class="form-select form-select-lg shadow-none" required>
+                                <option value="">-- Pilih Kategori Pengiriman (Wajib) --</option>
+                                <option value="Shortage Delivery">Shortage Delivery (Pengiriman Darurat)</option>
+                                <option value="Pickup Material">Pickup Material (Dari Supplier)</option>
+                                <option value="Pickup Subcon">Pickup Subcon (Dari Subkontraktor)</option>
+                            </select>
+                            <span asp-validation-for="KategoriPengiriman" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="JenisArmada" class="form-label fw-semibold">Jenis Armada Truck <span class="text-danger">*</span></label>
+                            <select asp-for="JenisArmada" class="form-select form-select-lg shadow-none" required>
+                                <option value="">-- Pilih Jenis Armada (Wajib) --</option>
+                                <option value="Reguler truck">Reguler truck (Single trip / Sekali jalan)</option>
+                                <option value="Ritase truck">Ritase truck (Bolak-balik / Multi trip)</option>
+                            </select>
+                            <span asp-validation-for="JenisArmada" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <div class="mb-4">
+                            <label asp-for="Keterangan" class="form-label fw-semibold">Keterangan / Catatan Tambahan (Opsional)</label>
+                            <textarea asp-for="Keterangan" class="form-control shadow-none" rows="3" placeholder="Masukkan alasan pengajuan atau rincian tambahan..."></textarea>
+                        </div>
+
+                        <div class="d-flex gap-2 pt-2">
+                            <button type="submit" class="btn btn-primary px-4 py-2 flex-grow-1 btn-lg shadow-sm fw-semibold">
+                                <i class="bi bi-check-circle-fill me-2"></i> Simpan & Integrasikan ke Dashboard
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Informasi Panduan -->
+        <div class="col-lg-5">
+            <div class="card info-card p-4 mb-4">
+                <h5 class="fw-bold mb-3 text-white"><i class="bi bi-info-circle-fill me-2 text-primary"></i>Panduan Kategori & Armada</h5>
+                <p class="mb-2 text-white"><strong>Kategori Pengiriman (Wajib):</strong></p>
+                <ul class="mb-3 ps-3 text-secondary">
+                    <li><strong>Shortage Delivery:</strong> Pengiriman darurat/segera untuk mengatasi shortage material.</li>
+                    <li><strong>Pickup Material:</strong> Pengambilan material langsung dari lokasi supplier/vendor.</li>
+                    <li><strong>Pickup Subcon:</strong> Pengambilan material hasil pengerjaan subkontraktor.</li>
+                </ul>
+                <p class="mb-2 text-white"><strong>Jenis Armada (Wajib):</strong></p>
+                <ul class="mb-0 ps-3 text-secondary">
+                    <li><strong>Reguler truck:</strong> Pengiriman standar dengan rute dan waktu terjadwal 1x rute.</li>
+                    <li><strong>Ritase truck:</strong> Truk ritase yang melakukan perjalanan berulang (bolak-balik).</li>
+                </ul>
+            </div>
+
+            <div class="card info-card p-4">
+                <h6 class="fw-bold text-primary mb-2"><i class="bi bi-diagram-3-fill me-2"></i>Alur Integrasi Shipping</h6>
+                <p class="small text-secondary mb-0">
+                    Data Jadwal Shipping, Customer/Dock, Route, Cycle, Kategori, Jenis Armada, No. Truck, Driver, dan Keterangan yang Anda simpan akan langsung ditampilkan pada <strong>Dashboard Premium Freight</strong> dan <strong>Daftar Aktivitas</strong>.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const radioDropdown = document.getElementById("modeDropdown");
+            const radioManual = document.getElementById("modeManual");
+            const containerDropdown = document.getElementById("containerDropdown");
+            const containerManual = document.getElementById("containerManual");
+            const scheduleSelect = document.getElementById("scheduleSelect");
+
+            const inputCustomerName = document.getElementById("inputCustomerName");
+            const inputRoute = document.getElementById("inputRoute");
+            const inputCycle = document.getElementById("inputCycle");
+            const inputVehicleNumber = document.getElementById("inputVehicleNumber");
+            const inputDriverName = document.getElementById("inputDriverName");
+
+            function toggleMode() {
+                if (radioDropdown.checked) {
+                    containerDropdown.classList.remove("d-none");
+                    containerManual.classList.add("d-none");
+                    scheduleSelect.setAttribute("required", "required");
+                    inputCustomerName.removeAttribute("required");
+                } else {
+                    containerDropdown.classList.add("d-none");
+                    containerManual.classList.remove("d-none");
+                    scheduleSelect.removeAttribute("required");
+                    inputCustomerName.setAttribute("required", "required");
+                    scheduleSelect.value = "";
+                }
+            }
+
+            if (radioDropdown && radioManual) {
+                radioDropdown.addEventListener("change", toggleMode);
+                radioManual.addEventListener("change", toggleMode);
+                toggleMode();
+            }
+
+            if (scheduleSelect) {
+                scheduleSelect.addEventListener("change", function () {
+                    const schedId = this.value;
+                    const previewBlock = document.getElementById("schedulePreviewBlock");
+                    const prevCustomer = document.getElementById("prevCustomer");
+                    const prevRoute = document.getElementById("prevRoute");
+                    const prevCycle = document.getElementById("prevCycle");
+
+                    if (!schedId) {
+                        if (previewBlock) previewBlock.classList.add("d-none");
+                        if (radioDropdown.checked) {
+                            inputCustomerName.value = "";
+                            inputRoute.value = "";
+                            inputCycle.value = "";
+                        }
+                        return;
+                    }
+
+                    fetch('/PremiumFreights/GetScheduleDetails/' + schedId)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                if (prevCustomer) prevCustomer.textContent = data.customerName;
+                                if (prevRoute) prevRoute.textContent = data.route;
+                                if (prevCycle) prevCycle.textContent = data.cycle;
+
+                                inputCustomerName.value = data.customerName;
+                                inputRoute.value = data.route;
+                                inputCycle.value = data.cycle;
+
+                                if (data.vehicleNumber && data.vehicleNumber !== "-") {
+                                    inputVehicleNumber.value = data.vehicleNumber;
+                                }
+                                if (data.driverName && data.driverName !== "-") {
+                                    inputDriverName.value = data.driverName;
+                                }
+
+                                if (previewBlock) previewBlock.classList.remove("d-none");
+                            }
+                        })
+                        .catch(err => console.error(err));
+                });
+
+                if (scheduleSelect.value && radioDropdown.checked) {
+                    scheduleSelect.dispatchEvent(new Event("change"));
+                }
+            }
+        });
+    </script>
+}

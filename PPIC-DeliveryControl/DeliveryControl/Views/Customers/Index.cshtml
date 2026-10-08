@@ -1,0 +1,451 @@
+@model IEnumerable<DeliveryControl.Models.Customer>
+
+@{
+    ViewData["Title"] = "Master Customer";
+}
+
+@* Hidden form for anti-forgery token *@
+<form id="hiddenTokenForm" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-building"></i> Master Customer</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-danger" id="bulkDeleteBtn" style="display:none;" onclick="confirmBulkDelete()">
+                <i class="bi bi-trash"></i> Hapus (<span id="selectedCount">0</span>)
+            </button>
+            <a asp-action="ExportExcel" class="btn btn-warning">
+                <i class="bi bi-file-earmark-excel"></i> Export
+            </a>
+            <a asp-action="DownloadTemplate" class="btn btn-outline-info">
+                <i class="bi bi-download"></i> Template
+            </a>
+            <button type="button" class="btn btn-info text-white" data-bs-toggle="modal" data-bs-target="#importModal">
+                <i class="bi bi-upload"></i> Import
+            </button>
+            <form asp-action="RelinkSchedules" method="post" style="display:inline;" onsubmit="return confirm('Re-link semua jadwal yang customer-nya kosong ke data master customer saat ini?\n\nProses ini akan mencocokkan berdasarkan Route + Cycle.');">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-secondary">
+                    <i class="bi bi-link-45deg"></i> Re-link Jadwal
+                </button>
+            </form>
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Tambah
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form asp-action="Index" method="get" class="row g-3">
+            <div class="col-md-10">
+                <input type="text" class="form-control" name="searchString" value="@ViewData["CurrentFilter"]" 
+                       placeholder="Cari NAMA CUSTOMER atau DOCK..." />
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Cari
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+            <div class="master-table-wrapper">
+                <table class="table table-hover mb-0" id="customersTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">
+                                <input type="checkbox" id="selectAll" class="form-check-input" title="Pilih Semua">
+                            </th>
+                            <th class="text-center" style="width: 50px;">NO</th>
+                            <th>KODE</th>
+                            <th>@Html.DisplayNameFor(model => model.CustomerCode)</th>
+                            <th>@Html.DisplayNameFor(model => model.CustomerName)</th>
+                            <th>Route</th>
+                            <th>Cycle</th>
+                            <th class="text-center">START PREP</th>
+                            <th class="text-center">END PREP</th>
+                            <th>Docking</th>
+                            <th>Pickup</th>
+                            <th>ETD</th>
+                            <th>Range</th>
+                            <th>SKID</th>
+                            <th>Area</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @{
+                        int pageSize = 20;
+                        int currentPage = ViewBag.CurrentPage as int? ?? 1;
+                        int loopIndex = 0;
+                    }
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="form-check-input row-checkbox" value="@item.CustomerId">
+                            </td>
+                            <td class="text-center small text-muted">@((currentPage - 1) * pageSize + (++loopIndex))</td>
+                            <td class="fw-bold text-warning">@(item.AutoCode ?? "-")</td>
+                                <td class="fw-bold" style="color: var(--primary-blue);">@item.CustomerCode</td>
+                                <td>@item.CustomerName</td>
+                                <td>@(item.Route ?? "-")</td>
+                                <td>@(item.Cycle ?? "-")</td>
+                                <td class="text-center">@($"{item.StartPrepareTime / 60:D2}:{item.StartPrepareTime % 60:D2}")</td>
+                                <td class="text-center">@($"{item.StdPrepareTime / 60:D2}:{item.StdPrepareTime % 60:D2}")</td>
+                                <td>@(item.Docking ?? "-")</td>
+                                <td>@(item.Pickup ?? "-")</td>
+                                <td>@(item.ETD ?? "-")</td>
+                                <td>@(item.Range ?? "-")</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.SKID))
+                                    {
+                                        <span class="badge bg-secondary">@item.SKID</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>@(item.Area ?? "-")</td>
+                                <td>
+                                    @if (item.IsActive)
+                                    {
+                                        <span class="badge bg-success">Aktif</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">Tidak Aktif</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <a asp-action="Edit" asp-route-id="@item.CustomerId" class="btn btn-sm btn-warning" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </a>
+                                        @{
+                                            var scheduleCount = item.DeliverySchedules?.Count ?? 0;
+                                            var deleteTitle = scheduleCount > 0 
+                                                ? $"Force Delete ({scheduleCount} schedule akan ikut terhapus)" 
+                                                : "Hapus Customer";
+                                            var btnClass = scheduleCount > 0 ? "btn-danger" : "btn-outline-danger";
+                                        }
+                                        <button type="button" class="btn btn-sm @btnClass" 
+                                                onclick="showForceDeleteConfirm(@item.CustomerId, '@item.CustomerCode', '@item.CustomerName', @scheduleCount)" 
+                                                title="@deleteTitle">
+                                            <i class="bi bi-trash-fill"></i>
+                                            @if (scheduleCount > 0)
+                                            {
+                                                <span class="badge bg-white text-danger ms-1">@scheduleCount</span>
+                                            }
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            </div>
+            
+            @if (!Model.Any())
+            {
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle"></i> Tidak ada data customer yang ditemukan.
+                </div>
+            }
+    </div>
+
+    <!-- Pagination -->
+    <div class="row mt-2 mb-4">
+        <div class="col-12">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+    </div>
+</div>
+
+@section Modals {
+    <!-- Modal Force Delete -->
+    <div class="modal fade" id="forceDeleteModal" tabindex="-1" aria-labelledby="forceDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-danger">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="forceDeleteModalLabel">
+                        <i class="bi bi-exclamation-triangle-fill"></i> Konfirmasi Force Delete
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger mb-3">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>PERINGATAN KERAS!</strong>
+                    </div>
+                    
+                    <h6 class="fw-bold">Data yang akan dihapus:</h6>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Kode:</strong> <span id="deleteCustomerCode"></span></p>
+                            <p class="mb-0"><strong>Nama:</strong> <span id="deleteCustomerName"></span></p>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <p class="mb-2"><strong>Sistem akan menghapus:</strong></p>
+                        <ul class="mb-0" id="warningList">
+                            <li>Customer ini</li>
+                            <li><strong>SEMUA</strong> Delivery Schedule terkait (jika ada)</li>
+                            <li><strong>SEMUA</strong> Delivery Items dalam schedule (jika ada)</li>
+                        </ul>
+                    </div>
+                    
+                    <p class="text-danger fw-bold mb-0">
+                        <i class="bi bi-exclamation-circle"></i> Tindakan ini TIDAK DAPAT DIBATALKAN!
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle"></i> Batal
+                    </button>
+                    <form asp-action="ForceDelete" method="post" style="display: inline;" id="forceDeleteForm">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" id="forceDeleteId" name="id" value="" />
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash-fill"></i> Ya, Hapus Paksa!
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="importModalLabel"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Import Data Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info border-info text-dark">
+                        <small><i class="bi bi-info-circle-fill me-1"></i> Pastikan format file sesuai dengan template.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">Pilih File Excel (.xlsx)</label>
+                        <input class="form-control bg-secondary text-white border-0" type="file" id="excelFile" name="file" accept=".xlsx" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-upload me-1"></i> Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="importModalLabel"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Import Data Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info border-info text-dark">
+                        <small><i class="bi bi-info-circle-fill me-1"></i> Pastikan format file sesuai dengan template.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">Pilih File Excel (.xlsx)</label>
+                        <input class="form-control bg-secondary text-white border-0" type="file" id="excelFile" name="file" accept=".xlsx" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-upload me-1"></i> Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="importModalLabel"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Import Data Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="alert alert-info border-info text-dark">
+                        <small><i class="bi bi-info-circle-fill me-1"></i> Pastikan format file sesuai dengan template.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="excelFile" class="form-label">Pilih File Excel (.xlsx)</label>
+                        <input class="form-control bg-secondary text-white border-0" type="file" id="excelFile" name="file" accept=".xlsx" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success"><i class="bi bi-upload me-1"></i> Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if there's a ForceDeleteId in TempData (from failed delete attempt)
+            @if (TempData["ForceDeleteId"] != null)
+            {
+                <text>
+                var forceDeleteId = @TempData["ForceDeleteId"];
+                document.getElementById('forceDeleteId').value = forceDeleteId;
+                var forceDeleteModal = new bootstrap.Modal(document.getElementById('forceDeleteModal'));
+                forceDeleteModal.show();
+                </text>
+            }
+
+
+            
+            // Select All functionality
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function() {
+                    const checkboxes = document.querySelectorAll('.row-checkbox');
+                    checkboxes.forEach(function(cb) {
+                        cb.checked = selectAllCheckbox.checked;
+                    });
+                    updateBulkDeleteButton();
+                });
+            }
+
+            // Individual checkbox change
+            const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+            rowCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    updateBulkDeleteButton();
+                    updateSelectAllState();
+                });
+            });
+        });
+
+        function updateBulkDeleteButton() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            if (checkedBoxes.length > 0) {
+                bulkDeleteBtn.style.display = 'inline-block';
+                selectedCount.textContent = checkedBoxes.length;
+            } else {
+                bulkDeleteBtn.style.display = 'none';
+            }
+        }
+
+        function updateSelectAllState() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            const selectAll = document.getElementById('selectAll');
+            
+            if (selectAll) {
+                selectAll.checked = checkboxes.length === checkedBoxes.length && checkboxes.length > 0;
+            }
+        }
+
+        function showForceDeleteConfirm(customerId, customerCode, customerName, scheduleCount) {
+            // Set data ke modal
+            document.getElementById('forceDeleteId').value = customerId;
+            document.getElementById('deleteCustomerCode').textContent = customerCode;
+            document.getElementById('deleteCustomerName').textContent = customerName;
+            
+            // Update warning message based on schedule count
+            // We use getElementById for maximum robustness
+            var warningList = document.getElementById('warningList');
+            if (warningList) {
+                if (scheduleCount > 0) {
+                    warningList.innerHTML = `
+                        <li>Customer ini</li>
+                        <li><strong>${scheduleCount}</strong> Delivery Schedule terkait</li>
+                        <li><strong>SEMUA</strong> Delivery Items dalam schedule tersebut</li>
+                    `;
+                } else {
+                    warningList.innerHTML = `
+                        <li>Customer ini (tidak ada schedule terkait)</li>
+                    `;
+                }
+            } else {
+                console.error('Element #warningList tidak ditemukan!');
+            }
+            
+            // Show modal
+            var forceDeleteModal = new bootstrap.Modal(document.getElementById('forceDeleteModal'));
+            forceDeleteModal.show();
+        }
+
+        function confirmBulkDelete() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            
+            if (checkedBoxes.length === 0) {
+                alert('Tidak ada customer yang dipilih!');
+                return false;
+            }
+            
+            const ids = Array.from(checkedBoxes).map(function(cb) { 
+                return cb.value; 
+            }).join(',');
+            
+            if (confirm('PERINGATAN: Anda akan menghapus ' + checkedBoxes.length + ' customer terpilih.\n\nHanya data customer yang dihapus. Jadwal terkait akan tetap ada (tidak ikut terhapus).\n\nApakah Anda yakin ingin melanjutkan?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '@Url.Action("BulkDelete", "Customers")';
+                
+                // Get token from hidden form
+                const tokenElement = document.querySelector('#hiddenTokenForm input[name="__RequestVerificationToken"]');
+                if (!tokenElement) {
+                    alert('Error: Anti-forgery token tidak ditemukan!');
+                    return false;
+                }
+                
+                const token = tokenElement.value;
+                
+                const tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = '__RequestVerificationToken';
+                tokenInput.value = token;
+                
+                const idsInput = document.createElement('input');
+                idsInput.type = 'hidden';
+                idsInput.name = 'selectedIds';
+                idsInput.value = ids;
+                
+                form.appendChild(tokenInput);
+                form.appendChild(idsInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+            
+            return false;
+        }
+    </script>
+}
+

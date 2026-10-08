@@ -1,0 +1,489 @@
+@model DeliveryControl.Models.ViewModels.DailyPickupTrendViewModel
+
+@using System.Globalization
+@using System.Text.Json
+
+@{
+    ViewData["Title"] = "Tren Harian Delay Truck-In";
+    var selectedDate = Model.SelectedDate.ToString("yyyy-MM-dd");
+
+    var safeDailyList = (Model.DailyPickupDelays ?? new List<DeliveryControl.Models.ViewModels.DailyPickupDelayData>());
+    var hasDailyPickup = safeDailyList.Any();
+    var maxDailyPickupDelay = hasDailyPickup ? safeDailyList.Max(d => d.TotalDelayMinutes) : 0;
+    if (maxDailyPickupDelay <= 0) { maxDailyPickupDelay = 1; }
+
+    var dailyPickupJson = JsonSerializer.Serialize(
+        safeDailyList
+            .Select(d => new
+            {
+                date = d.Date.ToString("yyyy-MM-dd"),
+                displayDate = d.Date.ToString("dd MMM", new CultureInfo("id-ID")),
+                totalDelayMinutes = d.TotalDelayMinutes
+            }),
+        new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        }
+    );
+}
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="mb-1">
+            <i class="bi bi-graph-up-arrow"></i> Tren Harian Total Delay Truck-In
+        </h2>
+        <p class="text-muted mb-0">
+            Menampilkan total menit delay Truck-In per hari (14 hari terakhir dari tanggal yang dipilih). Klik batang untuk memfilter tabel schedule di bawahnya.
+        </p>
+    </div>
+    <div class="col-md-4 text-end d-flex gap-2 justify-content-end align-items-center mt-2 mt-md-0">
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="bi bi-table"></i> History Shipping
+        </a>
+        <a asp-action="DelayChart" class="btn btn-outline-primary">
+            <i class="bi bi-bar-chart"></i> Delay per Jam
+        </a>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="DelayPickupTrend" method="get" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label"><i class="bi bi-calendar"></i> Tanggal Acuan</label>
+                <input type="date" class="form-control" name="date" value="@selectedDate" />
+            </div>
+            <div class="col-md-7">
+                <label class="form-label"><i class="bi bi-building"></i> Customer</label>
+                <select class="form-select" name="customerId">
+                    <option value="">-- Semua Customer --</option>
+                    @foreach (var item in (IEnumerable<SelectListItem>)ViewData["Customers"]!)
+                    {
+                        <option value="@item.Value" selected="@(item.Value == (ViewData["CustomerId"]?.ToString()))">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Grafik harian -->
+<div class="cyber-card delay-chart-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-0 fw-bold">
+                <i class="bi bi-graph-up-arrow me-2" style="color: #f97316;"></i>
+                Tren Harian Total Delay Truck-In (@Model.StartDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")) - @Model.EndDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")))
+            </h5>
+            <small class="text-muted">
+                Klik salah satu batang untuk memfilter tabel schedule berdasarkan tanggal tersebut.
+            </small>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (!hasDailyPickup || safeDailyList.All(d => d.TotalDelayMinutes <= 0))
+        {
+            <div class="alert alert-success mb-0">
+                <i class="bi bi-check-circle-fill"></i> Tidak ada delay Truck-In pada periode ini.
+            </div>
+        }
+        else
+        {
+            <div class="delay-chart-wrapper daily-delay-chart-wrapper">
+                <div class="delay-chart-y-axis">
+                    <span>@maxDailyPickupDelay menit</span>
+                    <span>@(maxDailyPickupDelay / 2) menit</span>
+                    <span>0</span>
+                </div>
+                <div class="delay-chart-bars" id="daily-pickup-bars">
+                    @foreach (var d in (Model.DailyPickupDelays ?? new List<DeliveryControl.Models.ViewModels.DailyPickupDelayData>()).OrderBy(x => x.Date))
+                    {
+                        var heightPercent = (double)d.TotalDelayMinutes / maxDailyPickupDelay * 100.0;
+                        var hasDelay = d.TotalDelayMinutes > 0;
+                        var dateKey = d.Date.ToString("yyyy-MM-dd");
+                        <div class="delay-bar-column daily-bar-column" data-date="@dateKey">
+                            <div class="delay-bar-container" title="@($"{d.Date:dd MMM yyyy} - {d.TotalDelayMinutes} menit")">
+                                <div class="delay-bar daily-delay-bar @(hasDelay ? "has-delay" : "")"
+                                     style="height:@heightPercent.ToString("0.##", CultureInfo.InvariantCulture)%">
+                                    @if (hasDelay)
+                                    {
+                                        <span class="delay-value">@d.TotalDelayMinutes</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="delay-hour-label">@d.Date.ToString("dd MMM", new CultureInfo("id-ID"))</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Tabel schedule: kolom sama dengan DeliverySchedules/Index.cshtml -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-0 fw-bold">
+                <i class="bi bi-truck-front me-2"></i> Schedule Delay Truck-In
+            </h5>
+            <small class="text-muted" id="schedule-selected-date-label">
+                Menampilkan schedule yang mengalami delay Truck-In pada @Model.SelectedDate.ToString("dd MMM yyyy", new CultureInfo("id-ID")).
+            </small>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        @if (Model.DelayedSchedules != null && Model.DelayedSchedules.Any())
+        {
+            <div style="max-height: 600px; overflow-y: auto; overflow-x: hidden;">
+                <table class="table table-hover table-bordered mb-0 table-sm" style="table-layout: fixed; width: 100%;" id="delayScheduleTable">
+                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 100; background-color: #212529;">
+                        <tr style="font-size: 0.85rem;">
+                            <th class="text-center align-middle" style="width: 16%; background-color: #212529;">CUST</th>
+                            <th class="text-center align-middle" style="width: 8%; background-color: #212529;">ROUTE</th>
+                            <th class="text-center align-middle" style="width: 6%; background-color: #212529;">CYCLE</th>
+                            <th class="text-center align-middle" style="width: 8%; background-color: #212529;">ENTER DOCK</th>
+                            <th class="text-center align-middle" style="width: 6%; background-color: #212529;">PICKUP</th>
+                            <th class="text-center align-middle" style="width: 10%; background-color: #212529;">ACT PICKUP</th>
+                            <th class="text-center align-middle" style="width: 6%; background-color: #212529;">ETD</th>
+                            <th class="text-center align-middle" style="width: 10%; background-color: #212529;">ACT DELIVERY</th>
+                            <th class="text-center align-middle" style="width: 8%; background-color: #212529;">DELAY TRUCK-IN</th>
+                        </tr>
+                    </thead>
+                    <tbody style="font-size: 0.85rem;">
+                        @foreach (var item in Model.DelayedSchedules)
+                        {
+                            var scheduleDateKey = item.ScheduledDate.Date.ToString("yyyy-MM-dd");
+
+                            // Hitung delay Truck-In (menit)
+                            var pickupDelayMinutes = 0;
+                            if (item.ActualStartTime.HasValue && item.PickupTime.HasValue)
+                            {
+                                var delay = item.ActualStartTime.Value - item.PickupTime.Value;
+                                if (delay.TotalMinutes > 0)
+                                {
+                                    pickupDelayMinutes = (int)delay.TotalMinutes;
+                                }
+                            }
+
+                            <tr data-date="@scheduleDateKey">
+                                <td class="align-middle">
+                                    <div><strong>@item.Customer?.CustomerCode</strong></div>
+                                    <small class="text-muted">@item.Customer?.CustomerName</small>
+                                </td>
+                                <td class="text-center align-middle">
+                                    <small>@(item.Route ?? "-")</small>
+                                </td>
+                                <td class="text-center align-middle">
+                                    <small>@(item.Cycle ?? "-")</small>
+                                </td>
+                                <td class="text-center align-middle">
+                                    @if (item.EnterDockTime.HasValue)
+                                    {
+                                        <strong>@item.EnterDockTime.Value.ToString("HH:mm")</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center align-middle">
+                                    @if (item.PickupTime.HasValue)
+                                    {
+                                        <strong>@item.PickupTime.Value.ToString("HH:mm")</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center align-middle">
+                                    @if (item.ActualStartTime.HasValue)
+                                    {
+                                        <strong style="color: white !important;">
+                                            @item.ActualStartTime.Value.ToString("HH:mm")
+                                        </strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center align-middle">
+                                    @if (item.ETD.HasValue)
+                                    {
+                                        <strong>@item.ETD.Value.ToString("HH:mm")</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center align-middle">
+                                    @if (item.ActualEndTime.HasValue)
+                                    {
+                                        <strong>@item.ActualEndTime.Value.ToString("HH:mm")</strong>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td class="text-center align-middle">
+                                    @if (pickupDelayMinutes > 0)
+                                    {
+                                        <span class="badge bg-danger">
+                                            @pickupDelayMinutes m
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="p-3">
+                <div class="alert alert-info mb-0">
+                    <i class="bi bi-info-circle"></i> Tidak ada schedule yang mengalami delay Truck-In pada periode ini.
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+    (function () {
+        const dailyPickupData = @Html.Raw(dailyPickupJson ?? "[]");
+
+        function formatDateIdToDisplay(dateId) {
+            if (!dateId) return "";
+            const parts = dateId.split("-");
+            if (parts.length !== 3) return dateId;
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const day = parseInt(parts[2], 10);
+            const date = new Date(year, month - 1, day);
+            if (isNaN(date.getTime())) return dateId;
+            return date.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+        }
+
+        function setActiveDailyBar(dateId) {
+            const columns = document.querySelectorAll(".daily-bar-column");
+            columns.forEach(col => {
+                if (col.getAttribute("data-date") === dateId) {
+                    col.classList.add("active");
+                } else {
+                    col.classList.remove("active");
+                }
+            });
+        }
+
+        function filterScheduleTable(dateId) {
+            const rows = document.querySelectorAll("#delayScheduleTable tbody tr");
+            const label = document.getElementById("schedule-selected-date-label");
+
+            if (!rows || rows.length === 0 || !label) return;
+
+            let visibleCount = 0;
+            rows.forEach(row => {
+                const rowDate = row.getAttribute("data-date");
+                if (rowDate === dateId) {
+                    row.style.display = "";
+                    visibleCount++;
+                } else {
+                    row.style.display = "none";
+                }
+            });
+
+            if (visibleCount === 0) {
+                label.textContent = "Tidak ada schedule delay Truck-In pada " + formatDateIdToDisplay(dateId) + ".";
+            } else {
+                label.textContent = "Menampilkan " + visibleCount + " schedule delay Truck-In pada " + formatDateIdToDisplay(dateId) + ".";
+            }
+        }
+
+        function initDailyTrendPage() {
+            const columns = document.querySelectorAll(".daily-bar-column");
+            if (!columns || columns.length === 0) {
+                // Jika tidak ada grafik, tampilkan semua baris
+                const rows = document.querySelectorAll("#delayScheduleTable tbody tr");
+                rows.forEach(row => row.style.display = "");
+                return;
+            }
+
+            columns.forEach(col => {
+                col.addEventListener("click", function () {
+                    const dateId = this.getAttribute("data-date");
+                    if (!dateId) return;
+                    setActiveDailyBar(dateId);
+                    filterScheduleTable(dateId);
+                });
+            });
+
+            // Default: tanggal yang dipilih atau hari terakhir yang punya data
+            let defaultDateId = "@Model.SelectedDate.ToString("yyyy-MM-dd")";
+            const hasSelectedInRange = dailyPickupData && dailyPickupData.some(d => d.date === defaultDateId);
+            if (!hasSelectedInRange && dailyPickupData && dailyPickupData.length > 0) {
+                // Ambil tanggal terakhir yang punya totalDelayMinutes > 0, kalau ada, kalau tidak ambil entry terakhir
+                const withDelay = dailyPickupData.filter(d => (d.totalDelayMinutes || 0) > 0);
+                if (withDelay.length > 0) {
+                    defaultDateId = withDelay[withDelay.length - 1].date;
+                } else {
+                    defaultDateId = dailyPickupData[dailyPickupData.length - 1].date;
+                }
+            }
+
+            if (defaultDateId) {
+                setActiveDailyBar(defaultDateId);
+                filterScheduleTable(defaultDateId);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", initDailyTrendPage);
+    })();
+</script>
+
+<style>
+    .delay-chart-card {
+        border-radius: 12px;
+        border: 2px solid rgba(59, 130, 246, 0.3);
+        background: linear-gradient(135deg, #1e293b 0%, #111827 100%);
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.8);
+    }
+
+    .delay-chart-wrapper {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding: 1rem 1rem 1.25rem 0.75rem;
+        overflow-x: auto;
+    }
+
+    .delay-chart-y-axis {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: flex-end;
+        height: 260px;
+        padding-right: 0.5rem;
+        border-right: 1px solid rgba(148, 163, 184, 0.5);
+        margin-right: 0.5rem;
+        color: #9ca3af;
+        font-size: 0.75rem;
+    }
+
+    .delay-chart-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .delay-bar-column {
+        min-width: 40px;
+        text-align: center;
+        font-size: 0.7rem;
+        color: #d1d5db;
+        cursor: pointer;
+    }
+
+    .delay-bar-container {
+        height: 260px;
+        background: linear-gradient(to top, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.3));
+        border-radius: 6px;
+        border: 1px solid rgba(31, 41, 55, 0.8);
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding: 2px 4px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .delay-bar {
+        width: 100%;
+        max-width: 28px;
+        border-radius: 4px 4px 0 0;
+        background: linear-gradient(180deg, rgba(249, 115, 22, 0.95), rgba(194, 65, 12, 0.95));
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+        position: relative;
+        transition: all 0.2s ease;
+        display: flex;
+        flex-direction: column;
+        overflow: visible;
+    }
+
+    .delay-bar.has-delay {
+        box-shadow: 0 6px 15px rgba(249, 115, 22, 0.6);
+    }
+
+    .daily-bar-column.active .delay-bar {
+        box-shadow: 0 8px 20px rgba(249, 115, 22, 0.9);
+        transform: translateY(-3px);
+    }
+
+    .delay-bar:hover {
+        filter: brightness(1.05);
+    }
+
+    .delay-value {
+        position: absolute;
+        top: 4px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        white-space: nowrap;
+    }
+
+    .delay-hour-label {
+        margin-top: 4px;
+        font-weight: 600;
+        color: #9ca3af;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar {
+        height: 8px;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar-track {
+        background: #111827;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar-thumb {
+        background: #4b5563;
+        border-radius: 999px;
+    }
+
+    .delay-chart-wrapper::-webkit-scrollbar-thumb:hover {
+        background: #6b7280;
+    }
+
+    @@media (max-width: 768px) {
+        .delay-bar-column {
+            min-width: 32px;
+        }
+    }
+</style>
+
+

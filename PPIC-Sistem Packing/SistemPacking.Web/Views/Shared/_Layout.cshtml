@@ -1,0 +1,362 @@
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="light">
+<head>
+    <script>
+        // Prevent FOUC by setting theme early
+        const storedTheme = localStorage.getItem('theme');
+        const getPreferredTheme = () => {
+            if (storedTheme) { return storedTheme; }
+            return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        };
+        document.documentElement.setAttribute('data-bs-theme', getPreferredTheme());
+    </script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Sistem Packing</title>
+    <link rel="icon" type="image/jpeg" href="~/Logo_packing.jpeg" />
+    <meta name="description" content="Sistem Packing - Manajemen Packing Item Order Customer" />
+
+    <!-- Bootstrap 5 -->
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <!-- DataTables -->
+    <link rel="stylesheet" href="~/lib/datatables.net-bs5/css/dataTables.bootstrap5.min.css" />
+    <!-- Select2 -->
+    <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+    <link rel="stylesheet" href="~/lib/select2-bootstrap-5-theme/dist/select2-bootstrap-5-theme.min.css" />
+    <!-- SweetAlert2 -->
+    <link rel="stylesheet" href="~/lib/sweetalert2/dist/sweetalert2.min.css" />
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    @RenderSection("Styles", required: false)
+</head>
+<body>
+    <div class="app-wrapper">
+        <!-- Sidebar -->
+        <nav id="sidebar" class="sidebar">
+            <div class="sidebar-header" style="justify-content: center; padding: 20px 0;">
+                <div class="sidebar-logo justify-content-center w-100 m-0">
+                    <img src="~/Logo_packing.jpeg" alt="Logo" class="sidebar-animated-logo" />
+                </div>
+            </div>
+
+            <div class="sidebar-user">
+                <div class="user-avatar">
+                    <i class="bi bi-person-circle"></i>
+                </div>
+                <div class="user-info">
+                    <div class="user-name">@(ViewBag.User?.FullName ?? "User")</div>
+                    <div class="user-role">@(ViewBag.User?.RoleName ?? "")</div>
+                </div>
+            </div>
+
+            <ul class="sidebar-nav">
+                <li class="nav-section">MAIN</li>
+                <li class="nav-item">
+                    <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" && ViewContext.RouteData.Values["action"]?.ToString() == "Shipping" ? "active" : "")"
+                       asp-controller="Dashboard" asp-action="Shipping">
+                        <i class="bi bi-truck"></i>
+                        <span>Dashboard Shipping</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Dashboard" && ViewContext.RouteData.Values["action"]?.ToString() == "Stock" ? "active" : "")"
+                       asp-controller="Dashboard" asp-action="Stock">
+                        <i class="bi bi-box-seam"></i>
+                        <span>Dashboard Stock</span>
+                    </a>
+                </li>
+
+                @if (ViewBag.User?.CanShopping == true || ViewBag.User?.CanPacking == true || ViewBag.User?.CanVerify == true)
+                {
+                    <li class="nav-section">OPERASIONAL</li>
+                    
+                    @if (ViewBag.User?.CanShopping == true)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Shopping" && ViewContext.RouteData.Values["action"]?.ToString() != "Dashboard" ? "active" : "")"
+                               asp-controller="Shopping" asp-action="Index">
+                                <i class="bi bi-cart3"></i>
+                                <span>Shopping</span>
+                            </a>
+                        </li>
+                    }
+
+                    @if (ViewBag.User?.CanPacking == true)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Packing_SP" ? "active" : "")"
+                               asp-controller="Packing_SP" asp-action="Index">
+                                <i class="bi bi-box-seam"></i>
+                                <span>Packing Service Part</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Packing_Ex" ? "active" : "")"
+                               asp-controller="Packing_Ex" asp-action="Index">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                                <span>Packing Export</span>
+                            </a>
+                        </li>
+                    }
+
+                    @if (ViewBag.User?.CanVerify == true)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Verification" ? "active" : "")"
+                               asp-controller="Verification" asp-action="Index">
+                                <i class="bi bi-patch-check"></i>
+                                <span>Verifikasi</span>
+                            </a>
+                        </li>
+                    }
+                }
+
+                @if (ViewBag.User?.CanManageOrder == true || ViewBag.User?.CanManageMaster == true)
+                {
+                    <li class="nav-section">MANAGEMENT</li>
+                }
+
+                @if (ViewBag.User?.CanManageOrder == true)
+                {
+                    <li class="nav-item">
+                        <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Order" ? "active" : "")"
+                           asp-controller="Order" asp-action="Index">
+                            <i class="bi bi-upload"></i>
+                            <span>Upload Order</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Opname" ? "active" : "")"
+                           asp-controller="Opname" asp-action="Index">
+                            <i class="bi bi-clipboard-check"></i>
+                            <span>Opname</span>
+                        </a>
+                    </li>
+                }
+
+                @if (ViewBag.User?.CanViewReport == true || ViewBag.User?.CanManageOrder == true)
+                {
+                    <li class="nav-section">LOG TRANSAKSI</li>
+                    <li class="nav-item">
+                        <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TransactionLog" && ViewContext.RouteData.Values["action"]?.ToString() == "Shopping" ? "active" : "")" 
+                           asp-controller="TransactionLog" asp-action="Shopping">
+                            <i class="bi bi-cart3"></i>
+                            <span>Transaksi Shopping</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TransactionLog" && ViewContext.RouteData.Values["action"]?.ToString() == "PackingSparePart" ? "active" : "")" 
+                           asp-controller="TransactionLog" asp-action="PackingSparePart">
+                            <i class="bi bi-box-seam"></i>
+                            <span>Transaksi Packing Service Part</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "TransactionLog" && ViewContext.RouteData.Values["action"]?.ToString() == "PackingExport" ? "active" : "")" 
+                           asp-controller="TransactionLog" asp-action="PackingExport">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                            <span>Transaksi Packing Eksport</span>
+                        </a>
+                    </li>
+                    <li class="nav-item has-submenu">
+                        <a class="nav-link" href="#scanNgSubmenu" data-bs-toggle="collapse">
+                            <i class="bi bi-exclamation-octagon"></i>
+                            <span>Log Scan Ng</span>
+                            <i class="bi bi-chevron-down ms-auto submenu-arrow"></i>
+                        </a>
+                        <ul class="collapse submenu @(ViewContext.RouteData.Values["controller"]?.ToString() == "TransactionLog" && ViewContext.RouteData.Values["action"]?.ToString()?.StartsWith("ScanNg") == true ? "show" : "")" id="scanNgSubmenu">
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "ScanNgShopping" ? "active text-primary fw-bold" : "")" asp-controller="TransactionLog" asp-action="ScanNgShopping"><i class="bi bi-cart-x"></i> Scan NG Shopping</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "ScanNgPacking" ? "active text-primary fw-bold" : "")" asp-controller="TransactionLog" asp-action="ScanNgPacking"><i class="bi bi-box-seam"></i> Scan NG Packing</a></li>
+                        </ul>
+                    </li>
+                }
+
+                @if (ViewBag.User?.CanManageMaster == true)
+                {
+                    <li class="nav-section">MASTER DATA</li>
+                    <li class="nav-item has-submenu">
+                        <a class="nav-link" href="#masterSubmenu" data-bs-toggle="collapse">
+                            <i class="bi bi-database"></i>
+                            <span>Master Data</span>
+                            <i class="bi bi-chevron-down ms-auto submenu-arrow"></i>
+                        </a>
+                        <ul class="collapse submenu @(ViewContext.RouteData.Values["controller"]?.ToString() == "Master" ? "show" : "")" id="masterSubmenu">
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "MasterItem" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="MasterItem"><i class="bi bi-box"></i> Master Item</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "ItemMapping" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="ItemMapping"><i class="bi bi-diagram-2"></i> Item Mapping</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Customers" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="Customers"><i class="bi bi-building"></i> Master Customer</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "ManPower" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="ManPower"><i class="bi bi-person-badge"></i> Master Manpower</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Shifts" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="Shifts"><i class="bi bi-clock"></i> Master Shift</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Items" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="Items"><i class="bi bi-box-arrow-up-right"></i> Master Packing Eksport</a></li>
+                            <li><a class="@(ViewContext.RouteData.Values["action"]?.ToString() == "Items_SP" ? "active text-primary fw-bold" : "")" asp-controller="Master" asp-action="Items_SP"><i class="bi bi-box-seam"></i> Master Packing Service Part</a></li>
+                        </ul>
+                    </li>
+                    @if (ViewBag.User?.CanManageUser == true)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Master" && ViewContext.RouteData.Values["action"]?.ToString() == "Users" ? "active" : "")" asp-controller="Master" asp-action="Users">
+                                <i class="bi bi-people"></i>
+                                <span>Users</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link @(ViewContext.RouteData.Values["controller"]?.ToString() == "Master" && ViewContext.RouteData.Values["action"]?.ToString() == "Roles" ? "active" : "")" asp-controller="Master" asp-action="Roles">
+                                <i class="bi bi-person-lines-fill"></i>
+                                <span>Roles</span>
+                            </a>
+                        </li>
+                    }
+                }
+
+                @if (ViewBag.User?.CanViewReport == true)
+                {
+                    <li class="nav-section">LAPORAN</li>
+                    <li class="nav-item has-submenu">
+                        <a class="nav-link" href="#reportSubmenu" data-bs-toggle="collapse">
+                            <i class="bi bi-bar-chart-line"></i>
+                            <span>Laporan</span>
+                            <i class="bi bi-chevron-down ms-auto submenu-arrow"></i>
+                        </a>
+                        <ul class="collapse submenu" id="reportSubmenu">
+                            <li><a asp-controller="Report" asp-action="Daily"><i class="bi bi-calendar-day"></i> Daily Report</a></li>
+                            <li><a asp-controller="Report" asp-action="Monthly"><i class="bi bi-calendar-month"></i> Monthly Report</a></li>
+                            <li><a asp-controller="Report" asp-action="Shopping"><i class="bi bi-cart"></i> Shopping Report</a></li>
+                            <li><a asp-controller="Report" asp-action="Packing"><i class="bi bi-box"></i> Packing Report</a></li>
+                            <li><a asp-controller="Report" asp-action="Verification"><i class="bi bi-check-circle"></i> Verification Report</a></li>
+                            <li><a asp-controller="Report" asp-action="Productivity"><i class="bi bi-graph-up"></i> Productivity</a></li>
+                        </ul>
+                    </li>
+                }
+            </ul>
+
+            <div class="sidebar-footer">
+                <form asp-controller="Account" asp-action="Logout" method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn-logout">
+                        <i class="bi bi-box-arrow-right"></i>
+                        <span>Logout</span>
+                    </button>
+                </form>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-content" id="mainContent">
+            <!-- Top Navbar -->
+            <header class="top-navbar">
+                <div class="navbar-left">
+                    <button id="sidebarToggleBtn" class="sidebar-toggle-btn">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            @RenderSection("Breadcrumb", required: false)
+                        </ol>
+                    </nav>
+                </div>
+                <div class="navbar-right">
+                    <button class="btn btn-sm btn-link text-decoration-none me-3 theme-toggle" id="themeToggleBtn" aria-label="Toggle theme">
+                        <i class="bi bi-moon-stars-fill text-muted fs-5"></i>
+                    </button>
+                    <div class="live-clock" id="liveClock"></div>
+                    <div class="live-badge">
+                        <span class="live-dot"></span>
+                        Live
+                    </div>
+                    <div class="user-badge">
+                        <i class="bi bi-person-circle"></i>
+                        <span>@(ViewBag.User?.FullName ?? "User")</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="page-content">
+                @RenderBody()
+            </main>
+
+            <!-- Footer -->
+            <footer style="background: #1a2035; color: #9ca3af; font-size: 0.82rem; padding: 12px 28px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.08);">
+                <span>&copy; 2026 PPIC Control System. All rights reserved.</span>
+                <span>Powered by <i class="bi bi-lightning-fill text-warning"></i> Digitalization Team</span>
+            </footer>
+        </div>
+    </div>
+
+    <!-- CSRF Token Meta -->
+    <meta name="csrf-token" content="@Antiforgery.GetAndStoreTokens(Context).RequestToken" />
+
+    <!-- Scripts -->
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/datatables/js/jquery.dataTables.min.js"></script>
+    <script src="~/lib/datatables.net-bs5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="~/lib/select2/dist/js/select2.min.js"></script>
+    <script src="~/lib/sweetalert2/dist/sweetalert2.all.min.js"></script>
+    <script src="~/lib/chart.js/dist/chart.umd.js"></script>
+    <script src="~/lib/signalr/dist/browser/signalr.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script>
+        // CSRF token for AJAX
+        $.ajaxSetup({
+            headers: { 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') }
+        });
+        
+        // DataTables Global Defaults
+        $.extend(true, $.fn.dataTable.defaults, {
+            pageLength: 20
+        });
+        // Live clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveClock').textContent =
+                now.toLocaleTimeString('id-ID', { hour12: false });
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+        // Sidebar toggle
+        document.getElementById('sidebarToggleBtn')?.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+            document.getElementById('mainContent').classList.toggle('expanded');
+        });
+
+        // Theme toggle
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        const themeIcon = themeToggleBtn?.querySelector('i');
+        
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('theme', theme);
+            if(themeIcon) {
+                if(theme === 'dark') {
+                    themeIcon.classList.remove('bi-moon-stars-fill');
+                    themeIcon.classList.add('bi-sun-fill', 'text-warning');
+                    themeIcon.classList.remove('text-muted');
+                } else {
+                    themeIcon.classList.remove('bi-sun-fill', 'text-warning');
+                    themeIcon.classList.add('bi-moon-stars-fill', 'text-muted');
+                }
+            }
+        }
+        
+        // Initial icon set
+        if(document.documentElement.getAttribute('data-bs-theme') === 'dark') {
+            setTheme('dark');
+        }
+
+        themeToggleBtn?.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        });
+    </script>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,307 @@
+@model IEnumerable<DeliveryControl.Models.DeliverySchedule>
+
+@{
+    ViewData["Title"] = "Jadwal Delivery";
+}
+
+@* Hidden form for anti-forgery token *@
+<form id="hiddenTokenForm" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>
+
+@* TempData Messages *@
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+        <i class="bi bi-check-circle me-2"></i>@TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["InfoMessage"] != null)
+{
+    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+        <i class="bi bi-info-circle me-2"></i>@TempData["InfoMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-calendar-check"></i> History Shipping Delivery</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <a asp-action="DelayPickupTrend" class="btn btn-outline-warning me-2">
+            <i class="bi bi-graph-up-arrow"></i> Tren Delay Truck-In
+        </a>
+        <a asp-action="DelayChart" class="btn btn-outline-primary me-2">
+            <i class="bi bi-bar-chart"></i> History Delay Chart
+        </a>
+        @if (Context.Session.GetString("Role") == "Admin")
+        {
+            <button type="button" class="btn btn-danger me-2" id="bulkDeleteBtn" style="display:none;" onclick="confirmBulkDelete()">
+                <i class="bi bi-trash"></i> Hapus Terpilih (<span id="selectedCount">0</span>)
+            </button>
+            <a asp-action="ExportExcel" asp-route-startDate="@ViewData["StartDate"]" asp-route-endDate="@ViewData["EndDate"]" asp-route-customerId="@ViewData["CustomerId"]" asp-route-status="@ViewData["Status"]" class="btn btn-outline-success me-2">
+                <i class="bi bi-file-earmark-excel"></i> Export Excel
+            </a>
+            <a asp-action="BulkCreate" class="btn btn-success me-2">
+                <i class="bi bi-calendar-check"></i> Buat Schedule (Bulk)
+            </a>
+            <a asp-action="Create" class="btn btn-primary">
+                <i class="bi bi-plus-circle"></i> Tambah Schedule
+            </a>
+
+        }
+    </div>
+</div>
+
+<!-- Filter Form -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form asp-action="Index" method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Tanggal Mulai</label>
+                <input type="date" class="form-control" name="startDate" value="@ViewData["StartDate"]" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Tanggal Selesai</label>
+                <input type="date" class="form-control" name="endDate" value="@ViewData["EndDate"]" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Customer</label>
+                <select class="form-select" name="customerId">
+                    <option value="">-- Semua Customer --</option>
+                    @foreach (var item in (IEnumerable<SelectListItem>)ViewData["Customers"]!)
+                    {
+                        <option value="@item.Value" selected="@(item.Value == ViewData["CustomerId"]?.ToString())">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" name="status">
+                    <option value="">-- Semua --</option>
+                    @foreach (var status in (IEnumerable<string>)ViewData["Statuses"]!)
+                    {
+                        <option value="@status" selected="@(status == ViewData["Status"]?.ToString())">@status</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Schedule Table with Scroll -->
+<div class="card">
+    <div class="card-body p-0">
+        @if (Model.Any())
+        {
+            <div style="max-height: 600px; overflow-y: auto; overflow-x: auto;">
+                <table class="table table-hover table-bordered mb-0 table-sm" style="table-layout: fixed; width: 100%; min-width: 1560px;">
+                    <thead class="table-dark" style="position: sticky; top: 0; z-index: 100; background-color: #212529;">
+                        <tr style="font-size: 0.82rem;">
+                            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                            {
+                            <th class="text-center align-middle" style="width: 40px; background-color: #212529;">
+                                    <input type="checkbox" id="selectAll" class="form-check-input" title="Pilih Semua">
+                                </th>
+                            }
+
+                            <th class="text-center align-middle" style="width: 95px; background-color: #212529;">CUST / DOCK</th>
+                            <th class="text-center align-middle" style="width: 65px; background-color: #212529;">ROUTE</th>
+                            <th class="text-center align-middle" style="width: 55px; background-color: #212529;">CYCLE</th>
+                            <th class="text-center align-middle" style="width: 100px; background-color: #212529;">KBN PREP</th>
+                            <th class="text-center align-middle" style="width: 75px; background-color: #212529;">START PREP</th>
+                            <th class="text-center align-middle" style="width: 75px; background-color: #212529;">END PREP</th>
+                            <th class="text-center align-middle" style="width: 120px; background-color: #212529;">ACT PREPARE</th>
+                            <th class="text-center align-middle" style="width: 75px; background-color: #212529;">ENTER DOCK</th>
+                            <th class="text-center align-middle" style="width: 110px; background-color: #212529;">ACT ENTER DOCK</th>
+                            <th class="text-center align-middle" style="width: 85px; background-color: #212529;">EST SELESAI</th>
+                            <th class="text-center align-middle" style="width: 95px; background-color: #212529;">ACT SELESAI</th>
+                            <th class="text-center align-middle" style="width: 75px; background-color: #212529;">PICKUP</th>
+                            <th class="text-center align-middle" style="width: 110px; background-color: #212529;">ACT PICKUP</th>
+                            <th class="text-center align-middle" style="width: 60px; background-color: #212529;">ETD</th>
+                            <th class="text-center align-middle" style="width: 100px; background-color: #212529;">ACT DELIVERY</th>
+                            <th class="text-center align-middle" style="width: 65px; background-color: #212529;">RANGE</th>
+                            <th class="text-center align-middle" style="width: 70px; background-color: #212529;">ACT RANGE</th>
+                            <th class="text-center align-middle" style="width: 70px; background-color: #212529;">ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" style="font-size: 0.85rem;">
+                        @await Html.PartialAsync("_HistoryScheduleTablePartial", Model)
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-info m-3">
+                <i class="bi bi-info-circle"></i> Tidak ada data jadwal delivery untuk filter yang dipilih.
+            </div>
+        }
+
+        <div class="px-3 pb-3">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+
+    <script>
+        $(document).ready(function() {
+            // Select All functionality
+            $('#selectAll').change(function() {
+                $('.row-checkbox').prop('checked', this.checked);
+                updateBulkDeleteButton();
+            });
+
+            // Row checkbox functionality - use delegation for AJAX content
+            $(document).on('change', '.row-checkbox', function() {
+                updateBulkDeleteButton();
+                $('#selectAll').prop('checked', $('.row-checkbox:checked').length === $('.row-checkbox').length);
+            });
+
+            function updateBulkDeleteButton() {
+                var checkedCount = $('.row-checkbox:checked').length;
+                $('#selectedCount').text(checkedCount);
+                if (checkedCount > 0) {
+                    $('#bulkDeleteBtn').show();
+                } else {
+                    $('#bulkDeleteBtn').hide();
+                }
+            }
+
+            // ============================================
+            // SIGNALR REAL-TIME UPDATE
+            // ============================================
+            
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/deliveryHub")
+                .withAutomaticReconnect()
+                .build();
+
+            function updateTableData() {
+                // Get current filters from URL/Form
+                const urlParams = new URLSearchParams(window.location.search);
+                const startDate = urlParams.get('startDate') || '';
+                const endDate = urlParams.get('endDate') || '';
+                const customerId = urlParams.get('customerId') || '';
+                const status = urlParams.get('status') || '';
+
+                $.ajax({
+                    url: '@Url.Action("GetHistoryScheduleTableData", "DeliverySchedules")',
+                    type: 'GET',
+                    data: { 
+                        startDate: startDate, 
+                        endDate: endDate, 
+                        customerId: customerId, 
+                        status: status,
+                        _: new Date().getTime() 
+                    },
+                    success: function(html) {
+                        $('#historyTableBody').html(html);
+                        console.log("History table updated via SignalR");
+                        // Reset select all if it was checked
+                        $('#selectAll').prop('checked', false);
+                        updateBulkDeleteButton();
+                    },
+                    error: function(err) {
+                        console.error("Failed to update history table:", err);
+                    }
+                });
+            }
+
+            connection.on("connected", function(id) {
+                console.log("SignalR Connected for History!");
+            });
+
+            connection.on("updateStock", function() {
+                console.log("Stock update received on History page! Refreshing...");
+                updateTableData();
+            });
+
+            connection.on("deliveryUpdated", function(data) {
+                console.log("Delivery update received on History page:", data);
+                updateTableData();
+            });
+
+            async function startConnection() {
+                try {
+                    await connection.start();
+                    console.log("🚀 SignalR Started for History");
+                } catch (err) {
+                    console.error("❌ SignalR Start failed:", err);
+                    setTimeout(startConnection, 5000);
+                }
+            }
+
+            startConnection();
+        });
+
+        function confirmBulkDelete() {
+            var checkedBoxes = $('.row-checkbox:checked');
+            var checkedCount = checkedBoxes.length;
+            
+            if (checkedCount === 0) {
+                alert('Tidak ada schedule yang dipilih!');
+                return false;
+            }
+            
+            var selectedIds = checkedBoxes.map(function() {
+                return this.value;
+            }).get().join(',');
+            
+            if (confirm('Apakah Anda yakin ingin menghapus ' + checkedCount + ' schedule yang dipilih?\n\nData yang memiliki relasi (Delivery Items) akan ikut terhapus.')) {
+                // Get token from hidden form
+                var tokenElement = document.querySelector('#hiddenTokenForm input[name="__RequestVerificationToken"]');
+                if (!tokenElement) {
+                    alert('Error: Anti-forgery token tidak ditemukan!');
+                    return false;
+                }
+                
+                var token = tokenElement.value;
+                
+                // Create form for submission
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '@Url.Action("BulkDelete", "DeliverySchedules")';
+                
+                // Add token
+                var tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = '__RequestVerificationToken';
+                tokenInput.value = token;
+                form.appendChild(tokenInput);
+                
+                // Add selected IDs
+                var idsInput = document.createElement('input');
+                idsInput.type = 'hidden';
+                idsInput.name = 'selectedIds';
+                idsInput.value = selectedIds;
+                form.appendChild(idsInput);
+                
+                // Submit form
+                document.body.appendChild(form);
+                form.submit();
+            }
+            
+            return false;
+        }
+    </script>
+}
+
+<partial name="_ClearDataModal" />

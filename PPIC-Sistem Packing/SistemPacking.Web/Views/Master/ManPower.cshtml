@@ -1,0 +1,324 @@
+@model IEnumerable<SistemPacking.Web.Models.ManPower>
+@{
+    ViewData["Title"] = "Master Man Power";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Master Data</li>
+    <li class="breadcrumb-item active">Man Power</li>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="fw-bold mb-0"><i class="bi bi-person-badge me-2 text-primary"></i>Master Man Power</h4>
+    <div>
+        <a href="/Master/DownloadTemplateManPower" class="btn btn-outline-info me-2">
+            <i class="bi bi-download me-1"></i>Template
+        </a>
+        <button class="btn btn-outline-success me-2" onclick="$('#importModal').modal('show')">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import
+        </button>
+        <a href="/Master/ExportManPower" class="btn btn-outline-secondary me-2">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>Export
+        </a>
+        <button class="btn btn-danger me-2 d-none" id="btnBulkDelete" onclick="bulkDelete()">
+            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedCount">0</span>)
+        </button>
+        <button class="btn btn-primary" onclick="showModal()">
+            <i class="bi bi-plus-circle me-1"></i> Tambah Man Power
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="manPowerTable" style="width: 100%;">
+            <thead style="position: sticky; top: 0; z-index: 10; background: #fff;">
+                <tr>
+                    <th class="text-center" style="width: 40px;">
+                        <input class="form-check-input" type="checkbox" id="checkAll">
+                    </th>
+                    <th style="width: 50px;">No</th>
+                    <th>NPK</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th style="width: 150px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int no = 1; }
+                @foreach (var m in Model)
+                {
+                    <tr>
+                        <td class="text-center">
+                            <input class="form-check-input chk-item" type="checkbox" value="@m.Id">
+                        </td>
+                        <td>@(no++)</td>
+                        <td class="fw-semibold text-primary">@m.NPK</td>
+                        <td>@m.Name</td>
+                        <td>
+                            @if (m.IsActive)
+                            {
+                                <span class="badge bg-success-subtle text-success">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger-subtle text-danger">Tidak Aktif</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-xs btn-outline-primary" onclick="editManPower(@m.Id, '@m.NPK', '@m.Name', '@(m.IsActive ? "Active" : "Inactive")')">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                            <button class="btn btn-xs btn-outline-danger" onclick="deleteManPower(@m.Id, '@m.Name')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Tambah/Edit -->
+<div class="modal fade" id="manPowerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">Tambah Man Power</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manPowerForm">
+                    <input type="hidden" id="Id" value="0" />
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">NPK <span class="text-danger">*</span></label>
+                        <input type="text" id="NPK" class="form-control" placeholder="Masukkan NPK..." required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
+                        <input type="text" id="Name" class="form-control" placeholder="Masukkan Nama..." required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Status</label>
+                        <select id="Status" class="form-select">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" id="saveBtn">Simpan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Import -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Data Man Power</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Pilih File Excel (.xlsx) <span class="text-danger">*</span></label>
+                    <input class="form-control" type="file" id="importFile" accept=".xlsx" />
+                    <small class="text-muted mt-1 d-block">Gunakan format file dari tombol Template.</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-success" id="btnUploadImport" onclick="uploadImport()">
+                    <i class="bi bi-upload me-1"></i> Upload
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    $(document).ready(function () {
+        $('#manPowerTable').DataTable({
+            pageLength: 20,
+            scrollY: 'calc(100vh - 350px)',
+            scrollCollapse: true,
+            language: { url: '/js/id.json' },
+            columnDefs: [
+                { targets: 0, orderable: false, className: 'text-center' },
+                { targets: 1, width: '50px' },
+                { targets: -1, orderable: false, width: '150px' }
+            ]
+        });
+
+        // Check All logic
+        $('#checkAll').change(function () {
+            $('.chk-item').prop('checked', $(this).prop('checked'));
+            toggleBulkDeleteBtn();
+        });
+
+        $('#manPowerTable tbody').on('change', '.chk-item', function () {
+            if (!$(this).prop('checked')) {
+                $('#checkAll').prop('checked', false);
+            }
+            toggleBulkDeleteBtn();
+        });
+
+        function toggleBulkDeleteBtn() {
+            var selected = $('.chk-item:checked').length;
+            if (selected > 0) {
+                $('#selectedCount').text(selected);
+                $('#btnBulkDelete').removeClass('d-none');
+            } else {
+                $('#btnBulkDelete').addClass('d-none');
+            }
+        }
+
+        $('#saveBtn').click(function () {
+            if (!$('#NPK').val() || !$('#Name').val()) {
+                Swal.fire('Peringatan', 'NPK dan Nama wajib diisi!', 'warning');
+                return;
+            }
+
+            var data = {
+                Id: $('#Id').val(),
+                NPK: $('#NPK').val(),
+                Name: $('#Name').val(),
+                Status: $('#Status').val(),
+                __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val()
+            };
+
+            $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Menyimpan...');
+
+            $.post('/Master/SaveManPower', data, function (res) {
+                if (res.success) {
+                    Swal.fire({ icon: 'success', title: 'Berhasil', text: res.message, timer: 1500, showConfirmButton: false })
+                        .then(() => location.reload());
+                } else {
+                    Swal.fire('Error', res.message || 'Gagal menyimpan', 'error');
+                    $('#saveBtn').prop('disabled', false).text('Simpan');
+                }
+            });
+        });
+    });
+
+    const modal = new bootstrap.Modal(document.getElementById('manPowerModal'));
+
+    function showModal() {
+        $('#modalTitle').text('Tambah Man Power');
+        $('#manPowerForm')[0].reset();
+        $('#Id').val(0);
+        modal.show();
+    }
+
+    function editManPower(id, npk, name, status) {
+        $('#modalTitle').text('Edit Man Power');
+        $('#Id').val(id);
+        $('#NPK').val(npk);
+        $('#Name').val(name);
+        $('#Status').val(status);
+        modal.show();
+    }
+
+    function deleteManPower(id, label) {
+        Swal.fire({
+            title: 'Hapus Man Power?',
+            text: `Anda yakin ingin menghapus '${label}'?`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.post('/Master/DeleteManPower', { id: id, __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val() }, function (res) {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: 'Terhapus!', timer: 1500, showConfirmButton: false }).then(() => location.reload());
+                    } else {
+                        Swal.fire('Error', 'Gagal menghapus', 'error');
+                    }
+                });
+            }
+        });
+    }
+
+    function bulkDelete() {
+        var selected = [];
+        $('.chk-item:checked').each(function () {
+            selected.push(parseInt($(this).val()));
+        });
+
+        if (selected.length === 0) return;
+
+        Swal.fire({
+            title: 'Hapus ' + selected.length + ' data?',
+            text: "Data yang dihapus tidak dapat dikembalikan!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            confirmButtonText: 'Ya, Hapus!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '/Master/BulkDeleteManPower',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    headers: { 'RequestVerificationToken': $('[name="__RequestVerificationToken"]').val() },
+                    data: JSON.stringify(selected),
+                    success: function (res) {
+                        if (res.success) {
+                            Swal.fire('Terhapus!', res.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    function uploadImport() {
+        var fileInput = document.getElementById('importFile');
+        if (!fileInput.files.length) {
+            Swal.fire('Peringatan', 'Pilih file Excel terlebih dahulu!', 'warning');
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+        $('#btnUploadImport').prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Uploading...');
+
+        $.ajax({
+            url: '/Master/ImportManPower',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (res) {
+                if (res.success) {
+                    var detail = res.errors && res.errors.length > 0 ? '<br><small class="text-danger">' + res.errors[0] + '</small>' : '';
+                    Swal.fire('Berhasil', res.message + detail, 'success').then(() => location.reload());
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            },
+            error: function () {
+                Swal.fire('Error', 'Gagal mengupload file', 'error');
+            },
+            complete: function () {
+                $('#btnUploadImport').prop('disabled', false).html('<i class="bi bi-upload me-1"></i> Upload');
+            }
+        });
+    }
+</script>
+}
+@Html.AntiForgeryToken()

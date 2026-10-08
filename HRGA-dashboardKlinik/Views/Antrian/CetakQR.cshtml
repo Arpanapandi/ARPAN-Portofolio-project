@@ -1,0 +1,334 @@
+@{
+    ViewData["Title"] = "Cetak QR Code Antrian";
+    var qrTargetUrl = ViewData["QrTargetUrl"]?.ToString() ?? "http://10.14.173.70:5000/Antrian/Daftar";
+    var primaryIp = ViewData["PrimaryIp"]?.ToString() ?? "10.14.173.70";
+    var ipList = ViewData["IpList"] as List<string> ?? new List<string> { "10.14.173.70" };
+    var currentPort = ViewData["CurrentPort"] ?? 5000;
+}
+
+<div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;" class="no-print">
+    <div>
+        <a href="@Url.Action("Index")" class="btn-action btn-outline-custom">
+            <i class="bi bi-arrow-left"></i> Kembali ke Antrian
+        </a>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button type="button" class="btn-action btn-outline-custom" onclick="downloadQrImage()">
+            <i class="bi bi-download"></i> Unduh Gambar QR (PNG)
+        </button>
+        <button type="button" class="btn-action btn-primary-custom" onclick="window.print()">
+            <i class="bi bi-printer-fill"></i> Cetak Poster QR Code
+        </button>
+    </div>
+</div>
+
+<!-- IP NETWORK CONFIGURATION TOOLBAR (NO-PRINT) -->
+<div class="card-custom fade-in no-print" style="margin-bottom: 24px; padding: 20px;">
+    <div style="display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap;">
+        <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(26, 115, 232, 0.1); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">
+            <i class="bi bi-router-fill"></i>
+        </div>
+        <div style="flex: 1; min-width: 260px;">
+            <h6 style="font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--text-primary);">
+                Konfigurasi Alamat IP Server untuk Scan Ponsel
+            </h6>
+            <p style="font-size: 12.5px; color: var(--text-secondary); margin: 0 0 12px;">
+                Saat Anda mengubah URL atau memilih IP di bawah, <strong>gambar QR Code otomatis di-generate ulang dengan standar ISO/IEC 18004</strong> agar 100% terbaca di semua kamera ponsel.
+            </p>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+                <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="customUrlInput" class="form-control-custom"
+                               value="@qrTargetUrl"
+                               placeholder="http://10.14.173.70:5000/Antrian/Daftar"
+                               oninput="onUrlInputChanged()"
+                               onkeyup="onUrlInputChanged()"
+                               onchange="onUrlInputChanged()" />
+                        <button type="button" class="btn-action btn-outline-custom" onclick="copyUrl()" title="Salin URL">
+                            <i class="bi bi-clipboard" id="copyIcon"></i>
+                        </button>
+                        <a id="btnTestOpen" href="@qrTargetUrl" target="_blank" class="btn-action btn-outline-custom" title="Buka di Tab Baru">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            @if (ipList != null && ipList.Count > 1)
+            {
+                <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap;">
+                    <span>Pilihan IP Lain:</span>
+                    @foreach (var ip in ipList)
+                    {
+                        <button type="button" class="btn-action btn-outline-custom btn-sm-custom" style="padding: 3px 10px; font-size: 11.5px; cursor: pointer;"
+                                onclick="selectIp('@ip')">
+                            <i class="bi bi-hdd-network"></i> @ip
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- PRINTABLE POSTER CONTAINER -->
+<div class="printable-poster-container">
+    <div class="poster-card">
+        <!-- Clinic Header -->
+        <div class="poster-header">
+            <div class="poster-logo">
+                <img src="~/favicon.png" alt="Logo" />
+            </div>
+            <h2>KLINIK PT. VELASTO INDONESIA</h2>
+            <p>PENDAFTARAN & PENGAMBILAN NOMOR ANTRIAN MANDIRI</p>
+        </div>
+
+        <!-- QR Code Frame -->
+        <div class="poster-qr-section">
+            <div class="qr-box-wrapper" style="background: #ffffff; padding: 12px; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: inline-flex; align-items: center; justify-content: center; min-width: 280px; min-height: 280px;">
+                <img id="qrCodeImageElement" 
+                     src="@Url.Action("GenerateQrCodeImage", "Antrian")?url=@Uri.EscapeDataString(qrTargetUrl)" 
+                     alt="QR Code Antrian" 
+                     style="width: 270px; height: 270px; display: block; border-radius: 12px; object-fit: contain;" />
+            </div>
+            <div class="scan-instruction-pill" style="margin-top: 18px;">
+                <i class="bi bi-qr-code-scan"></i> SCAN QR CODE DI SINI
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="poster-instructions">
+            <h4><i class="bi bi-info-circle-fill" style="color: var(--primary);"></i> Langkah Mudah:</h4>
+            <ol>
+                <li>Pastikan ponsel terhubung ke <strong>Wi-Fi Kantor / Klinik</strong>.</li>
+                <li>Buka aplikasi <strong>Kamera ponsel</strong> atau <strong>Google Lens</strong>.</li>
+                <li>Arahkan kamera ke gambar QR Code di atas.</li>
+                <li>Ketuk notifikasi tautan pendaftaran yang muncul di layar ponsel.</li>
+                <li><strong>Pasien Lama:</strong> Masukkan 4 digit NPK & keluhan.</li>
+                <li><strong>Pasien Baru:</strong> Isi formulir pendaftaran singkat.</li>
+                <li>Dapatkan <strong>Nomor Antrian Digital</strong> langsung di ponsel Anda.</li>
+            </ol>
+        </div>
+
+        <!-- Footer -->
+        <div class="poster-footer">
+            <small>URL Pendaftaran: <span id="displayedUrl" style="font-family: monospace; font-weight: 700; color: #1a73e8;">@qrTargetUrl</span></small>
+        </div>
+    </div>
+</div>
+
+<style>
+    .printable-poster-container {
+        display: flex;
+        justify-content: center;
+        padding: 10px 0 30px;
+    }
+
+    .poster-card {
+        width: 100%;
+        max-width: 540px;
+        background: #ffffff;
+        border: 2px solid #e2e8f0;
+        border-radius: 24px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        padding: 40px 36px;
+        text-align: center;
+    }
+
+    .poster-header {
+        margin-bottom: 24px;
+    }
+
+    .poster-logo {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, var(--primary), #6366f1);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 14px;
+        box-shadow: 0 8px 20px rgba(26, 115, 232, 0.3);
+    }
+
+    .poster-logo img {
+        height: 38px;
+        width: auto;
+    }
+
+    .poster-header h2 {
+        font-size: 24px;
+        font-weight: 900;
+        color: #1e293b;
+        margin: 0 0 6px;
+        letter-spacing: -0.5px;
+    }
+
+    .poster-header p {
+        font-size: 13px;
+        font-weight: 700;
+        color: #64748b;
+        letter-spacing: 1px;
+        margin: 0;
+    }
+
+    .poster-qr-section {
+        background: #f8fafc;
+        border: 2px dashed #cbd5e1;
+        border-radius: 20px;
+        padding: 24px 20px;
+        margin-bottom: 28px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .scan-instruction-pill {
+        background: #1a73e8;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-size: 13.5px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(26, 115, 232, 0.35);
+    }
+
+    .poster-instructions {
+        text-align: left;
+        background: #f1f5f9;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .poster-instructions h4 {
+        font-size: 14px;
+        font-weight: 800;
+        color: #1e293b;
+        margin: 0 0 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .poster-instructions ol {
+        margin: 0;
+        padding-left: 20px;
+        font-size: 12.5px;
+        color: #475569;
+        line-height: 1.6;
+    }
+
+    .poster-instructions li {
+        margin-bottom: 4px;
+    }
+
+    .poster-footer {
+        border-top: 1px solid #e2e8f0;
+        padding-top: 16px;
+    }
+
+    @@media print {
+        body {
+            background: white !important;
+            padding: 0 !important;
+        }
+        .sidebar, .top-header, .no-print, .sidebar-overlay {
+            display: none !important;
+        }
+        .main-content {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .poster-card {
+            border: none !important;
+            box-shadow: none !important;
+            max-width: 100% !important;
+            padding: 20px !important;
+        }
+    }
+</style>
+
+@section Scripts {
+<script>
+    let updateTimer = null;
+
+    function getTargetUrl() {
+        const input = document.getElementById('customUrlInput');
+        if (input && input.value.trim()) {
+            return input.value.trim();
+        }
+
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            return window.location.origin + '@Url.Action("Daftar", "Antrian")';
+        }
+
+        return '@qrTargetUrl';
+    }
+
+    function refreshQrImage(url) {
+        const img = document.getElementById('qrCodeImageElement');
+        if (img) {
+            img.src = '@Url.Action("GenerateQrCodeImage", "Antrian")?url=' + encodeURIComponent(url) + '&_t=' + Date.now();
+        }
+
+        const dispEl = document.getElementById('displayedUrl');
+        if (dispEl) dispEl.textContent = url;
+
+        const btnTest = document.getElementById('btnTestOpen');
+        if (btnTest) btnTest.href = url;
+    }
+
+    function onUrlInputChanged() {
+        clearTimeout(updateTimer);
+        updateTimer = setTimeout(() => {
+            const url = getTargetUrl();
+            refreshQrImage(url);
+        }, 150);
+    }
+
+    function selectIp(ip) {
+        let currentUrl = document.getElementById('customUrlInput').value.trim();
+        let port = '@currentPort';
+        
+        const portMatch = currentUrl.match(/:(\d+)\//);
+        if (portMatch && portMatch[1]) {
+            port = portMatch[1];
+        } else if (window.location.port) {
+            port = window.location.port;
+        }
+        
+        const newUrl = `http://${ip}:${port}/Antrian/Daftar`;
+        document.getElementById('customUrlInput').value = newUrl;
+        refreshQrImage(newUrl);
+    }
+
+    function copyUrl() {
+        const url = getTargetUrl();
+        navigator.clipboard.writeText(url).then(() => {
+            const icon = document.getElementById('copyIcon');
+            icon.className = 'bi bi-check-lg';
+            setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 2000);
+        });
+    }
+
+    function downloadQrImage() {
+        const url = getTargetUrl();
+        const downloadUrl = '@Url.Action("GenerateQrCodeImage", "Antrian")?url=' + encodeURIComponent(url);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = 'QR_Antrian_Klinik.png';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        const initialUrl = getTargetUrl();
+        refreshQrImage(initialUrl);
+    });
+</script>
+}

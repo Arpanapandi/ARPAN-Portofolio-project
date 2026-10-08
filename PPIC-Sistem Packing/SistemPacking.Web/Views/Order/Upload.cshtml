@@ -1,0 +1,181 @@
+@{
+    ViewData["Title"] = "Upload Order Excel";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item"><a asp-action="Index">Order Management</a></li>
+    <li class="breadcrumb-item active">Upload Excel</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title"><i class="bi bi-upload"></i>Upload Order Excel</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Kembali
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <!-- Template Download -->
+        <div class="alert alert-info mb-4" style="border-radius:12px; border-left:4px solid var(--info);">
+            <strong><i class="bi bi-info-circle me-2"></i>Format Excel:</strong>
+            <div class="mt-2 small">
+                <code>Kolom A: OrderNo | B: CustomerCode | C: OrderDate | D: ItemBarcode | E: TargetQty | F: DeliveryNote</code>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Upload File Excel</span>
+            </div>
+            <div class="card-body">
+                <div id="uploadArea" class="upload-dropzone mb-3">
+                    <div class="text-center py-4">
+                        <i class="bi bi-cloud-upload fs-1 text-primary mb-3 d-block"></i>
+                        <p class="fw-semibold mb-1">Drag & Drop file Excel di sini</p>
+                        <p class="text-muted small mb-3">atau</p>
+                        <label for="fileInput" class="btn btn-primary">
+                            <i class="bi bi-folder-open me-2"></i>Pilih File
+                        </label>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls" class="d-none" />
+                    </div>
+                    <div id="fileInfo" class="d-none text-center py-2">
+                        <i class="bi bi-file-earmark-excel text-success fs-3 me-2"></i>
+                        <span id="fileName" class="fw-semibold"></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="clearFile">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary w-100" id="uploadBtn" disabled>
+                    <i class="bi bi-upload me-2"></i>Upload & Proses
+                </button>
+            </div>
+        </div>
+
+        <!-- Upload Result -->
+        <div class="card mt-3 d-none" id="resultCard">
+            <div class="card-header">
+                <span class="card-title"><i class="bi bi-clipboard-check me-2"></i>Hasil Upload</span>
+            </div>
+            <div class="card-body" id="resultBody"></div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+let selectedFile = null;
+
+const dropZone = document.getElementById('uploadArea');
+const fileInput = document.getElementById('fileInput');
+const uploadBtn = document.getElementById('uploadBtn');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+});
+
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+document.getElementById('clearFile').addEventListener('click', clearFile);
+
+function setFile(file) {
+    selectedFile = file;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileInfo').classList.remove('d-none');
+    uploadBtn.disabled = false;
+}
+
+function clearFile() {
+    selectedFile = null;
+    fileInput.value = '';
+    document.getElementById('fileInfo').classList.add('d-none');
+    uploadBtn.disabled = true;
+}
+
+uploadBtn.addEventListener('click', function () {
+    if (!selectedFile) return;
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+
+    fetch('/Order/Upload', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(result => {
+            showResult(result);
+        })
+        .catch(() => {
+            Swal.fire({ icon: 'error', title: 'Upload gagal!', text: 'Terjadi kesalahan jaringan.' });
+        })
+        .finally(() => {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = '<i class="bi bi-upload me-2"></i>Upload & Proses';
+        });
+});
+
+function showResult(result) {
+    const card = document.getElementById('resultCard');
+    const body = document.getElementById('resultBody');
+    card.classList.remove('d-none');
+
+    const icon = result.success ? '✅' : '❌';
+    const color = result.success ? 'success' : 'danger';
+
+    let html = `
+        <div class="alert alert-${color}" style="border-radius:10px;">
+            <strong>${icon} ${result.message}</strong>
+        </div>
+        <div class="row g-3 mb-3">
+            <div class="col-4 text-center">
+                <div class="fw-bold fs-3 text-primary">${result.totalRows}</div>
+                <div class="text-muted small">Total Baris</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="fw-bold fs-3 text-success">${result.successRows}</div>
+                <div class="text-muted small">Berhasil</div>
+            </div>
+            <div class="col-4 text-center">
+                <div class="fw-bold fs-3 text-danger">${result.failedRows}</div>
+                <div class="text-muted small">Gagal</div>
+            </div>
+        </div>`;
+
+    if (result.errors?.length > 0) {
+        html += '<div class="mt-2"><strong class="text-danger small">Error:</strong><ul class="small text-muted mt-1">';
+        result.errors.forEach(e => { html += `<li>${e}</li>`; });
+        html += '</ul></div>';
+    }
+
+    if (result.success) {
+        html += `<a href="/Order" class="btn btn-primary w-100 mt-2">
+            <i class="bi bi-arrow-right me-1"></i>Lihat Order
+        </a>`;
+    }
+
+    body.innerHTML = html;
+}
+</script>
+@Html.AntiForgeryToken()
+}
+
+<style>
+.upload-dropzone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--page-bg);
+}
+.upload-dropzone:hover, .upload-dropzone.drag-over {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+</style>

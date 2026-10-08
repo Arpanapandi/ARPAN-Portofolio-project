@@ -1,0 +1,502 @@
+﻿@model DeliveryControl.Models.KanbanDashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard Kanban";
+    var ic = System.Globalization.CultureInfo.InvariantCulture;
+    double SafePct(double part, double total) => total > 0 ? Math.Min(100, part * 100.0 / total) : 0;
+
+    var completedPct   = SafePct(Model.SudahDelivery,  Model.TotalJadwal);
+    var totalKbnActPct = SafePct(Model.TotalActKanban, Model.TotalKanban);
+    var minusPct       = SafePct(Model.KanbanMinus,    Model.TotalKanban > 0 ? Model.TotalKanban : 1);
+}
+
+<div class="container-fluid px-4 py-3">
+
+    <!-- PAGE HEADER -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                    <h3 class="fw-bold mb-0" style="color: var(--primary-blue); text-shadow: 0 0 20px rgba(59,130,246,0.4);">
+                        <i class="bi bi-kanban me-2"></i> Dashboard Kanban
+                    </h3>
+                    <small class="text-muted">
+                        Summary Detail Kanban per Manifest &nbsp;&bull;&nbsp;
+                        @Model.SelectedDate.ToString("dddd, dd MMMM yyyy", new System.Globalization.CultureInfo("id-ID"))
+                    </small>
+                </div>
+                <form method="get" action="/Home/DashboardDetailKanban" class="d-flex align-items-center gap-2">
+                    <label class="text-muted mb-0" style="font-size: 0.85rem;">
+                        <i class="bi bi-calendar3 me-1"></i>Tanggal:
+                    </label>
+                    <input type="date" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")"
+                           class="form-control form-control-sm" style="width:160px; background:var(--card-bg,#1e293b); color:inherit; border-color:rgba(255,255,255,0.15);"
+                           onchange="this.form.submit()" />
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div class="row g-4 mb-4">
+
+        <!-- Total Manifest -->
+        <div class="col-xl col-md-6 col-sm-6">
+            <div class="cyber-card stat-card stat-card-orange h-100 filter-card active"
+                 data-filter="all" onclick="filterKanban('all')" style="cursor:pointer;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-2 text-uppercase" style="font-size:0.8rem;letter-spacing:1px;">
+                                <i class="bi bi-file-earmark-text"></i> Total Manifest
+                            </p>
+                            <h2 class="fw-bold mb-0" style="font-size:2.5rem;color:#ffa500;">
+                                <span id="kbnTotalJadwal">@Model.TotalJadwal</span>
+                                <span class="stat-unit">MANIFEST</span>
+                            </h2>
+                            <small class="text-muted"><i class="bi bi-clock"></i> Terjadwal hari ini</small>
+                        </div>
+                        <div class="stat-icon stat-icon-orange"><i class="bi bi-file-earmark-text"></i></div>
+                    </div>
+                    <div class="progress mt-3" style="height:4px;background:rgba(245,158,11,0.2);">
+                        <div class="progress-bar" style="width:100%;background:var(--warning-orange);"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Kanban -->
+        <div class="col-xl col-md-6 col-sm-6">
+            <div class="cyber-card stat-card h-100 filter-card kbn-card-blue"
+                 data-filter="all" onclick="filterKanban('all')" style="cursor:pointer;background:linear-gradient(135deg,#1d4ed8 0%,#1e40af 100%);">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-white mb-2 text-uppercase" style="font-size:0.8rem;letter-spacing:1px;opacity:0.9;">
+                                <i class="bi bi-boxes"></i> Total Kanban
+                            </p>
+                            <h2 class="fw-bold mb-0 text-white" style="font-size:2.5rem;">
+                                <span id="kbnTotalKbn">@Model.TotalActKanban</span>
+                                <span class="stat-unit">/ @Model.TotalKanban KBN</span>
+                            </h2>
+                            <small class="text-white" style="opacity:0.8;">
+                                <i class="bi bi-bar-chart-line"></i> Act / Target Kanban
+                            </small>
+                        </div>
+                        <div class="stat-icon" style="background:rgba(255,255,255,0.2);color:white;">
+                            <i class="bi bi-boxes"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height:4px;background:rgba(255,255,255,0.2);">
+                        <div class="progress-bar" style="width:@totalKbnActPct.ToString("0.##", ic)%;background:white;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sudah Scan -->
+        <div class="col-xl col-md-6 col-sm-6">
+            <div class="cyber-card stat-card stat-card-green h-100 filter-card"
+                 data-filter="completed" onclick="filterKanban('completed')" style="cursor:pointer;">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-2 text-uppercase" style="font-size:0.8rem;letter-spacing:1px;">
+                                <i class="bi bi-qr-code-scan"></i> Sudah Scan
+                            </p>
+                            <h2 class="fw-bold mb-0" style="font-size:2.5rem;color:var(--success-green);">
+                                <span id="kbnSudahDelivery">@Model.TotalActKanban</span>
+                                <span class="stat-unit">KBN</span>
+                            </h2>
+                            <small class="text-muted"><i class="bi bi-check-all"></i> Act / Target @Model.TotalKanban KBN</small>
+                        </div>
+                        <div class="stat-icon stat-icon-green"><i class="bi bi-qr-code-scan"></i></div>
+                    </div>
+                    <div class="progress mt-3" style="height:4px;background:rgba(16,185,129,0.2);">
+                        <div class="progress-bar" style="width:@totalKbnActPct.ToString("0.##", ic)%;background:var(--success-green);"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Kanban Minus -->
+        <div class="col-xl col-md-6 col-sm-6">
+            @{
+                var hasMinus = Model.KanbanMinus > 0;
+                var minusStyle = hasMinus
+                    ? "cursor:pointer;background:linear-gradient(135deg,#dc3545 0%,#c82333 100%);animation:pulse-card 2s ease-in-out infinite;"
+                    : "cursor:pointer;background:linear-gradient(135deg,#28a745 0%,#218838 100%);";
+            }
+            <div class="cyber-card stat-card h-100 filter-card"
+                 data-filter="minus" onclick="filterKanban('minus')" style="@minusStyle">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-white mb-2 text-uppercase" style="font-size:0.8rem;letter-spacing:1px;opacity:0.9;">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Kanban Minus
+                            </p>
+                            <h2 class="fw-bold mb-0 text-white" style="font-size:2.5rem;">
+                                <span id="kbnMinusCount">@Model.KanbanMinus</span>
+                                <span class="stat-unit">KBN</span>
+                            </h2>
+                            <small class="text-white" style="opacity:0.8;">
+                                <i class="bi bi-qr-code-scan"></i> @(hasMinus ? "Belum scan penuh" : "Semua terpenuhi")
+                            </small>
+                        </div>
+                        <div class="stat-icon" style="background:rgba(255,255,255,0.2);color:white;">
+                            <i class="bi bi-@(hasMinus ? "exclamation-triangle-fill" : "check-circle-fill")"></i>
+                        </div>
+                    </div>
+                    <div class="progress mt-3" style="height:4px;background:rgba(255,255,255,0.3);">
+                        <div class="progress-bar" style="width:@minusPct.ToString("0.##", ic)%;background:white;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /STAT CARDS -->
+
+    <!-- MAIN TABLE -->
+    <div class="row">
+        <div class="col-12">
+            <div class="cyber-card">
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-0 fw-bold">
+                            <i class="bi bi-kanban me-2" style="color:var(--primary-blue);"></i>
+                            Summary Kanban per Manifest
+                        </h5>
+                        <small class="text-muted" id="tableSubtitle">Semua manifest — @Model.TotalJadwal grup</small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button id="resetFilterBtn" class="btn btn-outline-secondary btn-sm" onclick="filterKanban('all')" style="display:none;">
+                            <i class="bi bi-arrow-clockwise"></i> Reset Filter
+                        </button>
+                        <span class="badge" id="filterBadge" style="background:var(--primary-blue);font-size:0.85rem;">
+                            <i class="bi bi-funnel"></i> Semua
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    @if (Model.Groups.Any())
+                    {
+                        <div id="tableWrapper" style="max-height:620px;overflow-y:auto;overflow-x:auto;">
+                            <table class="table table-hover table-bordered mb-0 align-middle" id="kanbanTable">
+                                <thead class="table-dark" style="position:sticky;top:0;z-index:100;background:#212529;">
+                                    <tr style="font-size:0.88rem;">
+                                        <th class="text-center" style="width:50px;background:#212529;">NO</th>
+                                        <th style="min-width:140px;background:#212529;"><i class="bi bi-file-earmark-text me-1"></i>MANIFEST</th>
+                                        <th style="min-width:160px;background:#212529;"><i class="bi bi-building me-1"></i>DOCK</th>
+                                        <th class="text-center" style="width:80px;background:#212529;"><i class="bi bi-arrow-repeat me-1"></i>CYCLE</th>
+                                        <th style="min-width:130px;background:#212529;"><i class="bi bi-upc-scan me-1"></i>VIN</th>
+                                        <th class="text-center" style="min-width:120px;background:#212529;"><i class="bi bi-box-seam me-1"></i>TARGET KBN</th>
+                                        <th class="text-center" style="min-width:120px;background:#212529;"><i class="bi bi-check2-square me-1"></i>ACT KBN</th>
+                                        <th class="text-center" style="min-width:110px;background:#212529;"><i class="bi bi-dash-circle me-1"></i>VARIANCE</th>
+                                    </tr>
+                                </thead>
+                                @{
+                                    int groupNo = 0;
+                                }
+                                @foreach (var group in Model.Groups)
+                                {
+                                    groupNo++;
+                                    var completedAttr = group.IsCompleted ? "true" : "false";
+                                    var minusAttr     = group.HasMinus    ? "true" : "false";
+                                    var tbodyClass    = group.IsCompleted ? "kanban-group grp-completed" :
+                                                        group.HasMinus    ? "kanban-group grp-minus" : "kanban-group";
+
+                                    if (!group.Items.Any())
+                                    {
+                                        <tbody class="@tbodyClass" data-completed="@completedAttr" data-minus="@minusAttr">
+                                            <tr>
+                                                <td class="text-center text-muted">@groupNo</td>
+                                                <td class="fw-semibold">
+                                                    <span class="badge bg-secondary me-1">@group.Manifest</span>
+                                                </td>
+                                                <td>@group.Dock</td>
+                                                <td class="text-center">
+                                                    <span class="badge bg-primary">@group.Cycle</span>
+                                                </td>
+                                                <td colspan="4" class="text-center text-muted fst-italic" style="font-size:0.82rem;">
+                                                    Tidak ada item
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    }
+                                    else
+                                    {
+                                        <tbody class="@tbodyClass" data-completed="@completedAttr" data-minus="@minusAttr">
+                                            @{
+                                                bool firstRow = true;
+                                                int rowCount  = group.Items.Count;
+                                            }
+                                            @foreach (var item in group.Items)
+                                            {
+                                                var varClass  = item.Variance > 0  ? "text-danger fw-bold" : "text-success fw-bold";
+                                                var varLabel  = item.Variance > 0  ? $"−{item.Variance}"  : "✓";
+                                                var rowStyle  = item.Variance > 0
+                                                    ? "background:rgba(220,53,69,0.06);"
+                                                    : group.IsCompleted ? "background:rgba(16,185,129,0.04);" : "";
+                                                bool isFirst  = firstRow;
+                                                firstRow      = false;
+
+                                                <tr style="font-size:0.85rem;@rowStyle" data-variance="@item.Variance">
+                                                    @if (isFirst)
+                                                    {
+                                                        <td class="text-center fw-bold align-middle" rowspan="@rowCount"
+                                                            style="background:rgba(0,0,0,0.15);border-right:2px solid rgba(255,255,255,0.08);">
+                                                            @groupNo
+                                                        </td>
+                                                        <td class="align-middle fw-semibold" rowspan="@rowCount">
+                                                            @if (group.IsCompleted)
+                                                            {
+                                                                <span class="badge bg-success me-1" style="font-size:0.7rem;">✓</span>
+                                                            }
+                                                            else if (group.HasMinus)
+                                                            {
+                                                                <span class="badge bg-danger me-1" style="font-size:0.7rem;">!</span>
+                                                            }
+                                                            <span class="badge bg-secondary" style="font-size:0.78rem;letter-spacing:0.5px;">
+                                                                @(string.IsNullOrEmpty(group.Manifest) ? "—" : group.Manifest)
+                                                            </span>
+                                                            <div style="font-size:0.7rem;color:#94a3b8;margin-top:3px;">
+                                                                <i class="bi bi-kanban me-1"></i>
+                                                                Act <strong>@group.GroupActKanban</strong> / Target <strong>@group.GroupTargetKanban</strong>
+                                                            </div>
+                                                        </td>
+                                                        <td class="align-middle" rowspan="@rowCount">
+                                                            <span class="fw-semibold" style="font-size:0.85rem;">
+                                                                @(string.IsNullOrEmpty(group.Dock) ? "—" : group.Dock)
+                                                            </span>
+                                                        </td>
+                                                        <td class="text-center align-middle" rowspan="@rowCount">
+                                                            <span class="badge bg-primary" style="font-size:0.78rem;">
+                                                                @(string.IsNullOrEmpty(group.Cycle) ? "—" : group.Cycle)
+                                                            </span>
+                                                        </td>
+                                                    }
+                                                    <td>
+                                                        <div class="fw-semibold" style="font-size:0.83rem;color:var(--primary-blue);">
+                                                            @item.VIN
+                                                        </div>
+                                                        @if (!string.IsNullOrEmpty(item.ItemName))
+                                                        {
+                                                            <div style="font-size:0.72rem;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;" title="@item.ItemName">
+                                                                @item.ItemName
+                                                            </div>
+                                                        }
+                                                    </td>
+                                                    <td class="text-center">
+                                                        <span class="badge" style="background:rgba(59,130,246,0.2);color:#93c5fd;font-size:0.82rem;min-width:40px;">
+                                                            @item.TargetKanban
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @{
+                                                            var actColor = item.ActKanban >= item.TargetKanban
+                                                                ? "background:rgba(16,185,129,0.2);color:#6ee7b7;"
+                                                                : item.ActKanban > 0
+                                                                    ? "background:rgba(245,158,11,0.2);color:#fcd34d;"
+                                                                    : "background:rgba(107,114,128,0.2);color:#9ca3af;";
+                                                        }
+                                                        <span class="badge" style="@actColor font-size:0.82rem;min-width:40px;">
+                                                            @item.ActKanban
+                                                        </span>
+                                                    </td>
+                                                    <td class="text-center">
+                                                        @if (item.Variance > 0)
+                                                        {
+                                                            <span class="badge bg-danger" style="font-size:0.82rem;min-width:40px;animation:pulse-card 2s ease-in-out infinite;">
+                                                                <i class="bi bi-dash-circle-fill me-1"></i>@item.Variance
+                                                            </span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge bg-success" style="font-size:0.82rem;min-width:40px;">
+                                                                <i class="bi bi-check-circle-fill me-1"></i>OK
+                                                            </span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    }
+                                }
+                            </table>
+                            <div id="noFilterData" style="display:none;" class="text-center py-5">
+                                <i class="bi bi-funnel" style="font-size:3rem;color:var(--primary-blue);opacity:0.4;"></i>
+                                <h5 class="mt-3 text-muted">Tidak ada data untuk filter ini</h5>
+                                <button class="btn btn-outline-primary btn-sm mt-2" onclick="filterKanban('all')">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Tampilkan Semua
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Table Legend -->
+                        <div class="p-3" style="border-top:1px solid rgba(255,255,255,0.06);font-size:0.78rem;">
+                            <span class="text-muted fw-bold me-3"><i class="bi bi-info-circle me-1"></i>Keterangan:</span>
+                            <span class="badge bg-success me-2">✓ OK</span> Kanban terpenuhi &nbsp;
+                            <span class="badge bg-danger me-2"><i class="bi bi-dash-circle-fill"></i> N</span> Kanban minus (N = jumlah kurang) &nbsp;
+                            <span class="badge me-2" style="background:rgba(245,158,11,0.2);color:#fcd34d;">N</span> Act KBN parsial
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-calendar-x" style="font-size:4rem;color:var(--primary-blue);opacity:0.4;"></i>
+                            <h4 class="mt-3 mb-2">Tidak Ada Data Kanban</h4>
+                            <p class="text-muted">Tidak ada jadwal delivery pada tanggal @Model.SelectedDate.ToString("dd MMMM yyyy", new System.Globalization.CultureInfo("id-ID")).</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /container -->
+
+<style>
+    .stat-unit {
+        font-size: 1rem;
+        margin-left: 0.25rem;
+    }
+
+    .stat-card {
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover::after { opacity: 1; }
+
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(59,130,246,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        color: var(--primary-blue);
+        flex-shrink: 0;
+    }
+
+    .stat-icon-orange {
+        background: rgba(245,158,11,0.15);
+        color: var(--warning-orange);
+    }
+
+    .stat-icon-green {
+        background: rgba(16,185,129,0.15);
+        color: var(--success-green);
+    }
+
+    @@keyframes pulse-card {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220,53,69,0.7); }
+        50%       { box-shadow: 0 0 0 15px rgba(220,53,69,0); }
+    }
+
+    .kbn-card-blue {
+        transition: box-shadow 0.3s ease, transform 0.2s ease;
+    }
+    .kbn-card-blue:hover {
+        box-shadow: 0 8px 32px rgba(29,78,216,0.45) !important;
+        transform: translateY(-2px);
+    }
+
+    .filter-card {
+        border: 3px solid transparent;
+        transition: all 0.3s ease;
+    }
+
+    .filter-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+
+    .filter-card.active {
+        border-color: #ffffff;
+        box-shadow: 0 0 20px rgba(255,255,255,0.5);
+        transform: scale(1.05);
+    }
+
+    /* Group separator */
+    .kanban-group { border-bottom: 2px solid rgba(255,255,255,0.08); }
+    .kanban-group:last-child { border-bottom: none; }
+
+    /* Hover highlight rows within a group */
+    .kanban-group:hover tr { background-color: rgba(59,130,246,0.04); }
+
+    /* Table scrollbar */
+    #tableWrapper::-webkit-scrollbar { width: 6px; height: 6px; }
+    #tableWrapper::-webkit-scrollbar-track { background: transparent; }
+    #tableWrapper::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 4px; }
+    #tableWrapper::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.5); }
+</style>
+
+<script>
+    function filterKanban(filter) {
+        // Update active card
+        document.querySelectorAll('.filter-card').forEach(c => c.classList.remove('active'));
+        const activeCard = document.querySelector(`.filter-card[data-filter="${filter}"]`);
+        if (activeCard) activeCard.classList.add('active');
+
+        const groups = document.querySelectorAll('.kanban-group');
+        let visibleCount = 0;
+
+        groups.forEach(g => {
+            let show = true;
+            if (filter === 'completed') {
+                show = g.dataset.completed === 'true';
+            } else if (filter === 'minus') {
+                // Hanya grup yang belum Completed DAN masih ada kanban minus
+                show = g.dataset.minus === 'true' && g.dataset.completed !== 'true';
+            }
+            g.style.display = show ? '' : 'none';
+            if (show) visibleCount++;
+
+            // Filter per baris: minus => sembunyikan baris OK (variance <= 0)
+            g.querySelectorAll('tr[data-variance]').forEach(row => {
+                if (filter === 'minus' && show) {
+                    const v = parseInt(row.dataset.variance ?? '0', 10);
+                    row.style.display = v > 0 ? '' : 'none';
+                } else {
+                    row.style.display = '';
+                }
+            });
+        });
+
+        // Reset button visibility
+        document.getElementById('resetFilterBtn').style.display = filter !== 'all' ? 'inline-block' : 'none';
+
+        // No-data message
+        const noData = document.getElementById('noFilterData');
+        if (noData) noData.style.display = visibleCount === 0 ? 'block' : 'none';
+
+        // Update subtitle & badge
+        const subtitle = document.getElementById('tableSubtitle');
+        const badge    = document.getElementById('filterBadge');
+        if (filter === 'all') {
+            subtitle.textContent = 'Semua manifest — ' + @Model.TotalJadwal + ' grup';
+            badge.innerHTML = '<i class="bi bi-funnel"></i> Semua';
+        } else if (filter === 'completed') {
+            subtitle.textContent = 'Sudah Scan — ' + visibleCount + ' manifest terpenuhi';
+            badge.innerHTML = '<i class="bi bi-qr-code-scan"></i> Sudah Scan';
+        } else if (filter === 'minus') {
+            subtitle.textContent = 'Manifest dengan Kanban Minus — ' + visibleCount + ' grup';
+            badge.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> Kanban Minus';
+        }
+    }
+</script>

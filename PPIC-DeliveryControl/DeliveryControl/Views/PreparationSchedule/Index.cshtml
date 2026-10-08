@@ -1,0 +1,3346 @@
+@model IEnumerable<DeliveryControl.Models.DeliverySchedule>
+
+@{
+    ViewData["Title"] = "Jadwal Preparation";
+}
+
+<div class="container-fluid pt-4">
+
+    @* TempData Messages *@
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["InfoMessage"] != null)
+    {
+        <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-info-circle me-2"></i>@TempData["InfoMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["WarningMessage"] != null)
+    {
+        <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-exclamation-circle me-2"></i>@TempData["WarningMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+    @if (TempData["InactiveItemWarning"] != null)
+    {
+        <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-slash-circle me-2"></i><strong>Item Nonaktif:</strong> @TempData["InactiveItemWarning"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <!-- Modal Daftar Pending Preparation -->
+    <div class="modal fade" id="pendingPrepModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="background:#0d1b35;border:1px solid #f59e0b;border-radius:12px;color:#fff;">
+                <div class="modal-header" style="border-bottom:1px solid rgba(245,158,11,0.3);background:rgba(245,158,11,0.1);">
+                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                        <i class="bi bi-clock-history text-warning"></i>
+                        <span>Daftar Preparation <span class="text-warning">PENDING</span></span>
+                        <span class="badge bg-warning text-dark ms-1" id="pendingModalCount">@ViewBag.PendingPrepCount</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="px-3 py-2" style="background:rgba(245,158,11,0.06);border-bottom:1px solid rgba(245,158,11,0.15);font-size:0.8rem;color:#fcd34d;">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Data ini belum terikat ke jadwal manapun. Gunakan <strong>Sync Sekarang</strong> untuk menghubungkan ke jadwal yang sesuai.
+                    </div>
+                    <!-- SEARCH BAR PENDING -->
+                    <div class="p-2 bg-dark border-bottom border-warning border-opacity-25 opacity-75">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                            <input type="text" id="searchPendingInput" class="form-control bg-dark text-white border-secondary" placeholder="Cari TAG / VIN / Label / Kanban..." oninput="handlePendingSearchInput()">
+                        </div>
+                    </div>
+                    <!-- FILTER TANGGAL PENDING -->
+                    <div class="px-3 py-2 border-bottom border-warning border-opacity-25 d-flex flex-wrap gap-2 align-items-center"
+                         style="background:rgba(250,204,21,0.04);">
+                        <i class="bi bi-funnel-fill text-warning" style="font-size:0.82rem;"></i>
+                        <span class="text-warning-emphasis" style="font-size:0.76rem;font-weight:600;">FILTER TANGGAL:</span>
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="text-white-50" style="font-size:0.74rem;white-space:nowrap;">Dari</label>
+                            <input type="date" id="schedPendingDateFrom"
+                                   class="form-control form-control-sm border-secondary text-white"
+                                   style="background:#0a1628;max-width:140px;font-size:0.78rem;"
+                                   title="Filter dari tanggal">
+                        </div>
+                        <div class="d-flex align-items-center gap-1">
+                            <label class="text-white-50" style="font-size:0.74rem;white-space:nowrap;">Sampai</label>
+                            <input type="date" id="schedPendingDateTo"
+                                   class="form-control form-control-sm border-secondary text-white"
+                                   style="background:#0a1628;max-width:140px;font-size:0.78rem;"
+                                   title="Filter sampai tanggal">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-warning text-dark fw-bold py-0 px-2"
+                                style="font-size:0.76rem;"
+                                onclick="fetchPendingPage(1)">
+                            <i class="bi bi-search me-1"></i>Filter
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                style="font-size:0.76rem;"
+                                onclick="document.getElementById('schedPendingDateFrom').value=''; document.getElementById('schedPendingDateTo').value=''; fetchPendingPage(1);">
+                            <i class="bi bi-x-circle me-1"></i>Reset
+                        </button>
+                    </div>
+                    <div style="max-height:420px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0" style="color:#cbd5e1;">
+                            <thead style="position:sticky;top:0;z-index:10;">
+                                <tr style="background:#1a2a4a;border-bottom:2px solid #f59e0b;">
+                                    <th class="px-3 py-2 text-center" style="width:40px;"><input type="checkbox" id="checkAllPendingSched" class="form-check-input"></th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">#</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Waktu Scan</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Dock</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Cycle</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">VIN / TAG</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Label</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Kanban</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Delivery Date</th>
+                                    <th class="px-3 py-2" style="font-size:0.75rem;color:#94a3b8;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Operator</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pendingPrepBody">
+                                <tr><td colspan="10" class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>Memuat data...
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Pagination -->
+                    <div id="pendingPagination" class="d-flex justify-content-between align-items-center px-3 py-2" style="border-top:1px solid rgba(245,158,11,0.2);display:none!important;">
+                        <span id="pendingPageInfo" style="font-size:0.78rem;color:#94a3b8;"></span>
+                        <div class="d-flex gap-1" id="pendingPageBtns"></div>
+                    </div>
+                </div>
+                <div class="modal-footer px-3" style="border-top:1px solid rgba(245,158,11,0.3);">
+                    <div class="d-flex w-100 align-items-center gap-3">
+                        <div class="flex-grow-1">
+                            <input type="text" id="schedPendingManifestInput" class="form-control border-warning text-warning fw-bold w-100" placeholder="Ketik/Scan No Manifest..." style="background: rgba(250, 204, 21, 0.1);">
+                        </div>
+                        <div class="d-flex gap-2 align-items-center flex-shrink-0">
+                            <button type="button" id="btnSyncModalFooter" class="btn btn-warning fw-bold text-dark" onclick="doSyncSelectedPending(this)">
+                                <i class="bi bi-arrow-repeat me-1"></i>Sync Sekarang
+                            </button>
+                            <div class="dropdown">
+                                <button type="button" class="btn btn-danger fw-bold dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-trash3 me-1"></i>Hapus
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end" style="background:#1a2a4a;border:1px solid rgba(220,38,38,0.4);">
+                                    <li>
+                                        <button class="dropdown-item text-info d-flex align-items-center gap-2"
+                                                style="font-size:0.85rem;"
+                                                onclick="openDeletePendingModal('selected')">
+                                            <i class="bi bi-check2-square"></i>
+                                            Hapus Item Terpilih
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider" style="border-color:rgba(220,38,38,0.3);"></li>
+                                    <li>
+                                        <button class="dropdown-item text-warning d-flex align-items-center gap-2"
+                                                style="font-size:0.85rem;"
+                                                onclick="openDeletePendingModal('today')">
+                                            <i class="bi bi-calendar-x"></i>
+                                            Hapus Scan Hari Ini
+                                        </button>
+                                    </li>
+                                    <li><hr class="dropdown-divider" style="border-color:rgba(220,38,38,0.3);"></li>
+                                    <li>
+                                        <button class="dropdown-item text-danger d-flex align-items-center gap-2"
+                                                style="font-size:0.85rem;"
+                                                onclick="openDeletePendingModal('all')">
+                                            <i class="bi bi-trash3-fill"></i>
+                                            Hapus Semua Pending
+                                        </button>
+                                    </li>
+                                </ul>
+                            </div>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Modal Konfirmasi Hapus Pending (ketik HAPUS) *@
+    <div class="modal fade" id="deletePendingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+            <div class="modal-content" style="background:#0d1b35;border:1px solid rgba(220,38,38,0.5);border-radius:12px;color:#fff;">
+                <div class="modal-header" style="border-bottom:1px solid rgba(220,38,38,0.3);background:rgba(220,38,38,0.08);">
+                    <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                        <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                        <span id="deletePendingTitle">Hapus Data Pending</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="deletePendingDesc" class="mb-3" style="color:#fca5a5;font-size:0.88rem;line-height:1.5;"></p>
+                    <div class="alert mb-3 p-2" style="background:rgba(220,38,38,0.12);border:1px solid rgba(220,38,38,0.35);border-radius:8px;font-size:0.82rem;color:#fca5a5;">
+                        <i class="bi bi-shield-exclamation me-1"></i>
+                        Tindakan ini <strong>tidak dapat dibatalkan</strong>. Data yang dihapus tidak dapat dikembalikan.
+                    </div>
+                    <label class="form-label fw-semibold mb-1" style="font-size:0.82rem;color:#94a3b8;">
+                        Ketik <strong style="color:#f87171;">HAPUS</strong> untuk konfirmasi:
+                    </label>
+                    <input type="text" id="deletePendingConfirmInput"
+                           class="form-control bg-dark text-white border-danger"
+                           placeholder="Ketik HAPUS di sini..."
+                           autocomplete="off"
+                           oninput="checkDeletePendingInput()" />
+                </div>
+                <div class="modal-footer" style="border-top:1px solid rgba(220,38,38,0.25);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" id="btnConfirmDeletePending"
+                            class="btn btn-danger fw-bold" disabled
+                            onclick="doDeletePending()">
+                        <i class="bi bi-trash3-fill me-1"></i>Hapus Sekarang
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 align-items-center mb-4">
+        <div class="col-12 col-xl-4">
+             <h4 class="mb-1 text-white fw-bold d-flex align-items-center"><i class="bi bi-calendar-check me-2"></i> Jadwal
+                <span class="d-xl-none ms-2 badge bg-primary">Mobile View</span>
+                <span id="connectionStatus" class="badge bg-secondary ms-2" style="font-size: 0.6rem; vertical-align: middle;" title="Koneksi Realtime">
+                   <i class="bi bi-broadcast"></i> Connecting...
+                </span>
+             </h4>
+             @if (ViewBag.IsSuperAdmin == true)
+             {
+                 <div class="d-flex align-items-center gap-2 mt-1">
+                     <span class="badge bg-purple text-white" style="background:#7c3aed!important;font-size:0.7rem;letter-spacing:0.5px;">
+                         <i class="bi bi-shield-fill-check me-1"></i>SUPER ADMIN
+                     </span>
+                     @if (ViewBag.FilterCustomerId == 0)
+                     {
+                         <span class="text-info small" style="font-size:0.75rem;">
+                             <i class="bi bi-eye-fill me-1"></i>Melihat <strong>semua dock</strong>
+                             @if (ViewBag.ActiveDockCount > 0)
+                             {
+                                 <span class="badge bg-info text-dark ms-1">@ViewBag.ActiveDockCount dock aktif</span>
+                             }
+                         </span>
+                     }
+                     else
+                     {
+                         <span class="text-warning small" style="font-size:0.75rem;">
+                             <i class="bi bi-funnel-fill me-1"></i>Filter: 1 dock
+                             <a href="@Url.Action("Index", new { filterDate = ViewBag.FilterDate })" class="text-info ms-1" style="font-size:0.7rem;">
+                                 (lihat semua)
+                             </a>
+                         </span>
+                     }
+                 </div>
+             }
+        </div>
+        <div class="col-12 col-xl-8">
+            <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-xl-end align-items-center">
+                <!-- Pending Alert Compact (full width, di atas search bar) -->
+                @if (ViewBag.PendingPrepCount > 0)
+                {
+                    <div id="pendingPrepAlert" style="
+                        width:100%;
+                        background:rgba(245,158,11,0.1);
+                        border:1px solid rgba(245,158,11,0.45);
+                        border-radius:8px;
+                        padding:7px 14px;
+                        display:flex;
+                        align-items:center;
+                        gap:8px;
+                        font-size:0.85rem;
+                        color:#fcd34d;
+                        box-sizing:border-box;
+                    ">
+                        <i class="bi bi-clock-history" style="font-size:1rem;flex-shrink:0;"></i>
+                        <span style="flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <strong style="color:#f59e0b;">@ViewBag.PendingPrepCount</strong>
+                            preparation <strong>PENDING</strong> &mdash; belum terikat jadwal.
+                        </span>
+                        <button type="button" onclick="openPendingModal()"
+                            style="background:none;border:none;padding:0 4px;color:#f59e0b;font-weight:700;font-size:0.82rem;cursor:pointer;text-decoration:underline;white-space:nowrap;flex-shrink:0;">
+                            <i class="bi bi-table me-1"></i>Lihat daftar
+                        </button>
+                        <span style="flex:1;min-width:0;"></span>
+                        <button type="button" id="btnSyncAlert" class="btn btn-warning btn-sm fw-bold py-1 px-3" style="font-size:0.82rem;flex-shrink:0;" onclick="doSyncPending(this)">
+                            <i class="bi bi-arrow-repeat me-1"></i>Sync
+                        </button>
+                    </div>
+                }
+
+                <!-- Search Bar & Date Filter -->
+                <form method="get" id="filterForm" class="d-flex align-items-center gap-2 me-md-2 flex-grow-1 flex-md-grow-0" style="min-width: 500px;">
+                    <div class="input-group input-group-sm flex-grow-1" style="position:relative;">
+                        <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-search"></i></span>
+                        <input type="text" id="searchInput" name="q" class="form-control form-control-sm bg-dark text-white border-secondary"
+                               value="@ViewBag.SearchKeyword"
+                               placeholder="Cari Manifest / VIN / Part No / Customer / Dock..." autocomplete="off" />
+                        <button type="button" id="searchClearBtn" class="btn btn-sm btn-outline-secondary border-0 d-none" style="padding:0 8px;" title="Hapus pencarian">
+                            <i class="bi bi-x-lg" style="font-size:0.7rem;"></i>
+                        </button>
+                    </div>
+                    <div class="input-group input-group-sm" style="width: 160px;">
+                        <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-calendar3"></i></span>
+                        <input type="date" name="filterDate" class="form-control form-control-sm bg-dark text-white border-secondary" 
+                               value="@ViewBag.FilterDate" onchange="this.form.submit()" />
+                    </div>
+                    @if (ViewBag.IsSuperAdmin == true)
+                    {
+                        <div class="input-group input-group-sm" style="min-width:180px;max-width:260px;">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" title="Filter Dock (Super Admin)">
+                                <i class="bi bi-building"></i>
+                            </span>
+                            <select name="filterCustomerId" class="form-select form-select-sm bg-dark text-white border-secondary"
+                                    onchange="this.form.submit()" style="min-width:130px;">
+                                @if (ViewBag.FilterCustomerId == 0)
+                                {
+                                    <option value="0" selected="selected">Semua Dock (@(ViewBag.ActiveDockCount) aktif)</option>
+                                }
+                                else
+                                {
+                                    <option value="0">Semua Dock (@(ViewBag.ActiveDockCount) aktif)</option>
+                                }
+                                @if (ViewBag.DockFilterList != null)
+                                {
+                                    int fcid = (int)(ViewBag.FilterCustomerId ?? 0);
+                                    foreach (Microsoft.AspNetCore.Mvc.Rendering.SelectListItem item in ViewBag.DockFilterList)
+                                    {
+                                        if (item.Value == fcid.ToString())
+                                        {
+                                            <option value="@item.Value" selected="selected">@item.Text</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@item.Value">@item.Text</option>
+                                        }
+                                    }
+                                }
+                            </select>
+                        </div>
+                    }
+                </form>
+
+                <!-- Actions -->
+                <div class="d-flex flex-wrap gap-2 flex-grow-1 flex-xl-grow-0">
+                    @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                    {
+                        <a asp-action="DownloadTemplate" class="btn btn-sm btn-secondary d-flex align-items-center flex-fill flex-xl-grow-0 justify-content-center">
+                            <i class="bi bi-download me-2"></i> <span>Template</span>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-warning text-dark d-flex align-items-center flex-fill flex-xl-grow-0 justify-content-center" data-bs-toggle="modal" data-bs-target="#smartImportModal">
+                            <i class="bi bi-magic me-2"></i> <span>Smart Import</span>
+                        </button>
+                        <a asp-action="BulkCreate" class="btn btn-sm btn-info text-dark d-flex align-items-center flex-fill flex-xl-grow-0 justify-content-center">
+                            <i class="bi bi-calendar-plus me-2"></i> <span>Bulk</span>
+                        </a>
+                        <a asp-action="Create" class="btn btn-sm btn-primary d-flex align-items-center flex-fill flex-xl-grow-0 justify-content-center">
+                            <i class="bi bi-plus-lg me-2"></i> <span>New</span>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-info d-flex align-items-center flex-fill flex-xl-grow-0 justify-content-center"
+                                onclick="remapItems()" title="Re-apply master item mapping ke jadwal hari ini (perbaiki QPC/kanban)">
+                            <i class="bi bi-arrow-repeat me-2"></i> <span>Sinkron Mapping</span>
+                        </button>
+
+                        <button type="button" class="btn btn-sm btn-outline-danger d-flex align-items-center flex-fill flex-xl-grow-0 justify-content-center"
+                                data-bs-toggle="modal" data-bs-target="#repairSplitModal"
+                                title="Pisahkan item C3/C2 yang salah masuk ke jadwal C1">
+                            <i class="bi bi-scissors me-2"></i> <span>Pisah Jadwal</span>
+                        </button>
+
+                        <div class="dropdown flex-fill flex-xl-grow-0">
+                            <button type="button" class="btn btn-sm btn-success d-flex align-items-center w-100 justify-content-center dropdown-toggle"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-file-earmark-excel me-2"></i> <span>Export Excel</span>
+                            </button>
+                            <ul class="dropdown-menu" style="background:#0d1b35;border:1px solid rgba(16,185,129,0.4);min-width:200px;">
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center gap-2"
+                                       href="@Url.Action("ExportExcel", "PreparationSchedule", new { filterDate = ViewBag.FilterDate })"
+                                       style="color:#6ee7b7;font-size:0.85rem;">
+                                        <i class="bi bi-table"></i>
+                                        <span>Semua (Hari Ini)</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <button class="dropdown-item d-flex align-items-center gap-2"
+                                            onclick="bulkExportSelected()"
+                                            style="color:#fcd34d;font-size:0.85rem;">
+                                        <i class="bi bi-check2-square"></i>
+                                        <span>Data Terpilih</span>
+                                        <span class="badge bg-warning text-dark ms-auto" id="exportSelectedCount" style="display:none;font-size:0.7rem;"></span>
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <!-- FILTER STATUS BAR &mdash; Filter item belum selesai         -->
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div class="d-flex align-items-center gap-2 px-1 mb-1 flex-wrap" style="font-size:0.82rem;">
+        <span class="text-secondary"><i class="bi bi-funnel me-1"></i>Filter Status:</span>
+        <button type="button" data-status-filter="waiting"
+                onclick="applyStatusFilter('waiting')"
+                class="btn btn-sm btn-outline-secondary"
+                style="font-size:0.78rem;padding:2px 10px;border-radius:20px;"
+                title="Tampilkan hanya item yang belum mulai scan">
+            <i class="bi bi-hourglass me-1"></i>Waiting
+        </button>
+        <button type="button" data-status-filter="preparing"
+                onclick="applyStatusFilter('preparing')"
+                class="btn btn-sm btn-outline-warning"
+                style="font-size:0.78rem;padding:2px 10px;border-radius:20px;"
+                title="Tampilkan item yang belum completed (Waiting + Preparing)">
+            <i class="bi bi-box-seam me-1"></i>Belum Completed
+        </button>
+        <span id="statusFilterCount" class="badge bg-warning text-dark" style="display:none;font-size:0.75rem;"></span>
+        <button type="button" onclick="applyStatusFilter(null)"
+                class="btn btn-sm btn-link text-secondary p-0 ms-1 d-none" id="statusFilterReset"
+                style="font-size:0.78rem;" title="Reset filter">
+            <i class="bi bi-x-circle me-1"></i>Reset
+        </button>
+    </div>
+
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <!-- SEARCH RESULTS PANEL &mdash; disembunyikan, hasil kini tampil di tabel utama -->
+    <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
+    <div id="searchResultPanel" class="d-none" style="display:none!important;"></div>
+
+    <!-- Bulk Delete Floating Toolbar -->
+    @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+    {
+        <div id="bulkDeleteBar" class="mb-3 d-none" style="
+            background: linear-gradient(135deg, #1e1030 0%, #2d1b3e 100%);
+            border: 1px solid rgba(168,85,247,0.4);
+            border-radius: 10px;
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 20px rgba(168,85,247,0.15);
+            animation: fadeInDown 0.3s ease;
+        ">
+            <i class="bi bi-check2-square text-purple" style="font-size:1.2rem;color:#a855f7;"></i>
+            <span style="color:#e0d0f0;font-size:0.88rem;">
+                <strong id="bulkSelectedCount" style="color:#c084fc;">0</strong> item dipilih
+            </span>
+            <span style="flex:1;"></span>
+            <button type="button" onclick="bulkDeselectAll()" class="btn btn-sm btn-outline-secondary" style="font-size:0.78rem;border-radius:6px;">
+                <i class="bi bi-x-lg me-1"></i>Batal Pilih
+            </button>
+            <button type="button" onclick="bulkDeleteSelected()" class="btn btn-sm btn-danger fw-bold" style="font-size:0.82rem;border-radius:6px;padding:5px 16px;">
+                <i class="bi bi-trash3-fill me-1"></i>Hapus Terpilih
+            </button>
+        </div>
+    }
+
+
+    <!-- Desktop Table View (Visible on XL Screens, OR ALWAYS if No Data) -->
+    <div id="desktopTableContainer" class="@(Model.Any() ? "cyber-card d-none d-xl-block" : "cyber-card")">
+
+        <!-- Search Info Bar &mdash; muncul saat search aktif -->
+        <div id="searchInfoBar" class="d-none px-3 pt-3 pb-2 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid rgba(56,189,248,0.25);">
+            <i class="bi bi-search text-info"></i>
+            <span class="fw-bold text-info" style="font-size:0.9rem;">Hasil Pencarian</span>
+            <span id="searchInfoCount" class="badge bg-info text-dark">0</span>
+            <span id="searchInfoKeyword" class="text-secondary" style="font-size:0.82rem;"></span>
+            <span id="searchInfoLoading" class="d-none ms-1">
+                <span class="spinner-border spinner-border-sm text-info" style="width:0.8rem;height:0.8rem;"></span>
+                <span class="text-secondary small ms-1">Mencari...</span>
+            </span>
+            <span style="flex:1;"></span>
+            <button type="button" id="searchInfoClose" class="btn btn-sm btn-outline-secondary border-0 py-0 px-2" title="Tutup pencarian">
+                <i class="bi bi-x-lg" style="font-size:0.75rem;"></i> Tutup
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0 align-middle">
+                <thead>
+                    <tr class="text-uppercase text-secondary small">
+                        @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                        {
+                            <th class="text-center" style="width:36px;">
+                                <input type="checkbox" class="form-check-input" id="bulkSelectAll" title="Pilih Semua" style="cursor:pointer;" />
+                            </th>
+                        }
+                        <th class="text-center" style="width:40px;">NO</th>
+                        <th class="text-center">JADWAL</th>
+                        <th>MANIFESTING</th>
+                        <th>DOCK</th>
+                        <th>NAMA CUSTOMER</th>
+                        <th>ROUTE</th>
+                        <th>CYCLE</th>
+                        <th>PART NO / VIN</th>
+                        <th class="text-center">QTY/LOT</th>
+                        <th class="text-center">QTY (PCS)</th>
+                        <th class="text-center">KBN PREP</th>
+                        <th class="text-center">STATUS</th>
+                        <th class="text-center">ACTION</th>
+                    </tr>
+                </thead>
+                <tbody id="mainTableBody">
+                    @{
+                        int rowNo = ((ViewBag.CurrentPage ?? 1) - 1) * 20 + 1;
+                        var tomorrowDate = DateTime.Parse(ViewBag.FilterDate.ToString()).AddDays(1);
+                    }
+                    @foreach (var schedule in Model)
+                    {
+                        var items = schedule.DeliveryItems != null && schedule.DeliveryItems.Any() 
+                            ? schedule.DeliveryItems.Cast<DeliveryControl.Models.DeliveryItem?>().ToList() 
+                            : new List<DeliveryControl.Models.DeliveryItem?> { null };
+
+                        foreach (var item in items)
+                        {
+                            string rowStatus = "waiting";
+                            if (item == null) { rowStatus = "ghost"; }
+                            else if ((item.ActualQuantity ?? 0) >= item.Quantity) { rowStatus = "completed"; }
+                            else if ((item.ActualQuantity ?? 0) > 0) { rowStatus = "preparing"; }
+                            <tr data-item-status="@rowStatus">
+                                @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                                {
+                                    <td class="text-center">
+                                        @if (item != null)
+                                        {
+                                            <input type="checkbox" class="form-check-input bulk-check" data-id="@item.DeliveryItemId" data-schedule-id="@schedule.ScheduleId" style="cursor:pointer;" />
+                                        }
+                                        else
+                                        {
+                                            @* Ghost schedule row: pakai data-ghost-schedule-id agar bulk delete bisa hapus schedule-nya *@
+                                            <input type="checkbox" class="form-check-input bulk-check" data-id="0" data-ghost-schedule-id="@schedule.ScheduleId" data-schedule-id="@schedule.ScheduleId" style="cursor:pointer;" />
+                                        }
+                                    </td>
+                                }
+                                <td class="text-center text-muted" style="font-size:0.75rem;font-weight:600;">@(rowNo++)</td>
+                                <td class="text-center">
+                                    <div class="small fw-bold" style="font-size: 0.75rem;">
+                                        @schedule.ScheduledDate.ToString("dd/MM/yyyy")
+                                        @if (schedule.ScheduledDate.Date == tomorrowDate) {
+                                            <span class="badge bg-warning text-dark ms-1" style="font-size:0.55rem;">H-1</span>
+                                        }
+                                        <div class="text-muted" style="font-size: 0.65rem; letter-spacing:0.5px;">Upload: @schedule.CreatedDate.ToString("dd/MM HH:mm")</div>
+                                    </div>
+                                </td>
+                                <td class="fw-bold text-info">
+                                    <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">MANIFEST</div>
+                                    @schedule.ScheduleNumber
+                                </td>
+                                <td>
+                                    <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">DOCK</div>
+                                    <span class="badge bg-secondary">
+                                        @(schedule.Customer?.CustomerName ?? "-")
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">CUSTOMER</div>
+                                    <span class="fw-bold">@(schedule.Customer?.CustomerCode ?? "-")</span>
+                                </td>
+                                <td>
+                                    <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">ROUTE</div>
+                                    @(schedule.Route ?? "-")
+                                </td>
+                                <td>
+                                    <div class="small text-muted mb-1" style="font-size: 0.65rem; letter-spacing: 1px;">CYCLE</div>
+                                    @(schedule.Cycle ?? "-")
+                                </td>
+                                
+                                @if (item != null)
+                                {
+                                    <td style="background: rgba(13, 110, 253, 0.05); border-left: 2px solid #0d6efd;">
+                                        <div class="d-flex flex-column">
+                                            @{
+                                                // Prioritas tampilan Part No:
+                                                // 1. ExternalPartNo (Part No asli dari manifest, tidak hilang meski di-remap)
+                                                // 2. CustomerPartNumber dari master item
+                                                // 3. VIN dari master item
+                                                var displayPartNo = !string.IsNullOrWhiteSpace(item.ExternalPartNo)
+                                                    ? item.ExternalPartNo
+                                                    : (!string.IsNullOrWhiteSpace(item.Item?.CustomerPartNumber)
+                                                        ? item.Item.CustomerPartNumber
+                                                        : item.Item?.VIN ?? "-");
+                                                var displayVin = item.Item?.VIN;
+                                                bool showVin = !string.IsNullOrWhiteSpace(displayVin) && displayVin != displayPartNo;
+                                            }
+                                            <div class="d-flex align-items-center flex-wrap">
+                                                <span class="text-white fw-bold fs-6">@displayPartNo</span>
+                                                @if (showVin)
+                                                {
+                                                    <span class="text-success fw-bold ms-1" style="font-size: 0.8rem;">/ @displayVin</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="small text-muted mb-1" style="font-size: 0.65rem;">QPC</div>
+                                        <span class="badge bg-dark border">@item.Item?.QtyLot</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary">
+                                            @item.Quantity.ToString("N0") Pcs
+                                        </span>
+                                    </td>
+                                    <td class="text-center fw-bold">
+                                        <span class="badge bg-info text-dark" style="font-size: 1.1rem; padding: 0.5rem 0.8rem;">
+                                            <div class="fw-bold">@item.CalculatedKanbanActual / @item.CalculatedKanbanTarget</div>
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @{
+                                            string statusBadgeClass = "bg-secondary";
+                                            string statusText = "Waiting";
+
+                                            if (item.ActualQuantity >= item.Quantity)
+                                            {
+                                                statusBadgeClass = "bg-success";
+                                                statusText = "Completed";
+                                            }
+                                            else if (item.ActualQuantity > 0)
+                                            {
+                                                statusBadgeClass = "bg-warning text-dark";
+                                                statusText = "Preparing";
+                                            }
+                                        }
+                                        <span class="badge @statusBadgeClass">@statusText</span>
+                                    </td>
+                                }
+                                else 
+                                {
+                                    <td colspan="5" class="text-center text-muted fst-italic py-3">
+                                        <i class="bi bi-exclamation-circle me-1"></i> No Items found (Ghost Schedule)
+                                    </td>
+                                }
+
+                                <td class="text-center">
+                                    <div class="d-flex justify-content-center gap-1">
+                                        @if (item != null)
+                                        {
+                                            <a asp-controller="PreparationWorkflow" asp-action="Index" class="btn btn-sm btn-primary" title="Process Scan">
+                                                <i class="bi bi-box-seam"></i> 
+                                            </a>
+                                            
+                                            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                                            {
+                                                <form asp-action="DeleteDeliveryItem" asp-route-id="@item.DeliveryItemId" asp-route-pageNumber="@ViewBag.CurrentPage" asp-route-filterDate="@ViewBag.FilterDate" method="post" onsubmit="return confirm('Hapus item ini (Part No: @(item.Item?.VIN ?? item.Item?.CustomerPartNumber ?? item.DeliveryItemId.ToString()))? Schedule lain tidak terpengaruh.');" style="display:inline;">
+                                                    <button type="submit" class="btn btn-sm btn-danger" title="Hapus Item Ini">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </form>
+                                            }
+                                        }
+                                        else if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                                        {
+                                            @* Ghost schedule: tampilkan tombol hapus schedule agar bisa dibersihkan *@
+                                            <form asp-action="Delete" asp-route-id="@schedule.ScheduleId" asp-route-pageNumber="@ViewBag.CurrentPage" asp-route-filterDate="@ViewBag.FilterDate" method="post" onsubmit="return confirm('Hapus Ghost Schedule @schedule.ScheduleNumber? Schedule ini tidak memiliki item dan akan dihapus permanen.');" style="display:inline;">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Hapus Ghost Schedule">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    @if (!Model.Any())
+                    {
+                         <tr>
+                            <td colspan="14" class="text-center py-4 text-muted">
+                                <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                                Belum ada jadwal preparation.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @* Pagination Desktop *@
+        <div id="mainPagerWrap" class="px-3 pb-3 pt-2 border-top border-secondary d-none d-xl-block">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+        <!-- Search pagination (tampil saat search aktif, menggantikan mainPagerWrap) -->
+        <div id="searchPagerWrap" class="d-none px-3 pb-3 pt-2 border-top border-secondary d-flex align-items-center gap-2 flex-wrap">
+            <span id="searchPagerInfo" class="text-secondary small me-auto"></span>
+            <div id="searchPagerBtns" class="d-flex gap-1 flex-wrap"></div>
+        </div>
+    </div>
+
+    <!-- Mobile/Tablet Card View -->
+    <div id="mobileCardContainer" class="@(Model.Any() ? "d-xl-none" : "d-none")">
+        @{
+            int mobileNo = ((ViewBag.CurrentPage ?? 1) - 1) * 20 + 1;
+        }
+        @foreach (var schedule in Model)
+        {
+            foreach (var item in schedule.DeliveryItems)
+            {
+                <div class="cyber-mobile-card mb-3">
+                    <div class="cyber-mobile-card-header d-flex justify-content-between align-items-center p-3 border-bottom border-secondary bg-dark bg-opacity-50">
+                        <div>
+                            <span class="badge bg-secondary me-1" style="font-size:0.7rem;">No. @(mobileNo++)</span>
+                            <span class="text-info fw-bold"><i class="bi bi-hash"></i> @schedule.ScheduleNumber</span>
+                            <span class="badge bg-secondary ms-1">
+                                <i class="bi bi-geo-alt"></i> @(schedule.Customer?.CustomerName ?? "-")
+                            </span>
+                            <div class="small text-muted mt-1" style="font-size: 0.65rem;">
+                                <i class="bi bi-calendar me-1"></i> @schedule.ScheduledDate.ToString("dd/MM/yyyy")
+                                @if (schedule.ScheduledDate.Date == tomorrowDate) {
+                                    <span class="badge bg-warning text-dark ms-1" style="font-size:0.55rem;">H-1</span>
+                                }
+                            </div>
+                        </div>
+                        @{
+                            var pctMobile = (item.Quantity > 0) ? ((double)(item.ActualQuantity ?? 0) / (double)item.Quantity * 100) : 0;
+                            string statusClassMobile = "bg-secondary";
+                            string statusIconMobile = "bi-hourglass";
+                            
+                            if (item.ActualQuantity >= item.Quantity)
+                            {
+                                statusClassMobile = "bg-success";
+                                statusIconMobile = "bi-check-circle";
+                            }
+                            else if (item.ActualQuantity > 0)
+                            {
+                                statusClassMobile = "bg-warning text-dark";
+                                statusIconMobile = "bi-arrow-repeat";
+                            }
+                        }
+                        <span class="badge @statusClassMobile"><i class="bi @statusIconMobile"></i></span>
+                    </div>
+                    <div class="cyber-mobile-card-body p-3">
+                         <div class="row g-2 mb-2">
+                            <div class="col-6">
+                                <span class="text-white fw-bold">@(schedule.Customer?.CustomerName ?? "-")</span>
+                            </div>
+                            <div class="col-6 text-end">
+                                <small class="text-secondary d-block">Route / Cycle</small>
+                                <span class="text-white">@(schedule.Route ?? "-") / @(schedule.Cycle ?? "-")</span>
+                            </div>
+                        </div>
+                        
+                     <div class="mb-3 p-2 bg-primary bg-opacity-10 rounded border-start border-primary border-4">
+                            <small class="text-primary fw-bold d-block mb-1" style="letter-spacing: 1px;">DATA ITEM / PESANAN</small>
+                            @if (!string.IsNullOrEmpty(item.Item?.CustomerPartNumber) && !string.IsNullOrEmpty(item.Item?.VIN))
+                            {
+                                <span class="text-white fw-bold d-block fs-5">@item.Item.CustomerPartNumber</span>
+                                <span class="text-info small">@item.Item.VIN</span>
+                            }
+                            else if (!string.IsNullOrEmpty(item.Item?.CustomerPartNumber))
+                            {
+                                <span class="text-white fw-bold d-block fs-5">@item.Item.CustomerPartNumber</span>
+                            }
+                            else
+                            {
+                                <span class="text-white fw-bold d-block fs-5">@(item.Item?.VIN ?? "-")</span>
+                            }
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-end p-2 bg-dark bg-opacity-25 rounded border border-secondary mb-3">
+                            <div class="text-center flex-grow-1">
+                                <small class="text-secondary d-block">Schedule Quantity</small>
+                                <span class="badge bg-info text-dark" style="font-size: 1.3rem;">@item.CalculatedKanbanActual / @item.CalculatedKanbanTarget <small>KBN</small></span>
+                                <div class="mt-1">
+                                    <span class="badge bg-secondary">@item.Quantity.ToString("N0") <small>Pcs</small></span>
+                                </div>
+                            </div>
+                             <div class="text-center">
+                                <small class="text-secondary d-block">Progress</small>
+                                <span class="@(item.ActualQuantity >= item.Quantity ? "text-success" : "text-light") fw-bold fs-5">@((int)pctMobile)%</span>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-flex">
+                            <a asp-controller="PreparationWorkflow" asp-action="Index" class="btn btn-primary flex-grow-1">
+                                <i class="bi bi-box-seam me-2"></i> Process Scan
+                            </a>
+                            @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+                            {
+                                <form asp-action="DeleteDeliveryItem" asp-route-id="@item.DeliveryItemId" asp-route-pageNumber="@ViewBag.CurrentPage" asp-route-filterDate="@ViewBag.FilterDate" method="post" onsubmit="return confirm('Hapus item ini saja? Item lain dalam manifest tidak terpengaruh.');">
+                                    <button type="submit" class="btn btn-danger">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="row mt-2 mb-4 d-xl-none">
+        <div class="col-12">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+    </div>
+</div>
+
+
+<!-- Repair / Pisah Jadwal Modal -->
+<div class="modal fade" id="repairSplitModal" tabindex="-1" aria-labelledby="repairSplitModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:520px;">
+        <div class="modal-content" style="background:#0d1b35;border:1px solid rgba(239,68,68,0.5);border-radius:12px;color:#fff;">
+            <div class="modal-header py-2" style="border-bottom:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.08);">
+                <h6 class="modal-title fw-bold d-flex align-items-center gap-2 text-danger mb-0" id="repairSplitModalLabel">
+                    <i class="bi bi-scissors"></i> Pisah Jadwal (Repair C1 &harr; C3)
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="font-size:0.85rem;">
+                <p class="text-warning mb-3" style="font-size:0.78rem;">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    Tool ini memisahkan item yang <b>salah masuk ke jadwal C1</b> ke jadwal baru untuk customer target (mis. C3).
+                    Identifikasi berdasarkan <b>ItemMapping.Customer</b> dan <b>Item.Customer</b>.
+                    Gunakan <b>Dry Run</b> dulu sebelum eksekusi.
+                </p>
+                <div class="mb-3">
+                    <label class="form-label text-info fw-semibold">Schedule ID (Source &mdash; jadwal C1 yang berisi item C3)</label>
+                    <div class="d-flex gap-2">
+                        <input type="text" id="repairSourceScheduleId" class="form-control form-control-sm bg-dark text-white border-secondary"
+                               placeholder="Nomor jadwal atau ID angka">
+                        <button type="button" class="btn btn-sm btn-outline-info text-nowrap" onclick="repairLookupSchedule()">
+                            <i class="bi bi-search me-1"></i>Cari
+                        </button>
+                    </div>
+                    <div id="repairScheduleInfo" class="mt-1" style="font-size:0.75rem;display:none;"></div>
+                    <div class="form-text text-muted">Ketik nomor manifest atau ID angka lalu klik Cari</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-info fw-semibold">Target Customer ID (mis. Customer C3)</label>
+                    <div class="d-flex gap-2">
+                        <input type="text" id="repairTargetCustomerId" class="form-control form-control-sm bg-dark text-white border-secondary"
+                               placeholder="ID angka Customer C2/C3">
+                        <button type="button" class="btn btn-sm btn-outline-info text-nowrap" onclick="repairLookupCustomer()">
+                            <i class="bi bi-search me-1"></i>Cari
+                        </button>
+                    </div>
+                    <div id="repairCustomerInfo" class="mt-1 text-success" style="font-size:0.75rem;display:none;"></div>
+                </div>
+                <div id="repairDryRunResult" class="d-none p-2 rounded mb-2" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);">
+                    <div id="repairDryRunText" class="mb-2" style="font-size:0.78rem;"></div>
+                    <div id="repairDryRunParts" style="font-size:0.72rem;max-height:120px;overflow-y:auto;color:#94a3b8;"></div>
+                </div>
+                <div id="repairActionResult" class="d-none mt-2 p-2 rounded" style="font-size:0.82rem;"></div>
+            </div>
+            <div class="modal-footer gap-2" style="border-top:1px solid rgba(239,68,68,0.25);">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-sm btn-outline-warning fw-semibold" onclick="repairDryRun()" id="repairDryRunBtn">
+                    <i class="bi bi-eye me-1"></i> Dry Run (Preview)
+                </button>
+                <button type="button" class="btn btn-sm btn-danger fw-bold px-4" onclick="repairExecute()" id="repairExecBtn" disabled>
+                    <i class="bi bi-scissors me-1"></i> Eksekusi Pisah
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Smart Import Modal -->
+<div class="modal fade" id="smartImportModal" tabindex="-1" aria-labelledby="smartImportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content modal-cyber text-white">
+            <div class="modal-header border-warning py-2">
+                <h6 class="modal-title fw-bold text-warning mb-0" id="smartImportModalLabel">
+                    <i class="bi bi-magic me-2"></i> SMART IMPORT
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Upload -->
+                <div id="smartStep1">
+                    <div class="text-center mb-2">
+                        <small class="text-info">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            Upload file pesanan customer â†’ sistem auto-detect customer & baca <b>Manifest, Part No, Qty</b>.
+                        </small>
+                    </div>
+                    
+                    <!-- Drop zone -->
+                    <div id="smartDropZone" class="border border-2 border-dashed border-secondary rounded-3 p-4 text-center mb-2"
+                         style="cursor:pointer; transition: all 0.3s;">
+                        <i class="bi bi-cloud-arrow-up display-4 text-secondary mb-1 d-block"></i>
+                        <p class="mb-0 text-secondary small">Drag & drop file, atau klik untuk memilih</p>
+                        <small class="text-muted" style="font-size:0.7rem">PDF, Excel, CSV, TXT &mdash; Max 10MB</small>
+                        <input type="file" id="smartFile" accept=".pdf,.xlsx,.xls,.csv,.txt" class="d-none" />
+                    </div>
+                    
+                    <!-- Upload progress -->
+                    <div id="smartProgress" class="d-none">
+                        <div class="d-flex align-items-center gap-3 p-3 bg-dark rounded-3">
+                            <div class="spinner-border spinner-border-sm text-warning" role="status"></div>
+                            <div>
+                                <span class="text-warning fw-bold">Menganalisa file...</span>
+                                <br><small class="text-muted" id="smartProgressText">Mendeteksi customer dan membaca data...</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Preview & Confirm -->
+                <div id="smartStep2" class="d-none">
+                    <!-- Detection Result -->
+                    <div class="row g-2 mb-2">
+                        <div class="col-3">
+                            <div class="bg-dark rounded-2 p-2">
+                                <small class="text-muted d-block" style="font-size:0.65rem">Customer</small>
+                                <span id="smartDetectedCustomer" class="fw-bold text-success small">&mdash;</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="bg-dark rounded-2 p-2">
+                                <small class="text-muted d-block" style="font-size:0.65rem">Manifest</small>
+                                <span id="smartDetectedManifest" class="fw-bold text-info small">&mdash;</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="bg-dark rounded-2 p-2">
+                                <small class="text-muted d-block" style="font-size:0.65rem">Tanggal Jadwal</small>
+                                <span id="smartDetectedDate" class="fw-bold small">&mdash;</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="bg-dark rounded-2 p-2">
+                                <small class="text-muted d-block" style="font-size:0.65rem">Format</small>
+                                <span id="smartParserInfo" class="fw-bold text-secondary small">&mdash;</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Warnings -->
+                    <div id="smartWarnings" class="d-none mb-2"></div>
+                    
+                    <!-- Dock Selection (WAJIB) &mdash; single grid with scroll -->
+                    <div class="mb-2">
+                        <label id="smartDockLabel" class="form-label text-warning fw-bold small mb-1">
+                            <i class="bi bi-geo-alt-fill me-1"></i> Pilih Dock <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group input-group-sm mb-1">
+                            <span class="input-group-text bg-dark border-secondary text-secondary py-0"><i class="bi bi-search"></i></span>
+                            <input type="text" id="smartDockSearch" class="form-control form-control-sm bg-secondary text-white border-0 py-1" 
+                                   placeholder="Cari dock..." autocomplete="off" style="font-size:0.75rem">
+                        </div>
+                        <div id="smartDockGrid" class="border border-secondary rounded-2" style="max-height:120px; overflow-y:auto; background:#0d1b2a;">
+                            <!-- Dock items rendered by JS -->
+                        </div>
+                        <input type="hidden" id="smartSelectedDockId" value="">
+                    </div>
+                    
+                    <!-- Manifest Override -->
+                    <div class="mb-2">
+                        <label class="form-label text-info fw-bold small mb-1"><i class="bi bi-hash me-1"></i> Override Manifest <span class="text-muted fw-normal" style="font-size:0.7rem">(opsional)</span></label>
+                        <input type="text" class="form-control form-control-sm bg-secondary text-white border-0 py-1" id="smartManifestOverride" placeholder="Kosongkan = pakai manifest terdeteksi" style="font-size:0.8rem">
+                    </div>
+                    
+                    <!-- Search Items -->
+                    <div class="mb-2">
+                        <label class="form-label text-warning fw-bold small mb-1">
+                            <i class="bi bi-search me-1"></i> Cari Item
+                        </label>
+                        <div class="input-group input-group-sm mb-1">
+                            <span class="input-group-text bg-dark border-secondary text-secondary py-0"><i class="bi bi-search"></i></span>
+                            <input type="text" id="smartItemSearch" class="form-control form-control-sm bg-secondary text-white border-0 py-1" 
+                                   placeholder="Cari berdasarkan Manifest, Part No, Part Name, VIN, atau Dock..." autocomplete="off" style="font-size:0.75rem">
+                        </div>
+                    </div>
+                    
+                    <!-- Items Table -->
+                    <div class="table-responsive" style="max-height: 200px;">
+                        <table class="table table-dark table-sm table-hover mb-0 align-middle" style="font-size:0.78rem">
+                            <thead class="sticky-top bg-dark">
+                                <tr class="text-uppercase text-secondary" style="font-size:0.7rem">
+                                    <th style="width:30px">
+                                        <input type="checkbox" id="smartSelectAll" checked class="form-check-input">
+                                    </th>
+                                    <th>#</th>
+                                    <th>MANIFEST</th>
+                                    <th>PART NO</th>
+                                    <th>PART NAME</th>
+                                    <th class="text-center">QTY</th>
+                                    <th class="text-center" style="min-width:90px">TANGGAL JADWAL</th>
+                                    <th class="text-center" style="width:40px">
+                                        <i class="bi bi-trash text-danger"></i>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="smartItemsBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-2 px-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                <span id="smartItemCount">0</span> items &mdash; Total Qty: <span id="smartTotalQty" class="text-warning fw-bold">0</span>
+                            </small>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="smartImportReset()">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i> Upload Lain
+                                </button>
+                                <button type="button" class="btn btn-sm btn-warning text-dark fw-bold px-4" onclick="smartImportConfirm()">
+                                    <i class="bi bi-check-lg me-1"></i> Confirm & Import
+                                </button>
+                            </div>
+                        </div>
+                        <div id="smartDockSummary" class="mt-2 p-2 rounded" style="background: rgba(56, 189, 248, 0.03); border: 1px solid rgba(56, 189, 248, 0.12); display: none; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Result -->
+                <div id="smartStep3" class="d-none text-center p-4">
+                    <div id="smartResultIcon" class="display-1 mb-3"></div>
+                    <h4 id="smartResultTitle" class="fw-bold"></h4>
+                    <p id="smartResultMessage" class="text-muted"></p>
+                    <div id="smartResultWarning" class="alert alert-warning text-start mt-2" style="display:none; font-size:0.88rem;"></div>
+                    <button type="button" class="btn btn-warning text-dark px-4 mt-2" onclick="location.reload()">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Refresh Halaman
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Sync Result (fixed, tidak mengganggu layout) -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1200;">
+    <div id="syncResultToast" class="toast align-items-center border-0 text-white bg-secondary" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="syncResultToastBody">Message here</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+
+@section Scripts {
+
+    <script>
+        // â”€â”€ STATUS FILTER: Waiting / Preparing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        (function() {
+            var activeFilter = null; // null | 'waiting' | 'preparing'
+
+            function applyStatusFilter(filter) {
+                // null = reset semua
+                activeFilter = (filter === null || activeFilter === filter) ? null : filter; // toggle
+                var rows = document.querySelectorAll('#mainTableBody tr');
+                rows.forEach(function(tr) {
+                    if (!activeFilter) { tr.style.display = ''; return; }
+                    // Baca status langsung dari data attribute (bukan badge &mdash; bisa salah karena DOCK juga pakai bg-secondary)
+                    var statusText = (tr.dataset.itemStatus || '').toLowerCase();
+                    if (activeFilter === 'waiting') {
+                        tr.style.display = (statusText === 'waiting' || statusText === 'ghost') ? '' : 'none';
+                    } else if (activeFilter === 'preparing') {
+                        // "Belum Completed" = semua kecuali completed
+                        tr.style.display = (statusText !== 'completed') ? '' : 'none';
+                    }
+                });
+                // Update button active state
+                document.querySelectorAll('[data-status-filter]').forEach(function(btn) {
+                    var isActive = btn.dataset.statusFilter === activeFilter;
+                    btn.classList.toggle('active', isActive);
+                    btn.classList.toggle('fw-bold', isActive);
+                });
+                // Count visible rows & show badge/reset
+                var visibleCount = Array.from(rows).filter(function(r) { return r.style.display !== 'none'; }).length;
+                var countBadge = document.getElementById('statusFilterCount');
+                var resetBtn = document.getElementById('statusFilterReset');
+                if (countBadge) {
+                    countBadge.textContent = activeFilter ? visibleCount + ' item' : '';
+                    countBadge.style.display = activeFilter ? 'inline-block' : 'none';
+                }
+                if (resetBtn) resetBtn.classList.toggle('d-none', !activeFilter);
+            }
+
+            window.applyStatusFilter = applyStatusFilter;
+        })();
+
+        async function remapItems() {
+            const filterDate = '@ViewBag.FilterDate';
+            const dateLabel = filterDate ? ` tanggal ${filterDate}` : ' semua tanggal';
+            if (!confirm(`Re-apply master item mapping ke jadwal${dateLabel}?\n\nItem yang belum cocok akan di-update sesuai mapping terbaru (QPC/kanban akan dikoreksi). Lanjutkan?`)) return;
+
+            try {
+                const res = await fetch('/PreparationSchedule/RemapItems', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scheduleDate: filterDate || null })
+                });
+                const data = await res.json();
+                alert(data.message || (data.success ? 'Selesai.' : 'Terjadi kesalahan.'));
+                if (data.success && data.remapped > 0) window.location.reload();
+            } catch (e) {
+                alert('Gagal menghubungi server.');
+            }
+        }
+
+
+
+        $(document).ready(function () {
+            // Status Indicator Element
+            const statusBadge = $('#connectionStatus');
+            
+            function updateStatus(status, color, icon) {
+                if(statusBadge.length) {
+                    statusBadge.removeClass('bg-secondary bg-success bg-danger bg-warning text-dark')
+                              .addClass(color)
+                              .html(`<i class="bi ${icon} me-1"></i> ${status}`);
+                }
+            }
+
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/deliveryHub")
+                .withAutomaticReconnect([0, 2000, 10000, 30000])
+                .configureLogging(signalR.LogLevel.Information)
+                .build();
+
+            connection.on("deliveryUpdated", function (data) {
+                console.log("Prep update received", data);
+                const action = (data && data.action) ? data.action.toLowerCase() : '';
+
+                // Aksi yang membutuhkan refresh tabel jadwal (buat/hapus schedule)
+                const needsFullReload = ['create', 'delete', 'deleteitem', 'bulk_create', 'importexcel', 'import', 'smartimport'].includes(action);
+
+                // Aksi yang membutuhkan refresh tabel saja (KBN PREP berubah, tanpa full reload)
+                const needsTableRefresh = ['sync', 'preparation', 'readytodock'].includes(action);
+
+                if (needsFullReload) {
+                    if (window.showUpdateNotification) {
+                        window.showUpdateNotification('Jadwal preparation diperbarui.', 'prep', 2000);
+                    }
+                    setTimeout(() => window.location.reload(), 2000);
+                } else if (needsTableRefresh) {
+                    // Refresh tabel jadwal via AJAX agar KBN PREP langsung update
+                    fetchAndUpdatePendingCount();
+                    refreshScheduleTable();
+                } else {
+                    // Untuk aksi lain (pending, mismatch):
+                    // Update angka pending tanpa reload halaman
+                    fetchAndUpdatePendingCount();
+
+                    // OTOMATIS refresh list di modal jika sedang terbuka
+                    var modalEl = document.getElementById('pendingPrepModal');
+                    if (modalEl && modalEl.classList.contains('show')) {
+                        if (typeof reloadPendingModalData === 'function') {
+                            reloadPendingModalData();
+                        }
+                    }
+
+                    if (window.showUpdateNotification && action !== 'mismatch') {
+                        window.showUpdateNotification('Data preparation diperbarui.', 'prep', 2500);
+                    }
+                }
+            });
+
+            // Handler khusus untuk event pendingCountUpdated (dari SyncPendingNow)
+            connection.on("pendingCountUpdated", function (data) {
+                console.log("Pending count updated:", data);
+                if (data && typeof data.count === 'number') {
+                    updatePendingUI(data.count);
+                }
+            });
+
+            // Fungsi: Fetch jumlah pending terbaru dari server lalu update UI
+            function fetchAndUpdatePendingCount() {
+                fetch('/PreparationSchedule/GetPendingCount')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (data && typeof data.count === 'number') {
+                            updatePendingUI(data.count);
+                        }
+                    })
+                    .catch(err => console.warn('Gagal fetch pending count:', err));
+            }
+
+            // Fungsi: Update semua elemen UI yang menampilkan pending count
+            function updatePendingUI(count) {
+                // 1. Badge di modal header
+                const modalCountBadge = document.getElementById('pendingModalCount');
+                if (modalCountBadge) modalCountBadge.textContent = count;
+
+                // 2. Alert bar & angka di dalamnya
+                const pendingAlert = document.getElementById('pendingPrepAlert');
+                if (pendingAlert) {
+                    if (count > 0) {
+                        // Update angka di dalam alert
+                        const strongEl = pendingAlert.querySelector('strong[style*="color:#f59e0b"]');
+                        if (strongEl) strongEl.textContent = count;
+                        pendingAlert.style.display = 'flex';
+                    } else {
+                        // Tidak ada pending &mdash; sembunyikan alert
+                        pendingAlert.style.display = 'none';
+                    }
+                }
+
+                console.log('[PendingCount] Updated to:', count);
+            }
+
+
+
+            connection.onreconnecting(error => {
+                updateStatus("Reconnecting...", "bg-warning text-dark", "bi-wifi-off");
+            });
+
+            connection.onreconnected(connectionId => {
+                updateStatus("Live", "bg-success", "bi-wifi");
+            });
+
+            connection.onclose(error => {
+                updateStatus("Offline", "bg-danger", "bi-slash-circle");
+                setTimeout(start, 5000);
+            });
+
+            async function start() {
+                try {
+                    await connection.start();
+                    console.log("Prep SignalR Connected");
+                    updateStatus("Live", "bg-success", "bi-wifi");
+                } catch (err) {
+                    console.error("SignalR Connection Error: ", err);
+                    updateStatus("Error", "bg-danger", "bi-exclamation-triangle");
+                    setTimeout(start, 5000);
+                }
+            };
+
+            start();
+
+            // ============================================
+            // SERVER-SIDE SEARCH (lintas halaman) &mdash; render ke tabel utama
+            // ============================================
+            (function() {
+                var searchTimer = null;
+                var currentSearchPage = 1;
+                var currentKeyword = '';
+                var filterDate = '@ViewBag.FilterDate';
+                var isSearchMode = false;
+
+                // Simpan konten asli tbody agar bisa dikembalikan saat search ditutup
+                var originalTbodyHtml = null;
+
+                var $input        = $('#searchInput');
+                var $clearBtn     = $('#searchClearBtn');
+                var $mainTbody    = $('#mainTableBody');
+                var $mainPager    = $('#mainPagerWrap');
+                var $searchPager  = $('#searchPagerWrap');
+                var $pagerInfo    = $('#searchPagerInfo');
+                var $pagerBtns    = $('#searchPagerBtns');
+                var $infoBar      = $('#searchInfoBar');
+                var $infoCount    = $('#searchInfoCount');
+                var $infoKeyword  = $('#searchInfoKeyword');
+                var $infoLoading  = $('#searchInfoLoading');
+
+                function escapeHtml(str) {
+                    if (!str) return '';
+                    return String(str)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                function statusBadge(status, prepStatus, actual, target) {
+                    if (actual >= target && target > 0) return '<span class="badge bg-success" style="font-size:0.7rem;">Completed</span>';
+                    if (actual > 0) return '<span class="badge bg-warning text-dark" style="font-size:0.7rem;">In Progress</span>';
+                    if (status === 'Completed')    return '<span class="badge bg-success" style="font-size:0.7rem;">Completed</span>';
+                    if (prepStatus === 'Prepared') return '<span class="badge bg-info text-dark" style="font-size:0.7rem;">Prepared</span>';
+                    if (status === 'In Progress')  return '<span class="badge bg-warning text-dark" style="font-size:0.7rem;">In Progress</span>';
+                    return '<span class="badge bg-secondary" style="font-size:0.7rem;">Scheduled</span>';
+                }
+
+                function enterSearchMode() {
+                    if (!isSearchMode) {
+                        isSearchMode = true;
+                        // Simpan isi tabel asli
+                        originalTbodyHtml = $mainTbody.html();
+                        // Sembunyikan pagination normal, tampilkan info bar
+                        $mainPager.addClass('d-none');
+                        $infoBar.removeClass('d-none');
+                    }
+                }
+
+                function exitSearchMode() {
+                    if (isSearchMode) {
+                        isSearchMode = false;
+                        // Kembalikan konten tabel asli
+                        if (originalTbodyHtml !== null) {
+                            $mainTbody.html(originalTbodyHtml);
+                            originalTbodyHtml = null;
+                        }
+                        // Tampilkan kembali pagination normal
+                        $mainPager.removeClass('d-none');
+                        $searchPager.addClass('d-none');
+                        $infoBar.addClass('d-none');
+                        $infoCount.text('0');
+                        $infoKeyword.text('');
+                        currentKeyword = '';
+                    }
+                }
+
+                function buildPagerBtns(data) {
+                    if (data.totalPages > 1) {
+                        $pagerInfo.text('Halaman ' + data.page + ' dari ' + data.totalPages + ' (' + data.total + ' hasil)');
+                        var btns = '';
+                        // Tombol prev
+                        if (data.page > 1) btns += '<button class="btn btn-xs btn-outline-secondary py-0 px-2 search-pg-btn" data-pg="' + (data.page-1) + '" style="font-size:0.72rem;"><i class="bi bi-chevron-left"></i></button>';
+                        var start = Math.max(1, data.page - 2);
+                        var end   = Math.min(data.totalPages, data.page + 2);
+                        if (start > 1) btns += '<button class="btn btn-xs btn-outline-secondary py-0 px-2 search-pg-btn" data-pg="1" style="font-size:0.72rem;">1</button>';
+                        if (start > 2) btns += '<span class="text-secondary px-1" style="font-size:0.72rem;">â€¦</span>';
+                        for (var i = start; i <= end; i++) {
+                            btns += '<button class="btn btn-xs py-0 px-2 search-pg-btn '
+                                + (i === data.page ? 'btn-info text-dark fw-bold' : 'btn-outline-secondary')
+                                + '" data-pg="' + i + '" style="font-size:0.72rem;">' + i + '</button>';
+                        }
+                        if (end < data.totalPages - 1) btns += '<span class="text-secondary px-1" style="font-size:0.72rem;">â€¦</span>';
+                        if (end < data.totalPages) btns += '<button class="btn btn-xs btn-outline-secondary py-0 px-2 search-pg-btn" data-pg="' + data.totalPages + '" style="font-size:0.72rem;">' + data.totalPages + '</button>';
+                        // Tombol next
+                        if (data.page < data.totalPages) btns += '<button class="btn btn-xs btn-outline-secondary py-0 px-2 search-pg-btn" data-pg="' + (data.page+1) + '" style="font-size:0.72rem;"><i class="bi bi-chevron-right"></i></button>';
+                        $pagerBtns.html(btns);
+                        $searchPager.removeClass('d-none');
+                    } else {
+                        $searchPager.addClass('d-none');
+                        if (data.total > 0) $pagerInfo.text(data.total + ' hasil ditemukan');
+                    }
+                }
+
+                function doSearch(page) {
+                    page = page || 1;
+                    currentSearchPage = page;
+                    var q = $input.val().trim();
+                    if (q.length < 2) { exitSearchMode(); return; }
+                    currentKeyword = q;
+
+                    enterSearchMode();
+
+                    // Tampilkan loading di info bar
+                    $infoLoading.removeClass('d-none');
+                    $infoKeyword.text('untuk "' + escapeHtml(q) + '"');
+
+                    fetch('/PreparationSchedule/Search?q=' + encodeURIComponent(q)
+                        + '&filterDate=' + encodeURIComponent(filterDate)
+                        + '&page=' + page + '&pageSize=20')
+                    .then(function(r) {
+                        if (!r.ok) {
+                            return r.text().then(function(txt) {
+                                throw new Error('HTTP ' + r.status + ': ' + txt.substring(0, 300));
+                            });
+                        }
+                        return r.json();
+                    })
+                    .then(function(data) {
+                        $infoLoading.addClass('d-none');
+
+                        if (data.error) {
+                            $mainTbody.html('<tr><td colspan="14" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-2"></i>Error: ' + escapeHtml(data.error) + '</td></tr>');
+                            return;
+                        }
+
+                        $infoCount.text(data.total);
+                        $infoKeyword.text('untuk "' + escapeHtml(q) + '"');
+
+                        if (!data.items || data.items.length === 0) {
+                            $mainTbody.html('<tr><td colspan="14" class="text-center text-secondary py-5"><i class="bi bi-search d-block mb-2" style="font-size:2rem;opacity:0.35;"></i>Tidak ada hasil untuk "' + escapeHtml(q) + '"</td></tr>');
+                            $searchPager.addClass('d-none');
+                            return;
+                        }
+
+                        // Deteksi apakah tabel memiliki kolom checkbox (ada #bulkSelectAll di thead)
+                        var hasCbCol = $('#bulkSelectAll').length > 0;
+
+                        // Render baris hasil pencarian ke tabel utama
+                        var html = '';
+                        data.items.forEach(function(row) {
+                            var qtyHtml = row.qty > 0
+                                ? '<span class="' + (row.actualQty >= row.qty ? 'text-success' : (row.actualQty > 0 ? 'text-warning' : 'text-secondary')) + '">'
+                                  + row.actualQty + '/' + row.qty + '</span>'
+                                : '<span class="text-secondary">-</span>';
+
+                            // Kolom checkbox &mdash; tampilkan td kosong agar jumlah kolom tetap sama
+                            var cbCol = hasCbCol
+                                ? '<td class="text-center"><input type="checkbox" class="form-check-input bulk-check" data-id="' + (row.itemId || 0) + '" data-schedule-id="' + (row.scheduleId || 0) + '" style="cursor:pointer;" /></td>'
+                                : '';
+
+                            html += '<tr>'
+                                + cbCol
+                                + '<td class="text-center text-muted" style="font-size:0.75rem;font-weight:600;">' + row.rowNo + '</td>'
+                                + '<td class="text-center"><div class="small fw-bold" style="font-size:0.75rem;">' + escapeHtml(row.scheduledDate) + '</div>'
+                                +   '<div class="text-muted" style="font-size:0.65rem;letter-spacing:0.5px;">Upload: ' + escapeHtml(row.createdDate) + '</div></td>'
+                                + '<td class="fw-bold text-info"><div class="small text-muted mb-1" style="font-size:0.65rem;letter-spacing:1px;">MANIFEST</div>' + escapeHtml(row.scheduleNumber) + '</td>'
+                                + '<td><div class="small text-muted mb-1" style="font-size:0.65rem;letter-spacing:1px;">DOCK</div><span class="badge bg-secondary">' + escapeHtml(row.dock) + '</span></td>'
+                                + '<td><div class="small text-muted mb-1" style="font-size:0.65rem;letter-spacing:1px;">CUSTOMER</div><span class="fw-bold">' + escapeHtml(row.customerCode) + '</span></td>'
+                                + '<td><div class="small text-muted mb-1" style="font-size:0.65rem;letter-spacing:1px;">ROUTE</div>' + escapeHtml(row.route) + '</td>'
+                                + '<td><div class="small text-muted mb-1" style="font-size:0.65rem;letter-spacing:1px;">CYCLE</div>' + escapeHtml(row.cycle) + '</td>'
+                                + '<td style="background: rgba(13, 110, 253, 0.05); border-left: 2px solid #0d6efd;">'
+                                    + '<div class="d-flex flex-column">'
+                                    + (function() {
+                                        // Prioritas: ExternalPartNo â†’ CustomerPartNumber â†’ VIN
+                                        var displayPartNo = row.externalPartNo || row.partNo || '';
+                                        var displayVin    = row.vin || '';
+                                        var showVin       = displayVin && displayVin !== displayPartNo;
+                                        if (displayPartNo) {
+                                            return '<div class="d-flex align-items-center flex-wrap">'
+                                                + '<span class="text-white fw-bold fs-6">' + escapeHtml(displayPartNo) + '</span>'
+                                                + (showVin ? '<span class="text-success fw-bold ms-1" style="font-size: 0.8rem;">/ ' + escapeHtml(displayVin) + '</span>' : '')
+                                                + '</div>';
+                                        }
+                                        return '<span class="text-white fw-bold">' + escapeHtml(displayVin || '-') + '</span>';
+                                      })()
+                                    + '</div>'
+                                + '</td>'
+                                + '<td class="text-center"><div class="small text-muted mb-1" style="font-size:0.65rem;">QPC</div><span class="badge bg-dark border">' + (row.qtyLot || '-') + '</span></td>'
+                                + '<td class="text-center"><span class="badge bg-secondary">' + (row.qty || 0).toLocaleString() + ' Pcs</span></td>'
+                                + '<td class="text-center fw-bold"><span class="badge bg-info text-dark" style="font-size: 1.1rem; padding: 0.5rem 0.8rem;">' + (row.kanbanActual || 0) + ' / ' + (row.kanbanTarget || 0) + '</span></td>'
+                                + '<td class="text-center">' + statusBadge(row.status, row.preparationStatus, row.actualQty, row.qty) + '</td>'
+                                + '<td class="text-center"><div class="d-flex justify-content-center gap-1">'
+                                +   '<a href="/PreparationWorkflow/Index" class="btn btn-sm btn-primary" title="Process Scan"><i class="bi bi-box-seam"></i></a>'
+                                + '</div></td>'
+                                + '</tr>';
+                        });
+                        $mainTbody.html(html);
+
+                        // Scroll ke tabel
+                        $('#desktopTableContainer')[0] && $('#desktopTableContainer')[0].scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                        buildPagerBtns(data);
+                        
+                        // RESTORE BULK CHECKS after search results render
+                        if (window.bulkRestoreChecks) window.bulkRestoreChecks();
+                    })
+                    .catch(function(err) {
+                        $infoLoading.addClass('d-none');
+                        var msg = err && err.message ? err.message : String(err);
+                        $mainTbody.html('<tr><td colspan="14" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-2"></i>' + escapeHtml(msg.substring(0, 200)) + '</td></tr>');
+                        console.error('[Search] fetch error:', err);
+                    });
+                }
+
+                // Input: debounce 350ms
+                $input.on('input', function() {
+                    var q = $(this).val().trim();
+                    $clearBtn.toggleClass('d-none', q.length === 0);
+                    clearTimeout(searchTimer);
+                    if (q.length < 2) { exitSearchMode(); return; }
+                    searchTimer = setTimeout(function() { doSearch(1); }, 350);
+                });
+
+                // Clear button
+                $clearBtn.on('click', function() {
+                    $input.val('').trigger('input').focus();
+                });
+
+                // Tombol tutup di info bar
+                $('#searchInfoClose').on('click', function() {
+                    $input.val('').trigger('input').focus();
+                });
+
+                // Pagination search (event delegation pada container)
+                $searchPager.on('click', '.search-pg-btn', function() {
+                    doSearch(parseInt($(this).data('pg')));
+                });
+
+                // Enter di input
+                $input.on('keydown', function(e) {
+                    if (e.key === 'Enter') { e.preventDefault(); doSearch(1); }
+                });
+
+                // Init search state jika direfresh dengan keyword (URL parameters)
+                if ($input.val() && $input.val().trim().length >= 2) {
+                    $clearBtn.removeClass('d-none');
+                    $infoBar.removeClass('d-none');
+                    $infoKeyword.text('untuk "' + escapeHtml($input.val().trim()) + '"');
+                    $infoCount.text('@(ViewBag.TotalItems ?? 0)');
+                    searchModeActive = true;
+                    $mainPager.addClass('d-none');
+                    $searchPager.removeClass('d-none');
+                }
+            })();
+
+            // ============================================
+            // CUSTOMER DROPDOWN SEARCH (IN MODAL)
+            // ============================================
+            $('#customerSearch').on('keyup', function() {
+                var value = $(this).val().toLowerCase();
+                $('#customerId option').filter(function() {
+                    $(this).toggle($(this).text().toLowerCase().indexOf(value) > -1);
+                });
+                
+                // If search result is only 1, auto-select it or just let user click
+            });
+
+            // ============================================
+            // MODAL DAFTAR PENDING PREPARATION
+            // ============================================
+            // Handler "connected" dari DeliveryHub (mencegah SignalR warning)
+            connection.on("connected", function (connectionId) {
+                console.log("DeliveryHub connected:", connectionId);
+            });
+        });
+
+        // openPendingModal() harus di luar $(document).ready agar bisa dipanggil dari onclick HTML
+        var _pendingModal = null;
+        var _pendingTotal = 0; // total asli dari DB
+        var _pendingPage = 1;
+        var _pendingPageSize = 20;
+
+        // ================================================================
+        // SYNC PENDING &mdash; AJAX, tidak redirect, tidak hard refresh
+        // ================================================================
+        function doSyncSelectedPending(btnEl) {
+            var checkedNodes = document.querySelectorAll('.pending-item-check:checked');
+            var checkedIds = [];
+            for (var i = 0; i < checkedNodes.length; i++) {
+                checkedIds.push(parseInt(checkedNodes[i].value));
+            }
+
+            var manifestStr = (document.getElementById('schedPendingManifestInput').value || '').trim();
+
+            if (checkedIds.length === 0) {
+                showSyncToast(false, "Pilih minimal satu item pending untuk disync.", 0, null);
+                return;
+            }
+
+            if (!manifestStr) {
+                showSyncToast(false, "Silakan isi No Manifest terlebih dahulu.", 0, null);
+                document.getElementById('schedPendingManifestInput').focus();
+                return;
+            }
+
+            var originalHtml = btnEl ? btnEl.innerHTML : '';
+            if (btnEl) {
+                btnEl.disabled = true;
+                btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Syncing...';
+            }
+
+            fetch('/PreparationWorkflow/SyncSelectedPending', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ preparationIds: checkedIds, manifestNumber: manifestStr })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = originalHtml;
+                }
+
+                if (data.success) {
+                    showSyncToast(true, 'Berhasil sync ' + data.synced + ' item ke manifest ' + manifestStr, data.synced, null);
+                    document.getElementById('schedPendingManifestInput').value = '';
+                    
+                    var modalEl = document.getElementById('pendingPrepModal');
+                    if (modalEl && modalEl.classList.contains('show')) {
+                        reloadPendingModalData();
+                    }
+                    
+                    // Juga update banner
+                    fetch('/PreparationSchedule/GetPendingCount') // Or wherever this gets remaining count
+                        .then(r => r.json())
+                        .then(res => {
+                            if (typeof res.total === 'number') updatePendingUIGlobal(res.total);
+                        }).catch(e => {});
+
+                    refreshScheduleTable();
+                } else {
+                    showSyncToast(false, data.message || "Gagal sinkronisasi.", 0, null);
+                }
+            })
+            .catch(function(err) {
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = originalHtml;
+                }
+                showSyncToast(false, 'Sync gagal: ' + err.message, 0, null);
+            });
+        }
+
+        // doSyncPending (untuk keseluruhan fallback dr trigger alert bar atas)
+        function doSyncPending(btnEl) {
+            var originalHtml = btnEl ? btnEl.innerHTML : '';
+            if (btnEl) {
+                btnEl.disabled = true;
+                btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Syncing...';
+            }
+
+            fetch('/PreparationSchedule/SyncPendingNow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = originalHtml;
+                }
+
+                // Tampilkan toast notifikasi (tidak berpindah halaman)
+                showSyncToast(data.success, data.message, data.synced, data.remaining);
+
+                // Update badge pending count di UI tanpa reload
+                if (typeof data.remaining === 'number') {
+                    updatePendingUIGlobal(data.remaining);
+                }
+
+                // Jika modal pending sedang terbuka â†’ refresh isinya
+                var modalEl = document.getElementById('pendingPrepModal');
+                if (modalEl && modalEl.classList.contains('show')) {
+                    reloadPendingModalData();
+                }
+
+                // Refresh tabel jadwal agar KBN PREP langsung update tanpa reload halaman
+                if (data.synced > 0) {
+                    refreshScheduleTable();
+                }
+            })
+            .catch(function(err) {
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = originalHtml;
+                }
+                showSyncToast(false, 'Sync gagal: ' + err.message, 0, null);
+            });
+        }
+
+        // Refresh tabel jadwal via AJAX (ambil HTML terbaru tanpa full page reload)
+        function refreshScheduleTable() {
+            // Ambil URL halaman saat ini (termasuk query string filter tanggal, search, dll)
+            var currentUrl = window.location.href;
+            fetch(currentUrl, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(r) { return r.text(); })
+            .then(function(html) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(html, 'text/html');
+
+                // Update Desktop Table
+                var newDesktop = doc.getElementById('desktopTableContainer');
+                var oldDesktop = document.getElementById('desktopTableContainer');
+                if (newDesktop && oldDesktop) {
+                    oldDesktop.innerHTML = newDesktop.innerHTML;
+                }
+
+                // Update Mobile Cards
+                var newMobile = doc.getElementById('mobileCardContainer');
+                var oldMobile = document.getElementById('mobileCardContainer');
+                if (newMobile && oldMobile) {
+                    oldMobile.innerHTML = newMobile.innerHTML;
+                }
+
+                // Update pagination jika ada
+                var newPaging = doc.getElementById('paginationContainer');
+                var oldPaging = document.getElementById('paginationContainer');
+                if (newPaging && oldPaging) {
+                    oldPaging.innerHTML = newPaging.innerHTML;
+                }
+
+                console.log('Schedule table refreshed (no reload).');
+
+                // RESTORE BULK CHECKS after AJAX refresh
+                if (window.bulkRestoreChecks) window.bulkRestoreChecks();
+            })
+            .catch(function(err) {
+                console.warn('Gagal refresh tabel:', err);
+            });
+        }
+
+        function showSyncToast(success, message, synced, remaining) {
+            var toast = document.getElementById('syncResultToast');
+            var toastBody = document.getElementById('syncResultToastBody');
+            if (!toast || !toastBody) return;
+
+            var icon = success ? 'âœ…' : 'â„¹ï¸';
+            var remainingText = (remaining !== null && remaining !== undefined)
+                ? '<br><small class="opacity-75">Sisa pending: ' + remaining + '</small>'
+                : '';
+            toastBody.innerHTML = icon + ' ' + message + remainingText;
+            toast.className = 'toast align-items-center border-0 text-white ' + (success ? 'bg-success' : 'bg-secondary');
+
+            var bsToast = bootstrap.Toast.getOrCreateInstance(toast, { delay: 5000 });
+            bsToast.show();
+        }
+
+        function updatePendingUIGlobal(count) {
+            // Badge di modal header
+            var modalCountBadge = document.getElementById('pendingModalCount');
+            if (modalCountBadge) modalCountBadge.textContent = count;
+
+            // Alert bar + angka di dalamnya
+            var pendingAlert = document.getElementById('pendingPrepAlert');
+            if (pendingAlert) {
+                if (count > 0) {
+                    var strongEl = pendingAlert.querySelector('strong[style*="color:#f59e0b"]');
+                    if (strongEl) strongEl.textContent = count;
+                    pendingAlert.style.display = 'flex';
+                } else {
+                    pendingAlert.style.display = 'none';
+                }
+            }
+        }
+
+        function reloadPendingModalData() {
+            // Simpan ID yang sudah dicentang agar tidak hilang saat refresh
+            var checkedIds = Array.from(document.querySelectorAll('.pending-item-check:checked'))
+                .map(function(el) { return el.value; });
+            fetchPendingPage(_pendingPage, checkedIds);
+        }
+
+        var _pendingSearchTimer = null;
+        function handlePendingSearchInput() {
+            clearTimeout(_pendingSearchTimer);
+            _pendingSearchTimer = setTimeout(function() {
+                fetchPendingPage(1);
+            }, 350);
+        }
+
+        function fetchPendingPage(page, restoreChecked) {
+            _pendingPage = page;
+            var tbody = document.getElementById('pendingPrepBody');
+            var countBadge = document.getElementById('pendingModalCount');
+            var pagination = document.getElementById('pendingPagination');
+            var searchInput = document.getElementById('searchPendingInput');
+            var kw = searchInput ? encodeURIComponent(searchInput.value.trim()) : '';
+
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">' +
+                '<div class="spinner-border spinner-border-sm me-2"></div>Memuat halaman ' + page + '...</td></tr>';
+            if (pagination) pagination.style.display = 'none';
+
+            fetch('/PreparationWorkflow/GetPendingPreparations?page=' + page + '&pageSize=' + _pendingPageSize + '&keyword=' + kw
+                + (document.getElementById('schedPendingDateFrom')?.value ? '&dateFrom=' + encodeURIComponent(document.getElementById('schedPendingDateFrom').value) : '')
+                + (document.getElementById('schedPendingDateTo')?.value   ? '&dateTo='   + encodeURIComponent(document.getElementById('schedPendingDateTo').value)   : '')
+            )
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    _pendingTotal = data.total || 0;
+                    var totalPages = data.totalPages || 1;
+                    var items = data.items || [];
+
+                    if (countBadge) {
+                         if (kw && _pendingTotal < parseInt(countBadge.getAttribute('data-real-total') || '0')) {
+                             // Just update the visible text, don't overwrite the real total logic
+                             countBadge.textContent = _pendingTotal + ' (filter)';
+                         } else {
+                             countBadge.textContent = _pendingTotal;
+                             countBadge.setAttribute('data-real-total', _pendingTotal);
+                         }
+                    }
+
+                    if (!items.length && page === 1) {
+                        if (kw) {
+                            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">' +
+                                '<i class="bi bi-search text-secondary fs-3 d-block mb-2"></i>Tidak ada hasil pencarian!</td></tr>';
+                        } else {
+                            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">' +
+                                '<i class="bi bi-check2-all text-success fs-3 d-block mb-2"></i>Semua scan sudah tersinkronisasi!</td></tr>';
+                        }
+                        return;
+                    }
+
+                    var start = (page - 1) * _pendingPageSize;
+                    tbody.innerHTML = items.map(function(r, i) {
+                        return '<tr>' +
+                            '<td class="text-center align-middle"><input type="checkbox" class="form-check-input pending-item-check" value="' + r.preparationId + '"></td>' +
+                            '<td class="px-3 py-2 text-muted" style="font-size:0.78rem;">' + (start + i + 1) + '</td>' +
+                            '<td class="px-3 py-2 text-nowrap" style="font-size:0.82rem;">' + r.createdDate + '</td>' +
+                            '<td class="px-3 py-2"><span class="badge bg-secondary opacity-75" style="font-size:0.72rem;">' + (r.dockName || '-') + '</span></td>' +
+                            '<td class="px-3 py-2" style="font-size:0.78rem;color:#facc15;">' + (r.dockCycle || '-') + '</td>' +
+                            '<td class="px-3 py-2"><span class="badge bg-primary" style="font-size:0.8rem;">' + r.tag + '</span></td>' +
+                            '<td class="px-3 py-2" style="font-size:0.82rem;">' + r.label + '</td>' +
+                            '<td class="px-3 py-2" style="font-size:0.82rem;">' + r.kanban + '</td>' +
+                            '<td class="px-3 py-2" style="font-size:0.82rem;font-weight:600;color:#facc15;">' + (r.targetDate || '-') + '</td>' +
+                            '<td class="px-3 py-2" style="font-size:0.82rem;">' + r.createdBy + '</td>' +
+                            '</tr>';
+                    }).join('');
+
+                    // Restore checkbox state jika ada yang dicentang sebelum reload
+                    if (restoreChecked && restoreChecked.length > 0) {
+                        document.querySelectorAll('.pending-item-check').forEach(function(cb) {
+                            if (restoreChecked.indexOf(cb.value) !== -1) cb.checked = true;
+                        });
+                    }
+
+                    // Attach event listener for row checkboxes
+                    var checkAll = document.getElementById('checkAllPendingSched');
+                    var allChecksNow = document.querySelectorAll('.pending-item-check');
+                    var checkedNow = document.querySelectorAll('.pending-item-check:checked');
+                    if (checkAll) {
+                        checkAll.checked = allChecksNow.length > 0 && checkedNow.length === allChecksNow.length;
+                        checkAll.onchange = function() {
+                            var isC = this.checked;
+                            var rowCb = document.querySelectorAll('.pending-item-check');
+                            for (var c = 0; c < rowCb.length; c++) {
+                                rowCb[c].checked = isC;
+                            }
+                        };
+                    }
+                    var itemChecks = document.querySelectorAll('.pending-item-check');
+                    for (var ic = 0; ic < itemChecks.length; ic++) {
+                        itemChecks[ic].onchange = function() {
+                            if (checkAll) {
+                                var allCount = document.querySelectorAll('.pending-item-check').length;
+                                var checkedCount = document.querySelectorAll('.pending-item-check:checked').length;
+                                checkAll.checked = (allCount === checkedCount && allCount > 0);
+                            }
+                        };
+                    }
+
+                    // Render pagination
+                    if (pagination && totalPages > 1) {
+                        var pageInfo = document.getElementById('pendingPageInfo');
+                        var pageBtns = document.getElementById('pendingPageBtns');
+                        var end = Math.min(start + items.length, _pendingTotal);
+                        if (pageInfo) pageInfo.textContent = 'Menampilkan ' + (start + 1) + 'â€“' + end + ' dari ' + _pendingTotal + ' data';
+
+                        var btns = '';
+                        btns += '<button onclick="fetchPendingPage(' + (page - 1) + ')" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:0.75rem;"' + (page <= 1 ? ' disabled' : '') + '><i class="bi bi-chevron-left"></i></button>';
+                        var pStart = Math.max(1, page - 2);
+                        var pEnd = Math.min(totalPages, pStart + 4);
+                        pStart = Math.max(1, pEnd - 4);
+                        for (var p = pStart; p <= pEnd; p++) {
+                            var active = (p === page) ? 'btn-warning text-dark' : 'btn-outline-warning';
+                            btns += '<button onclick="fetchPendingPage(' + p + ')" class="btn btn-sm ' + active + ' py-0 px-2" style="font-size:0.75rem;">' + p + '</button>';
+                        }
+                        btns += '<button onclick="fetchPendingPage(' + (page + 1) + ')" class="btn btn-sm btn-outline-warning py-0 px-2" style="font-size:0.75rem;"' + (page >= totalPages ? ' disabled' : '') + '><i class="bi bi-chevron-right"></i></button>';
+                        if (pageBtns) pageBtns.innerHTML = btns;
+                        pagination.style.display = 'flex';
+                    }
+                })
+                .catch(function() {
+                    tbody.innerHTML = '<tr><td colspan="10" class="text-danger text-center py-3">' +
+                        '<i class="bi bi-exclamation-triangle me-2"></i>Gagal memuat data.</td></tr>';
+                });
+        }
+
+        function renderPendingPage(page) {
+            // Wrapper &mdash; sekarang delegate ke server-side fetch
+            fetchPendingPage(page);
+        }
+
+        function openPendingModal() {
+            var modalEl = document.getElementById('pendingPrepModal');
+            if (!modalEl) return;
+            if (!_pendingModal) {
+                _pendingModal = new bootstrap.Modal(modalEl);
+            }
+            // Reset state
+            var tbody = document.getElementById('pendingPrepBody');
+            var pagination = document.getElementById('pendingPagination');
+            var searchInput = document.getElementById('searchPendingInput');
+            if (searchInput) searchInput.value = '';
+
+            if (pagination) pagination.style.display = 'none';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">' +
+                '<div class="spinner-border spinner-border-sm me-2"></div>Memuat data...</td></tr>';
+
+            _pendingModal.show();
+            fetchPendingPage(1);
+        }
+
+        // ================================================================
+        // HAPUS DATA PENDING
+        // ================================================================
+        var _deletePendingMode = 'today';
+        var _deletePendingModal = null;
+        var _deletePendingSelectedIds = [];
+
+        function openDeletePendingModal(mode) {
+            _deletePendingMode = mode;
+            var titleEl   = document.getElementById('deletePendingTitle');
+            var descEl    = document.getElementById('deletePendingDesc');
+            var inputEl   = document.getElementById('deletePendingConfirmInput');
+            var btnEl     = document.getElementById('btnConfirmDeletePending');
+
+            if (mode === 'selected') {
+                var checkedNodes = document.querySelectorAll('.pending-item-check:checked');
+                _deletePendingSelectedIds = [];
+                for (var i = 0; i < checkedNodes.length; i++) {
+                    _deletePendingSelectedIds.push(parseInt(checkedNodes[i].value));
+                }
+                if (_deletePendingSelectedIds.length === 0) {
+                    showSyncToast(false, 'Pilih minimal satu item untuk dihapus.', 0, null);
+                    return;
+                }
+                titleEl.textContent = 'Hapus Item Terpilih';
+                descEl.innerHTML    = 'Anda akan menghapus <strong>' + _deletePendingSelectedIds.length + ' item</strong> yang dipilih. Data yang sudah terikat ke jadwal <u>tidak</u> akan terpengaruh.';
+            } else if (mode === 'today') {
+                _deletePendingSelectedIds = [];
+                titleEl.textContent = 'Hapus Scan Pending Hari Ini';
+                descEl.innerHTML    = 'Anda akan menghapus seluruh data scan preparation pending yang tercatat <strong>hari ini</strong>. Data yang sudah terikat ke jadwal <u>tidak</u> akan terpengaruh.';
+            } else {
+                _deletePendingSelectedIds = [];
+                titleEl.textContent = 'Hapus Semua Data Pending';
+                descEl.innerHTML    = 'Anda akan menghapus <strong>SEMUA</strong> data scan preparation yang belum terikat ke jadwal manapun, tanpa batasan tanggal.';
+            }
+
+            inputEl.value = '';
+            btnEl.disabled = true;
+
+            var modalEl = document.getElementById('deletePendingModal');
+            if (!_deletePendingModal) {
+                _deletePendingModal = new bootstrap.Modal(modalEl);
+            }
+            _deletePendingModal.show();
+        }
+
+        function checkDeletePendingInput() {
+            var inputEl = document.getElementById('deletePendingConfirmInput');
+            var btnEl   = document.getElementById('btnConfirmDeletePending');
+            btnEl.disabled = (inputEl.value.trim().toUpperCase() !== 'HAPUS');
+        }
+
+        function doDeletePending() {
+            var btnEl = document.getElementById('btnConfirmDeletePending');
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menghapus...';
+
+            var url, body;
+            if (_deletePendingMode === 'selected') {
+                url  = '/PreparationWorkflow/DeleteSelectedPendingPreparations';
+                body = JSON.stringify({ ids: _deletePendingSelectedIds });
+            } else {
+                url  = '/PreparationWorkflow/DeletePendingPreparations';
+                body = JSON.stringify({ mode: _deletePendingMode });
+            }
+
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: body
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                // Tutup modal konfirmasi
+                if (_deletePendingModal) _deletePendingModal.hide();
+
+                // Reset tombol
+                btnEl.disabled = false;
+                btnEl.innerHTML = '<i class="bi bi-trash3-fill me-1"></i>Hapus Sekarang';
+
+                // Tampilkan toast
+                showSyncToast(data.success, data.message, null, data.remaining);
+
+                // Update pending count & reload tabel modal
+                if (typeof data.remaining === 'number') {
+                    updatePendingUIGlobal(data.remaining);
+                    var countBadge = document.getElementById('pendingModalCount');
+                    if (countBadge) countBadge.textContent = data.remaining;
+                }
+
+                // Reload data di modal pending
+                if (data.success) {
+                    reloadPendingModalData();
+                }
+            })
+            .catch(function(err) {
+                btnEl.disabled = false;
+                btnEl.innerHTML = '<i class="bi bi-trash3-fill me-1"></i>Hapus Sekarang';
+                showSyncToast(false, 'Gagal menghapus: ' + err.message, null, null);
+            });
+        }
+    </script>
+}
+
+<style>
+    .cyber-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    @@keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .bulk-check:checked {
+        background-color: #a855f7;
+        border-color: #a855f7;
+    }
+    #bulkSelectAll:checked {
+        background-color: #a855f7;
+        border-color: #a855f7;
+    }
+    tr:has(.bulk-check:checked) {
+        background: rgba(168,85,247,0.08) !important;
+    }
+</style>
+
+<!-- Bulk Delete JavaScript -->
+<script>
+(function() {
+    var bulkBar = document.getElementById('bulkDeleteBar');
+    var selectAllCb = document.getElementById('bulkSelectAll');
+    if (!bulkBar) return; // Admin only
+
+    // â”€â”€ localStorage key untuk menyimpan pilihan lintas halaman â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    var LS_KEY = 'bulkSelectedScheduleIds';
+
+    function getSavedIds() {
+        try {
+            var raw = localStorage.getItem(LS_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch(e) { return []; }
+    }
+
+    function saveIds(ids) {
+        try { localStorage.setItem(LS_KEY, JSON.stringify(ids)); } catch(e) {}
+    }
+
+    function clearSavedIds() {
+        try { localStorage.removeItem(LS_KEY); } catch(e) {}
+    }
+
+    // â”€â”€ Restore centangan dari localStorage saat halaman dimuat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    window.bulkRestoreChecks = function() {
+        var saved = getSavedIds();
+        if (saved.length === 0) return;
+        document.querySelectorAll('.bulk-check').forEach(function(cb) {
+            var sid = parseInt(cb.getAttribute('data-schedule-id'));
+            if (sid > 0 && saved.indexOf(sid) !== -1) {
+                cb.checked = true;
+            }
+        });
+        updateBulkUI();
+    };
+    bulkRestoreChecks();
+
+    function updateBulkUI() {
+        var selectedOnPage = document.querySelectorAll('.bulk-check:checked');
+        var countOnPage  = selectedOnPage.length;
+
+        // Ambil semua id yang ada di halaman saat ini (baik diceklis maupun tidak)
+        var allPageIds = [];
+        document.querySelectorAll('.bulk-check').forEach(function(cb) {
+            var sid = parseInt(cb.getAttribute('data-schedule-id'));
+            if (sid > 0 && allPageIds.indexOf(sid) === -1) allPageIds.push(sid);
+        });
+
+        // Kumpulkan id yang diceklis di halaman saat ini
+        var pageCheckedIds = [];
+        selectedOnPage.forEach(function(cb) {
+            var sid = parseInt(cb.getAttribute('data-schedule-id'));
+            if (sid > 0) pageCheckedIds.push(sid);
+        });
+
+        var saved = getSavedIds();
+        
+        // SINKRONISASI:
+        // 1. Hapus SEMUA id halaman ini dari daftar 'saved'
+        saved = saved.filter(function(id) { return allPageIds.indexOf(id) === -1; });
+        
+        // 2. Tambahkan kembali yang SEDANG diceklis
+        pageCheckedIds.forEach(function(id) {
+            if (saved.indexOf(id) === -1) saved.push(id);
+        });
+        
+        saveIds(saved);
+
+        // Tampilkan jumlah total (termasuk halaman lain)
+        var totalSelected = saved.length;
+        var countEl = document.getElementById('bulkSelectedCount');
+        if (countEl) {
+            countEl.textContent = totalSelected + (totalSelected !== countOnPage && countOnPage > 0 ? ' (' + countOnPage + ' halaman ini)' : '');
+        }
+
+        // Badge di dropdown Export
+        var badgeEl = document.getElementById('exportSelectedCount');
+        if (badgeEl) {
+            if (totalSelected > 0) {
+                badgeEl.textContent = totalSelected + ' jadwal';
+                badgeEl.style.display = '';
+            } else {
+                badgeEl.style.display = 'none';
+            }
+        }
+
+        if (totalSelected > 0) {
+            bulkBar.classList.remove('d-none');
+            bulkBar.style.display = 'flex';
+        } else {
+            bulkBar.classList.add('d-none');
+            bulkBar.style.display = 'none';
+        }
+
+        // Sync select-all checkbox (hanya untuk halaman ini)
+        var totalOnPage = document.querySelectorAll('.bulk-check').length;
+        if (selectAllCb) {
+            selectAllCb.checked = totalOnPage > 0 && countOnPage === totalOnPage;
+            selectAllCb.indeterminate = countOnPage > 0 && countOnPage < totalOnPage;
+        }
+    }
+    window.bulkUpdateUI = updateBulkUI;
+
+    // Jalankan updateBulkUI sekali saat load agar bulkBar muncul jika ada data tersimpan
+    (function initUI() {
+        var saved = getSavedIds();
+        if (saved.length > 0) {
+            var totalSelected = saved.length;
+            var countEl = document.getElementById('bulkSelectedCount');
+            if (countEl) countEl.textContent = totalSelected;
+            var badgeEl = document.getElementById('exportSelectedCount');
+            if (badgeEl) { badgeEl.textContent = totalSelected + ' jadwal'; badgeEl.style.display = ''; }
+            bulkBar.classList.remove('d-none');
+            bulkBar.style.display = 'flex';
+        }
+    })();
+
+    // Select All toggle
+    if (selectAllCb) {
+        selectAllCb.addEventListener('change', function() {
+            var checked = this.checked;
+            document.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = checked; });
+            updateBulkUI();
+        });
+    }
+
+    // Individual checkbox change
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('bulk-check')) updateBulkUI();
+    });
+
+    // Deselect all &mdash; hapus semua termasuk halaman lain
+    window.bulkDeselectAll = function() {
+        document.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = false; });
+        if (selectAllCb) selectAllCb.checked = false;
+        clearSavedIds();
+        updateBulkUI();
+    };
+
+    // Export selected ke Excel &mdash; ambil dari localStorage (lintas halaman)
+    window.bulkExportSelected = function() {
+        var saved = getSavedIds();
+        if (saved.length === 0) {
+            document.activeElement && document.activeElement.blur();
+            if (window.showUpdateNotification)
+                window.showUpdateNotification('Centang dulu baris yang ingin di-export, lalu klik "Data Terpilih".', 'warning', 4000);
+            else
+                alert('Centang dulu baris yang ingin di-export, kemudian klik tombol "Data Terpilih".');
+            return;
+        }
+
+        // Submit form POST ke endpoint ExportExcel dengan selectedIds
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/PreparationSchedule/ExportExcelSelected';
+        form.style.display = 'none';
+
+        var tokenEl = document.querySelector('input[name="__RequestVerificationToken"]');
+        if (tokenEl) {
+            var tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '__RequestVerificationToken';
+            tokenInput.value = tokenEl.value;
+            form.appendChild(tokenInput);
+        }
+
+        var idsInput = document.createElement('input');
+        idsInput.type = 'hidden';
+        idsInput.name = 'selectedIds';
+        idsInput.value = saved.join(',');
+        form.appendChild(idsInput);
+
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+
+        // Reset pilihan setelah download dimulai
+        clearSavedIds();
+        document.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = false; });
+        if (selectAllCb) selectAllCb.checked = false;
+        updateBulkUI();
+
+        if (window.showUpdateNotification)
+            window.showUpdateNotification('Download dimulai. Pilihan telah direset.', 'success', 3000);
+    };
+
+    // Delete selected
+    window.bulkDeleteSelected = function() {
+        var checks = document.querySelectorAll('.bulk-check:checked');
+        if (checks.length === 0) return;
+
+        var ids = [];
+        var ghostScheduleIds = [];
+        checks.forEach(function(cb) {
+            var id = parseInt(cb.getAttribute('data-id'));
+            if (id > 0) ids.push(id);
+            var ghostId = parseInt(cb.getAttribute('data-ghost-schedule-id'));
+            if (ghostId > 0) ghostScheduleIds.push(ghostId);
+        });
+
+        if (ids.length === 0 && ghostScheduleIds.length === 0) return;
+
+        var confirmMsg = '';
+        if (ids.length > 0 && ghostScheduleIds.length > 0)
+            confirmMsg = 'Yakin hapus ' + ids.length + ' item + ' + ghostScheduleIds.length + ' Ghost Schedule? Tidak bisa dibatalkan.';
+        else if (ids.length > 0)
+            confirmMsg = 'Yakin ingin menghapus ' + ids.length + ' item terpilih? Tindakan ini tidak bisa dibatalkan.';
+        else
+            confirmMsg = 'Yakin hapus ' + ghostScheduleIds.length + ' Ghost Schedule terpilih? Tidak bisa dibatalkan.';
+
+        if (!confirm(confirmMsg)) return;
+
+        var btnDelete = bulkBar.querySelector('.btn-danger');
+        var originalHtml = btnDelete.innerHTML;
+        btnDelete.disabled = true;
+        btnDelete.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Menghapus...';
+
+        // Step 1: hapus DeliveryItems (normal) jika ada
+        var step1 = ids.length > 0
+            ? fetch('/PreparationSchedule/BulkDeleteSelected', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: ids })
+              }).then(function(r) { return r.json(); })
+            : Promise.resolve({ success: true, message: '' });
+
+        // Step 2: hapus ghost schedules jika ada
+        var step2 = ghostScheduleIds.length > 0
+            ? fetch('/PreparationSchedule/BulkDeleteGhostSchedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: ghostScheduleIds })
+              }).then(function(r) { return r.json(); })
+            : Promise.resolve({ success: true, message: '' });
+
+        Promise.all([step1, step2])
+        .then(function(results) {
+            btnDelete.disabled = false;
+            btnDelete.innerHTML = originalHtml;
+            var allOk = results.every(function(r) { return r.success; });
+            var msg = results.map(function(r) { return r.message; }).filter(Boolean).join(' ');
+
+            if (allOk) {
+                if (window.showUpdateNotification)
+                    window.showUpdateNotification(msg || 'Berhasil dihapus.', 'success', 4000);
+                else
+                    alert(msg || 'Berhasil dihapus.');
+                clearSavedIds();
+                setTimeout(function() { location.reload(); }, 1200);
+            } else {
+                if (window.showUpdateNotification)
+                    window.showUpdateNotification(msg || 'Gagal menghapus.', 'danger', 5000);
+                else
+                    alert(msg || 'Gagal menghapus.');
+            }
+        })
+        .catch(function(err) {
+            btnDelete.disabled = false;
+            btnDelete.innerHTML = originalHtml;
+            alert('Error koneksi: ' + err.message);
+        });
+    };
+})();
+</script>
+
+<partial name="_ClearDataModal" />
+
+<!-- Modal Clear Data Jadwal Preparation (per tanggal / semua) -->
+<div class="modal fade" id="clearScheduleModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px;">
+        <div class="modal-content" style="background:#0d1b35;border:1px solid #3b2a2a;border-radius:14px;color:#fff;">
+            <div class="modal-header" style="border-bottom:1px solid #3b2a2a;padding:16px 20px;">
+                <h5 class="modal-title fw-bold d-flex align-items-center gap-2">
+                    <span style="font-size:20px;">ðŸ—‘ï¸</span>
+                    <span class="text-danger">Hapus Data Jadwal Preparation</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+
+                <!-- Pilihan Mode -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold" style="color:#fcd34d;font-size:13px;">Pilih yang ingin dihapus:</label>
+                    <div class="d-flex gap-2">
+                        <button type="button" id="btnModeDate" onclick="setClearMode('date')"
+                            class="btn btn-sm flex-fill fw-bold"
+                            style="background:#1e3a5f;border:2px solid #3b82f6;color:#93c5fd;border-radius:8px;padding:10px 0;font-size:13px;">
+                            <i class="bi bi-calendar3 me-1"></i> Per Tanggal
+                        </button>
+                        <button type="button" id="btnModeAll" onclick="setClearMode('all')"
+                            class="btn btn-sm flex-fill fw-bold"
+                            style="background:#1c1010;border:2px solid #4b2020;color:#fca5a5;border-radius:8px;padding:10px 0;font-size:13px;">
+                            <i class="bi bi-trash3 me-1"></i> Semua Data
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Input Tanggal (hanya muncul mode Per Tanggal) -->
+                <div id="clearDateSection" class="mb-3">
+                    <label style="font-size:13px;color:#94a3b8;font-weight:600;display:block;margin-bottom:6px;">
+                        <i class="bi bi-calendar2-week me-1"></i> Pilih Tanggal:
+                    </label>
+                    <input type="date" id="clearDateInput"
+                           style="width:100%;background:#0a1628;border:1px solid #2a3a5a;color:#fff;border-radius:8px;padding:10px 14px;font-size:14px;outline:none;" />
+                    <div id="clearDateInfo" class="mt-2" style="font-size:12px;color:#64748b;"></div>
+                </div>
+
+                <!-- Warning -->
+                <div class="mb-4 p-3" style="background:#1c1010;border-left:4px solid #f44336;border-radius:6px;font-size:13px;color:#ffcdd2;">
+                    âš ï¸ Tindakan ini <strong>tidak dapat dibatalkan</strong>. Data jadwal dan preparation yang dihapus tidak bisa dikembalikan.
+                </div>
+
+                <!-- Konfirmasi Ketik HAPUS -->
+                <label style="font-size:13px;color:#ffb300;font-weight:600;display:block;margin-bottom:6px;">
+                    Ketik <strong style="color:#f44336;font-size:14px;">HAPUS</strong> untuk konfirmasi:
+                </label>
+                <input type="text" id="clearScheduleConfirmInput" autocomplete="off"
+                       style="width:100%;background:#0a1628;border:1px solid #2a3a5a;color:#fff;border-radius:8px;padding:10px 14px;font-size:15px;outline:none;transition:border 0.2s;"
+                       placeholder="Ketik HAPUS di sini..." />
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #3b2a2a;padding:14px 20px;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" style="border-radius:8px;">Batal</button>
+                <button type="button" id="btnDoClearSchedule" class="btn btn-danger fw-bold" disabled
+                        style="border-radius:8px;padding:8px 22px;opacity:0.5;transition:opacity 0.2s;">
+                    <i class="bi bi-trash3-fill me-1"></i> Hapus Sekarang
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var _clearMode = 'date'; // 'date' atau 'all'
+    var _clearModalInstance = null;
+
+    function getModal() {
+        if (!_clearModalInstance)
+            _clearModalInstance = new bootstrap.Modal(document.getElementById('clearScheduleModal'));
+        return _clearModalInstance;
+    }
+
+    window.showClearScheduleModal = function (currentFilterDate) {
+        // Reset state
+        _clearMode = 'date';
+        document.getElementById('clearScheduleConfirmInput').value = '';
+        document.getElementById('btnDoClearSchedule').disabled = true;
+        document.getElementById('btnDoClearSchedule').style.opacity = '0.5';
+
+        // Set tanggal default = filter date yang sedang aktif
+        var dateInput = document.getElementById('clearDateInput');
+        dateInput.value = currentFilterDate || new Date().toISOString().split('T')[0];
+        updateDateInfo();
+        updateModeUI();
+        getModal().show();
+        setTimeout(function () { document.getElementById('clearScheduleConfirmInput').focus(); }, 400);
+    };
+
+    window.setClearMode = function (mode) {
+        _clearMode = mode;
+        document.getElementById('clearScheduleConfirmInput').value = '';
+        document.getElementById('btnDoClearSchedule').disabled = true;
+        document.getElementById('btnDoClearSchedule').style.opacity = '0.5';
+        updateModeUI();
+    };
+
+    function updateModeUI() {
+        var isDate = _clearMode === 'date';
+        // Toggle date section visibility
+        document.getElementById('clearDateSection').style.display = isDate ? 'block' : 'none';
+
+        // Button Per Tanggal - active style
+        var btnDate = document.getElementById('btnModeDate');
+        btnDate.style.background    = isDate ? '#1e3a8a' : '#1e3a5f';
+        btnDate.style.borderColor   = isDate ? '#60a5fa' : '#3b82f6';
+        btnDate.style.color         = isDate ? '#fff'    : '#93c5fd';
+
+        // Button Semua Data - active style
+        var btnAll = document.getElementById('btnModeAll');
+        btnAll.style.background   = !isDate ? '#450a0a' : '#1c1010';
+        btnAll.style.borderColor  = !isDate ? '#f44336' : '#4b2020';
+        btnAll.style.color        = !isDate ? '#fff'    : '#fca5a5';
+    }
+
+    function updateDateInfo() {
+        var val = document.getElementById('clearDateInput').value;
+        var info = document.getElementById('clearDateInfo');
+        if (val) {
+            var d = new Date(val + 'T00:00:00');
+            var opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            info.textContent = 'ðŸ“… ' + d.toLocaleDateString('id-ID', opts);
+        } else {
+            info.textContent = '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var input   = document.getElementById('clearScheduleConfirmInput');
+        var btn     = document.getElementById('btnDoClearSchedule');
+        var dateInp = document.getElementById('clearDateInput');
+
+        if (!input || !btn) return;
+
+        dateInp.addEventListener('change', updateDateInfo);
+
+        input.addEventListener('input', function () {
+            var ok = this.value.trim().toUpperCase() === 'HAPUS';
+            btn.disabled = !ok;
+            btn.style.opacity = ok ? '1' : '0.5';
+        });
+        input.addEventListener('focus', function () { this.style.border = '1px solid #f44336'; });
+        input.addEventListener('blur',  function () { this.style.border = '1px solid #2a3a5a'; });
+
+        btn.addEventListener('click', function () {
+            var self = this;
+            self.disabled = true;
+            self.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Menghapus...';
+
+            var token = '';
+            var tokenInput = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (tokenInput) token = tokenInput.value;
+
+            var body = { mode: _clearMode };
+            if (_clearMode === 'date') {
+                body.date = document.getElementById('clearDateInput').value;
+            }
+
+            fetch('/PreparationSchedule/ClearPreparationData', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify(body)
+            })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                getModal().hide();
+                if (res.success) {
+                    if (window.showUpdateNotification)
+                        window.showUpdateNotification(res.message || 'Data berhasil dihapus.', 'success', 5000);
+                    setTimeout(function () { location.reload(); }, 1200);
+                } else {
+                    if (window.showUpdateNotification)
+                        window.showUpdateNotification(res.message || 'Gagal menghapus data.', 'danger', 6000);
+                    self.disabled = false;
+                    self.style.opacity = '1';
+                    self.innerHTML = '<i class="bi bi-trash3-fill me-1"></i> Hapus Sekarang';
+                }
+            })
+            .catch(function () {
+                getModal().hide();
+                if (window.showUpdateNotification)
+                    window.showUpdateNotification('Terjadi kesalahan koneksi.', 'danger', 6000);
+                self.disabled = false;
+                self.style.opacity = '1';
+                self.innerHTML = '<i class="bi bi-trash3-fill me-1"></i> Hapus Sekarang';
+            });
+        });
+    });
+})();
+</script>
+
+<!-- Repair / Pisah Jadwal JavaScript -->
+<script>
+(function() {
+    var _repairDryRunData = null;
+    var _resolvedSourceScheduleId = 0;   // integer ScheduleId hasil lookup
+    var _resolvedTargetCustomerId = 0;   // integer CustomerId hasil lookup
+
+    window.repairLookupSchedule = function() {
+        var q = (document.getElementById('repairSourceScheduleId').value || '').trim();
+        if (!q) { alert('Ketik nomor jadwal atau ID angka terlebih dahulu.'); return; }
+        var el = document.getElementById('repairScheduleInfo');
+        el.textContent = 'Mencari...';
+        el.className = 'mt-1 text-muted';
+        el.style.display = '';
+        _resolvedSourceScheduleId = 0;
+        document.getElementById('repairExecBtn').disabled = true;
+        fetch('/PreparationSchedule/GetScheduleInfo?query=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d && d.success) {
+                    _resolvedSourceScheduleId = d.scheduleId;
+                    el.innerHTML = '\u2713 <b>' + (d.scheduleNumber || 'ID ' + d.scheduleId) + '</b>'
+                        + ' &mdash; ' + (d.customerName || '-')
+                        + ' | Cycle: ' + (d.cycle || '-')
+                        + ' | ' + (d.scheduledDate || '')
+                        + ' | ' + (d.totalItems || 0) + ' item'
+                        + ' | Status: ' + (d.status || '-');
+                    el.className = 'mt-1 text-success';
+                } else {
+                    el.textContent = '\u2718 ' + (d.message || 'Jadwal tidak ditemukan.');
+                    el.className = 'mt-1 text-danger';
+                }
+            })
+            .catch(function() {
+                el.textContent = 'Error mencari jadwal.';
+                el.className = 'mt-1 text-danger';
+            });
+    };
+
+    window.repairLookupCustomer = function() {
+        var custId = parseInt(document.getElementById('repairTargetCustomerId').value) || 0;
+        if (!custId) { alert('Masukkan Customer ID (angka) terlebih dahulu.'); return; }
+        _resolvedTargetCustomerId = 0;
+        fetch('/PreparationSchedule/GetCustomerInfo?customerId=' + custId)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                var el = document.getElementById('repairCustomerInfo');
+                if (d && d.customerName) {
+                    _resolvedTargetCustomerId = custId;
+                    el.textContent = '\u2713 ' + d.customerName + ' (Code: ' + (d.customerCode || '-') + ', Cycle: ' + (d.cycle || '-') + ')';
+                    el.className = 'mt-1 text-success';
+                    el.style.display = '';
+                } else {
+                    el.textContent = '\u2718 Customer tidak ditemukan';
+                    el.className = 'mt-1 text-danger';
+                    el.style.display = '';
+                }
+            })
+            .catch(function() {
+                var el = document.getElementById('repairCustomerInfo');
+                el.textContent = 'Error mencari customer.';
+                el.className = 'mt-1 text-danger';
+                el.style.display = '';
+            });
+    };
+
+    function repairCall(dryRun) {
+        // Gunakan ID yang sudah di-resolve via tombol Cari, fallback ke input langsung jika angka
+        var srcId = _resolvedSourceScheduleId || parseInt(document.getElementById('repairSourceScheduleId').value) || 0;
+        var tgtId = _resolvedTargetCustomerId || parseInt(document.getElementById('repairTargetCustomerId').value) || 0;
+        if (!srcId) { alert('Cari jadwal source terlebih dahulu dengan tombol Cari.'); return; }
+        if (!tgtId) { alert('Isi Target Customer ID dan klik Cari.'); return; }
+
+        var btnDry  = document.getElementById('repairDryRunBtn');
+        var btnExec = document.getElementById('repairExecBtn');
+        btnDry.disabled = true;
+        if (!dryRun) btnExec.disabled = true;
+
+        fetch('/PreparationSchedule/RepairSplitSchedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sourceScheduleId: srcId, targetCustomerId: tgtId, dryRun: dryRun })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            btnDry.disabled = false;
+            if (dryRun) {
+                _repairDryRunData = res;
+                var el = document.getElementById('repairDryRunResult');
+                el.classList.remove('d-none');
+                var txt  = document.getElementById('repairDryRunText');
+                var pts  = document.getElementById('repairDryRunParts');
+                var cls  = (res.itemsToMove > 0) ? 'text-success' : 'text-warning';
+                txt.innerHTML = '<span class="' + cls + '">'
+                    + (res.message || '') + '</span>'
+                    + '<br><small class="text-muted">Total item di source: ' + (res.totalItems || 0)
+                    + ' &bull; Akan dipindah: <b class="text-info">' + (res.itemsToMove || 0) + '</b>'
+                    + ' &bull; Tetap di source: ' + (res.itemsToKeep || 0) + '</small>';
+                pts.textContent = (res.movedPartNos && res.movedPartNos.length)
+                    ? 'Part Nos: ' + res.movedPartNos.join(', ')
+                    : '';
+                btnExec.disabled = !(res.success && res.itemsToMove > 0);
+            } else {
+                var el = document.getElementById('repairActionResult');
+                el.className = (res.success ? 'alert alert-success' : 'alert alert-danger') + ' mt-2 p-2 rounded';
+                el.textContent = res.message || (res.success ? 'Berhasil.' : 'Gagal.');
+                el.classList.remove('d-none');
+                btnExec.disabled = true;
+                if (res.success) setTimeout(function() { location.reload(); }, 2500);
+            }
+        })
+        .catch(function(err) {
+            btnDry.disabled = false;
+            alert('Error: ' + err.message);
+        });
+    }
+
+    window.repairDryRun  = function() { repairCall(true);  };
+    window.repairExecute = function() { repairCall(false); };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var modal = document.getElementById('repairSplitModal');
+        if (modal) {
+            modal.addEventListener('show.bs.modal', function() {
+                _repairDryRunData = null;
+                _resolvedSourceScheduleId = 0;
+                _resolvedTargetCustomerId = 0;
+                document.getElementById('repairDryRunResult').classList.add('d-none');
+                document.getElementById('repairActionResult').classList.add('d-none');
+                document.getElementById('repairExecBtn').disabled = true;
+                document.getElementById('repairCustomerInfo').style.display = 'none';
+                document.getElementById('repairScheduleInfo').style.display = 'none';
+            });
+        }
+    });
+})();
+</script>
+
+<!-- Smart Import JavaScript -->
+<script>
+(function() {
+    var _smartData = null; // holds preview response
+    var fileInput = document.getElementById('smartFile');
+    var dropZone = document.getElementById('smartDropZone');
+
+    if (dropZone && fileInput) {
+        dropZone.addEventListener('click', function() { fileInput.click(); });
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ffc107';
+            dropZone.style.background = 'rgba(255,193,7,0.05)';
+        });
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            dropZone.style.background = '';
+        });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.style.borderColor = '';
+            dropZone.style.background = '';
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                smartImportUpload(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) smartImportUpload(this.files[0]);
+        });
+    }
+
+    // === Upload & Preview ===
+    window.smartImportUpload = function(file) {
+        var maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            alert('File terlalu besar! Maksimal 10MB.');
+            return;
+        }
+        var allowed = ['.pdf','.xlsx','.xls','.csv','.txt'];
+        var ext = '.' + file.name.split('.').pop().toLowerCase();
+        if (allowed.indexOf(ext) < 0) {
+            alert('Format tidak didukung! Gunakan PDF, Excel, CSV, atau TXT.');
+            return;
+        }
+
+        // Show progress
+        document.getElementById('smartStep1').querySelector('#smartDropZone').classList.add('d-none');
+        document.getElementById('smartProgress').classList.remove('d-none');
+        document.getElementById('smartProgressText').textContent = 'Menganalisa ' + file.name + '...';
+
+        var formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/PreparationSchedule/SmartImportPreview', {
+            method: 'POST',
+            body: formData
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                alert('Error: ' + (data.errorMessage || 'Gagal memproses file.'));
+                smartImportReset();
+                return;
+            }
+            _smartData = data;
+            showSmartPreview(data);
+        })
+        .catch(function(err) {
+            alert('Error koneksi: ' + err.message);
+            smartImportReset();
+        });
+    };
+
+    function showSmartPreview(data) {
+        // Hide step 1, show step 2
+        document.getElementById('smartStep1').classList.add('d-none');
+        document.getElementById('smartStep2').classList.remove('d-none');
+
+        // Detection info
+        var custEl = document.getElementById('smartDetectedCustomer');
+        if (data.customerId) {
+            custEl.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>' + (data.detectedCustomerCode || data.detectedCustomer);
+            custEl.className = 'fw-bold text-success small';
+        } else {
+            custEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>' + (data.detectedCustomer || 'UNKNOWN');
+            custEl.className = 'fw-bold text-warning small';
+        }
+
+        document.getElementById('smartDetectedManifest').textContent = data.detectedManifest || '(tidak terdeteksi)';
+
+        // Tampilkan tanggal jadwal yang terdeteksi dari file
+        var dateInfoEl = document.getElementById('smartDetectedDate');
+        if (dateInfoEl) {
+            if (data.detectedScheduledDate) {
+                dateInfoEl.innerHTML = '<i class="bi bi-calendar-check-fill me-1 text-success"></i><b class="text-success">' + escapeHtml(data.detectedScheduledDate) + '</b>';
+            } else {
+                dateInfoEl.innerHTML = '<i class="bi bi-calendar-x me-1 text-danger"></i><span class="text-danger">Tidak terdeteksi &mdash; akan pakai tanggal hari ini</span>';
+            }
+        }
+
+        // Tampilkan route/cycle yang terdeteksi dari file
+        var parserInfo = (data.fileFormat || '').toUpperCase() + ' / ' + (data.parserUsed || 'GENERIC');
+        if (data.detectedRoute) parserInfo += '  |  Route: <b class="text-info">' + escapeHtml(data.detectedRoute) + '</b>';
+        if (data.detectedCycle) parserInfo += '  Cycle: <b class="text-info">' + escapeHtml(data.detectedCycle) + '</b>';
+        document.getElementById('smartParserInfo').innerHTML = parserInfo;
+
+        // Simpan detected route/cycle untuk highlight dock
+        window._smartDetectedRoute = (data.detectedRoute || '').trim().toUpperCase();
+        window._smartDetectedCycle = (data.detectedCycle || '').trim().toUpperCase();
+
+        // Warnings
+        var warnDiv = document.getElementById('smartWarnings');
+        if (data.warnings && data.warnings.length > 0) {
+            var warnHtml = '<div class="alert alert-warning bg-opacity-10 border-warning text-warning rounded-3 p-2 small">';
+            for (var i = 0; i < data.warnings.length; i++) {
+                warnHtml += '<i class="bi bi-exclamation-triangle me-1"></i>' + data.warnings[i] + '<br>';
+            }
+            warnHtml += '</div>';
+            warnDiv.innerHTML = warnHtml;
+            warnDiv.classList.remove('d-none');
+        } else {
+            warnDiv.classList.add('d-none');
+        }
+
+        // Dock grid &mdash; single scrollable list
+        var dockGrid = document.getElementById('smartDockGrid');
+        var hiddenDockId = document.getElementById('smartSelectedDockId');
+        dockGrid.innerHTML = '';
+        hiddenDockId.value = '';
+        window._smartDockItems = []; // store for search filtering
+
+        // Build dock list from matchedDocks (priority) or customerList
+        var dockList = (data.matchedDocks && data.matchedDocks.length > 0) ? data.matchedDocks : (data.customerList || []);
+        var preselectedId = data.customerId || null;
+
+        // TMMIN multi-dock: ubah label dock jadi opsional dan reset default pre-selection
+        var dockLabel = document.getElementById('smartDockLabel');
+        if (data.isTmminMultiDock) {
+            preselectedId = null; // Reset pre-selection karena TMMIN otomatis detect per-baris
+            if (dockLabel) {
+                dockLabel.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i> Pilih Dock <span class="text-info fw-normal" style="font-size:0.7rem">(opsional &mdash; auto-detected)</span> ' +
+                    '<button type="button" class="btn btn-sm btn-outline-danger py-0 px-1 ms-2 d-none" id="smartDockClearBtn" style="font-size:0.65rem"><i class="bi bi-x-circle me-1"></i>Batal Pilih</button>';
+
+                setTimeout(function() {
+                    var clearBtn = document.getElementById('smartDockClearBtn');
+                    if (clearBtn) {
+                        clearBtn.addEventListener('click', function(e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            dockGrid.querySelectorAll('.smart-dock-row').forEach(function(r) { r.style.background = ''; });
+                            hiddenDockId.value = '';
+                            this.classList.add('d-none');
+                            updateSmartCounts();
+                        });
+                    }
+                }, 50);
+            }
+        }
+
+        for (var i = 0; i < dockList.length; i++) {
+            (function(d, idx) {
+                var row = document.createElement('div');
+                row.className = 'smart-dock-row d-flex align-items-center px-2 py-1 border-bottom border-secondary';
+                row.style.cssText = 'cursor:pointer; font-size:0.78rem; transition:background .15s;';
+                row.setAttribute('data-dock-id', d.customerId);
+                row.setAttribute('data-search', ((d.dockName||'') + ' ' + (d.customerCode||'') + ' ' + (d.route||'')).toLowerCase());
+
+                // Cek apakah dock ini cocok dengan route yang terdeteksi dari file
+                var detectedRoute = window._smartDetectedRoute || '';
+                var dRoute = (d.route || '').trim().toUpperCase();
+                var dDocking = (d.docking || '').trim().toUpperCase();
+                var dName = (d.dockName || '').trim().toUpperCase();
+                var isRouteMatch = detectedRoute && (
+                    dRoute.indexOf(detectedRoute) > -1 ||
+                    dDocking.indexOf(detectedRoute) > -1 ||
+                    dName.indexOf(detectedRoute) > -1
+                );
+
+                var icon = isRouteMatch
+                    ? '<i class="bi bi-geo-alt-fill text-warning me-1" style="font-size:0.7rem"></i>'
+                    : '<i class="bi bi-geo-alt text-info me-1" style="font-size:0.7rem"></i>';
+
+                var info = '<b>' + escapeHtml(d.dockName || d.customerName || '') + '</b>';
+                info += ' <span class="text-muted">&mdash; ' + escapeHtml(d.customerCode || '') + '</span>';
+                if (d.route) {
+                    var rClass = isRouteMatch ? 'text-warning fw-bold' : 'text-secondary';
+                    info += ' <span class="' + rClass + ' ms-1" style="font-size:0.7rem">R:' + escapeHtml(d.route) + '</span>';
+                }
+                if (d.cycle) info += ' <span class="text-secondary" style="font-size:0.7rem">C:' + escapeHtml(d.cycle) + '</span>';
+                if (d.docking) info += ' <span class="text-secondary" style="font-size:0.7rem">D:' + escapeHtml(d.docking) + '</span>';
+
+                // Badge "âœ“ Route Match" jika cocok
+                if (isRouteMatch) {
+                    info += ' <span class="badge bg-warning text-dark ms-1" style="font-size:0.6rem">Route Match</span>';
+                }
+
+                row.innerHTML = icon + '<span class="flex-grow-1">' + info + '</span>';
+
+                // Pre-select
+                if (preselectedId && d.customerId == preselectedId) {
+                    row.style.background = '#1a5276';
+                    hiddenDockId.value = d.customerId;
+                }
+
+                row.addEventListener('mouseenter', function() { if (hiddenDockId.value != d.customerId) this.style.background = '#1c2e3f'; });
+                row.addEventListener('mouseleave', function() { if (hiddenDockId.value != d.customerId) this.style.background = ''; });
+                row.addEventListener('click', function() {
+                    dockGrid.querySelectorAll('.smart-dock-row').forEach(function(r) { r.style.background = ''; });
+                    this.style.background = '#1a5276';
+                    hiddenDockId.value = d.customerId;
+                    var clearBtn = document.getElementById('smartDockClearBtn');
+                    if (clearBtn) clearBtn.classList.remove('d-none');
+                    updateSmartCounts();
+                });
+
+                dockGrid.appendChild(row);
+                window._smartDockItems.push(row);
+            })(dockList[i], i);
+        }
+
+        if (dockList.length === 0) {
+            dockGrid.innerHTML = '<div class="text-muted text-center py-2 small">Tidak ada dock tersedia</div>';
+        }
+
+        // Dock search filter
+        var dockSearch = document.getElementById('smartDockSearch');
+        if (dockSearch) {
+            dockSearch.value = '';
+            dockSearch.oninput = function() {
+                var q = this.value.toLowerCase();
+                window._smartDockItems.forEach(function(row) {
+                    row.style.display = row.getAttribute('data-search').indexOf(q) > -1 ? '' : 'none';
+                });
+            };
+        }
+
+        // Manifest override
+        document.getElementById('smartManifestOverride').value = data.detectedManifest || '';
+
+        // Items table
+        var tbody = document.getElementById('smartItemsBody');
+        tbody.innerHTML = '';
+        var totalQty = 0;
+        var items = data.items || [];
+        // Set manifest yang sudah ada di DB (dari server)
+        var existingManifestSet = new Set((data.existingManifests || []).map(function(m) { return m.toUpperCase(); }));
+        for (var i = 0; i < items.length; i++) {
+            var item = items[i];
+            totalQty += item.qty;
+            var tr = document.createElement('tr');
+            // Cek apakah manifest ini sudah ada di DB
+            var manifestUpper = (item.manifesting || '').trim().toUpperCase();
+            var isDuplicate = manifestUpper && (item.matchedCustomerId > 0 ? existingManifestSet.has(manifestUpper + '||' + item.matchedCustomerId) : Array.from(existingManifestSet).some(function(k) { return k.startsWith(manifestUpper + '||'); }));
+            if (isDuplicate) tr.style.opacity = '0.6';
+            var dupBadge = isDuplicate
+                ? '<span class="badge bg-warning text-dark ms-1" style="font-size:0.58rem;vertical-align:middle" title="Manifest sudah ada di jadwal">SUDAH ADA</span>'
+                : '';
+            // Part No cell: show part no + VIN below (if resolved)
+            var inactiveBadge = item.isInactive
+                ? '<span class="badge bg-danger ms-1" style="font-size:0.6rem;vertical-align:middle;">NONAKTIF</span>'
+                : '';
+            var vinHtml = item.vin
+                ? '<div class="' + (item.isInactive ? 'text-danger' : 'text-success') + '" style="font-size:0.68rem;line-height:1.2">/ ' + escapeHtml(item.vin) + inactiveBadge + '</div>'
+                : '<div class="text-secondary" style="font-size:0.68rem;line-height:1.2">VIN not mapped</div>';
+            // Tanggal jadwal dari file (format yyyy-MM-dd)
+            var dateHtml = item.scheduledDate
+                ? '<span class="text-warning" style="font-size:0.75rem">' + escapeHtml(item.scheduledDate) + '</span>'
+                : '<span class="text-danger" style="font-size:0.72rem">&mdash;hari ini</span>';
+            // Simpan vin dan scheduledDate di data-attribute agar bisa dibaca saat Confirm tanpa parsing DOM
+            tr.setAttribute('data-vin', item.vin || '');
+            tr.setAttribute('data-scheduled-date', item.scheduledDate || '');
+            tr.setAttribute('data-dock-name', item.matchedDockName || '');
+            tr.setAttribute('data-cycle', item.matchedCycle || '');
+            tr.setAttribute('data-qty-lot', item.qtyLot || 1);
+            tr.setAttribute('data-excel-kanban', item.excelKanban || 0);
+            // TMMIN multi-dock: simpan matchedCustomerId
+            if (item.matchedCustomerId > 0) {
+                tr.setAttribute('data-matched-customer-id', item.matchedCustomerId);
+            }
+            // TMMIN dock badge
+            var dockBadge = '';
+            if (item.matchedDockName) {
+                dockBadge = '<div style="font-size:0.62rem;line-height:1.2;margin-top:2px;">' +
+                    '<span class="badge bg-info text-dark" style="font-size:0.58rem;padding:1px 4px;">' +
+                    '<i class="bi bi-geo-alt-fill me-1"></i>' + escapeHtml(item.matchedDockName) +
+                    (item.matchedRoute ? ' R:' + escapeHtml(item.matchedRoute) : '') +
+                    (item.matchedCycle ? ' C:' + escapeHtml(item.matchedCycle) : '') +
+                    '</span></div>';
+            }
+            
+            var isUnmatched = data.isTmminMultiDock && (!item.matchedCustomerId || item.matchedCustomerId === 0);
+            var checkboxHtml = isUnmatched 
+                ? '<input type="checkbox" class="form-check-input smart-item-check" disabled title="Unmatched Dock cannot be imported">'
+                : '<input type="checkbox" class="form-check-input smart-item-check" data-idx="' + i + '" checked>';
+
+            tr.innerHTML =
+                '<td>' + checkboxHtml + '</td>' +
+                '<td class="text-muted small">' + (i + 1) + '</td>' +
+                '<td><input type="text" class="form-control form-control-sm bg-dark text-white border-0 smart-manifest" value="' + escapeHtml(item.manifesting || '') + '" style="width:130px;font-size:0.75rem">' + dupBadge + '</td>' +
+                '<td><code class="text-info" style="font-size:0.78rem">' + escapeHtml(item.partNo) + '</code>' + vinHtml + '</td>' +
+                '<td class="small text-muted">' + escapeHtml(item.partName || '') + '</td>' +
+                '<td class="text-center">' +
+                '<input type="number" class="form-control form-control-sm bg-dark text-white border-0 text-center smart-qty" value="' + item.qty + '" min="1" style="width:70px;font-size:0.78rem; margin: 0 auto;">' +
+                (item.excelKanban && item.excelKanban > 0 ? '<div class="mt-1 text-info fw-bold" style="font-size:0.68rem; line-height: 1;">Kanban Excel:<br/>' + item.excelKanban + ' KBN</div>' : '') +
+                '</td>' +
+                '<td class="text-center">' + dateHtml + dockBadge + '</td>' +
+                '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger border-0 py-0" onclick="this.closest(\'tr\').remove();updateSmartCounts();"><i class="bi bi-x-lg" style="font-size:0.7rem"></i></button></td>';
+            // Search data-search attribute
+            var searchStr = ((item.manifesting||'') + ' ' + (item.partNo||'') + ' ' + (item.vin||'') + ' ' + (item.partName||'') + ' ' + (item.matchedDockName||'') + ' ' + (item.matchedRoute||'') + ' ' + (item.matchedCycle||'')).toLowerCase();
+            tr.setAttribute('data-search', searchStr);
+            tbody.appendChild(tr);
+        }
+
+        // Reset Item Search Filter value
+        var itemSearch = document.getElementById('smartItemSearch');
+        if (itemSearch) {
+            itemSearch.value = '';
+        }
+
+        // Warn jika ada item tanpa tanggal jadwal
+        var noDate = items.filter(function(i) { return !i.scheduledDate; });
+        if (noDate.length > 0) {
+            var warnDiv = document.getElementById('smartWarnings');
+            var fallbackDateStr = (_smartData && _smartData.detectedScheduledDate)
+                ? _smartData.detectedScheduledDate
+                : 'hari ini';
+            warnDiv.innerHTML = (warnDiv.innerHTML || '') +
+                '<div class="alert alert-warning bg-opacity-10 border-warning text-warning rounded-2 p-2 small mt-1">' +
+                '<i class="bi bi-calendar-x me-1"></i>' +
+                '<b>' + noDate.length + ' item</b> tidak memiliki tanggal jadwal dari file &mdash; akan menggunakan <b>' + escapeHtml(fallbackDateStr) + '</b> sebagai fallback.' +
+                '</div>';
+            warnDiv.classList.remove('d-none');
+        }
+
+        // Warn if some Part Nos have no VIN mapping
+        var unmapped = items.filter(function(i) { return !i.vin; });
+        if (unmapped.length > 0) {
+            var warnDiv = document.getElementById('smartWarnings');
+            var existing = warnDiv.innerHTML;
+            warnDiv.innerHTML = existing +
+                '<div class="alert alert-warning bg-opacity-10 border-warning text-warning rounded-2 p-2 small mt-1">' +
+                '<i class="bi bi-exclamation-triangle me-1"></i>' +
+                '<b>' + unmapped.length + ' Part No</b> belum terpetakan ke VIN internal. ' +
+                'Import tetap bisa dilanjutkan, tapi tambahkan mapping di <a href="/ItemMappings" target="_blank" class="text-warning">Item Mappings</a> agar sistem bisa mencocokkan part saat proses picking.' +
+                '</div>';
+            warnDiv.classList.remove('d-none');
+        }
+
+        // Warn jika ada item yang VIN-nya nonaktif di master data
+        var inactiveItems = items.filter(function(i) { return i.isInactive; });
+        if (inactiveItems.length > 0) {
+            var warnDiv = document.getElementById('smartWarnings');
+            var inactiveList = inactiveItems.map(function(i) { return escapeHtml(i.vin || i.partNo); }).join(', ');
+            warnDiv.innerHTML = (warnDiv.innerHTML || '') +
+                '<div class="alert alert-danger bg-opacity-10 border-danger text-danger rounded-2 p-2 small mt-1">' +
+                '<i class="bi bi-slash-circle-fill me-1"></i>' +
+                '<b>⛔ ' + inactiveItems.length + ' item dinonaktifkan di Master Data:</b> ' + inactiveList +
+                '<br><span style="font-size:0.78rem">Item ini tetap akan di-import ke jadwal. Aktifkan kembali di Master Item agar bisa di-scan.</span>' +
+                '</div>';
+            warnDiv.classList.remove('d-none');
+        }
+
+        // Warn jika manifest sudah ada di database (akan di-skip saat confirm)
+        if (existingManifestSet.size > 0) {
+            var warnDiv = document.getElementById('smartWarnings');
+            var dupList = Array.from(new Set(Array.from(existingManifestSet).map(function(m) { return m.split('||')[0]; }))).map(function(m) { return '<b>' + escapeHtml(m) + '</b>'; }).join(', ');
+            warnDiv.innerHTML = '<div class="alert alert-warning bg-opacity-10 border-warning text-warning rounded-2 p-2 small mt-1">' +
+                '<i class="bi bi-exclamation-octagon-fill me-1"></i>' +
+                '<b>⚠ ' + existingManifestSet.size + ' manifest sudah ada di database dan akan di-SKIP saat import:</b> ' + dupList +
+                '<br><span style="font-size:0.78rem">Hapus jadwal lama terlebih dahulu jika ingin import ulang.</span>' +
+                '</div>' + (warnDiv.innerHTML || '');
+            warnDiv.classList.remove('d-none');
+        }
+
+        updateSmartCounts();
+    }
+
+    window.updateSmartCounts = function() {
+        var rows = document.querySelectorAll('#smartItemsBody tr');
+        var count = 0, total = 0;
+        var visibleCount = 0, visibleTotal = 0;
+        var dateGroups = {};
+        
+        var q = '';
+        var itemSearch = document.getElementById('smartItemSearch');
+        if (itemSearch) {
+            q = itemSearch.value.trim().toLowerCase();
+        }
+
+        var getRowDockAndCycle = function(tr) {
+            var dName = tr.getAttribute('data-dock-name');
+            var dCycle = tr.getAttribute('data-cycle');
+            
+            if (!dName) {
+                var selectedDockId = parseInt(document.getElementById('smartSelectedDockId').value) || null;
+                if (selectedDockId && _smartData) {
+                    var list = (_smartData.matchedDocks && _smartData.matchedDocks.length > 0) ? _smartData.matchedDocks : (_smartData.customerList || []);
+                    var d = list.find(function(item) { return item.customerId === selectedDockId; });
+                    if (d) {
+                        dName = d.dockName || d.customerName || '';
+                        dCycle = d.cycle || '';
+                    }
+                }
+            }
+            return {
+                name: dName || '',
+                cycle: dCycle || ''
+            };
+        };
+
+        rows.forEach(function(tr) {
+            var isVisible = tr.style.display !== 'none';
+            var chk = tr.querySelector('.smart-item-check');
+            var qtyInput = tr.querySelector('.smart-qty');
+            var qty = parseInt(qtyInput ? qtyInput.value : '0') || 0;
+
+            if (chk && chk.checked) {
+                count++;
+                total += qty;
+                if (isVisible) {
+                    visibleCount++;
+                    visibleTotal += qty;
+                }
+
+                var dockInfo = getRowDockAndCycle(tr);
+                var schedDate = tr.getAttribute('data-scheduled-date') || 'Tanpa Tanggal';
+                if (dockInfo.name) {
+                    var rawName = dockInfo.name || "";
+                    var key = rawName.trim().toUpperCase();
+                    var rawCycle = dockInfo.cycle || "";
+                    if (rawCycle && rawCycle !== '-' && key.indexOf(rawCycle.trim().toUpperCase()) === -1) {
+                        key += ' ' + rawCycle.trim().toUpperCase();
+                    }
+                    
+                    if (!dateGroups[schedDate]) {
+                        dateGroups[schedDate] = { docks: {}, excels: {}, displayNames: {} };
+                    }
+                    
+                    var displayKey = rawName;
+                    if (rawCycle && rawCycle !== '-' && displayKey.indexOf(rawCycle) === -1) {
+                        displayKey += ' ' + rawCycle;
+                    }
+                    dateGroups[schedDate].displayNames[key] = displayKey;
+                    
+                    if (!dateGroups[schedDate].docks[key]) {
+                        dateGroups[schedDate].docks[key] = 0;
+                        dateGroups[schedDate].excels[key] = 0;
+                    }
+                    
+                    var qtyLot = parseInt(tr.getAttribute('data-qty-lot')) || 1;
+                    if (qtyLot <= 0) qtyLot = 1;
+                    var kbn = Math.ceil(qty / qtyLot);
+                    
+                    dateGroups[schedDate].docks[key] += kbn;
+                    dateGroups[schedDate].excels[key] += (parseInt(tr.getAttribute('data-excel-kanban')) || 0);
+                }
+            }
+        });
+
+        if (q) {
+            document.getElementById('smartItemCount').innerHTML = '<span class="text-warning fw-bold">' + visibleCount + '</span> (dari ' + count + ')';
+            document.getElementById('smartTotalQty').innerHTML = '<span class="text-warning fw-bold">' + visibleTotal + '</span> (dari ' + total + ')';
+        } else {
+            document.getElementById('smartItemCount').textContent = count;
+            document.getElementById('smartTotalQty').textContent = total;
+        }
+
+        var summaryHtml = '';
+        var dates = Object.keys(dateGroups).sort();
+        for (var i = 0; i < dates.length; i++) {
+            var d = dates[i];
+            var dateData = dateGroups[d];
+            
+            var groupStrings = [];
+            var keys = Object.keys(dateData.docks).sort();
+            for (var idx = 0; idx < keys.length; idx++) {
+                var key = keys[idx];
+                var displayKey = dateData.displayNames[key];
+                
+                var excelKbnText = '';
+                if (dateData.excels[key] && dateData.excels[key] > 0) {
+                    excelKbnText = ' | <span class="text-info">Exc: ' + dateData.excels[key] + '</span>';
+                }
+                
+                groupStrings.push('<div class="d-flex align-items-center justify-content-between px-2.5 py-1.5 rounded" style="background: rgba(13, 27, 53, 0.75); border: 1px solid rgba(56, 189, 248, 0.18); font-size: 0.72rem; color: #cbd5e1; white-space: nowrap;">' +
+                    '<div class="d-flex align-items-center">' +
+                    '<i class="bi bi-geo-alt-fill me-2" style="color: #38bdf8; font-size: 0.72rem;"></i>' +
+                    '<strong style="color: #f8fafc; font-family: monospace;">' + escapeHtml(displayKey) + '</strong>' +
+                    '</div>' +
+                    '<div class="ms-2">' +
+                    '<span style="color: #fbbf24; font-weight: 700; font-family: monospace; font-size: 0.75rem;">' + dateData.docks[key] + ' KBN</span>' +
+                    excelKbnText +
+                    '</div>' +
+                    '</div>');
+            }
+            
+            summaryHtml += '<div class="mb-3 w-100">' +
+                '<div class="text-info fw-bold mb-2 pb-1 border-bottom border-secondary d-flex align-items-center" style="font-size: 0.85rem;"><i class="bi bi-calendar-event me-2"></i>Jadwal ' + escapeHtml(d) + '</div>' +
+                '<div class="d-flex flex-wrap gap-2">' + groupStrings.join('') + '</div>' +
+                '</div>';
+        }
+
+        var summaryContainer = document.getElementById('smartDockSummary');
+        if (summaryContainer) {
+            if (dates.length > 0) {
+                summaryContainer.innerHTML = summaryHtml;
+                summaryContainer.style.display = 'flex';
+                summaryContainer.style.flexDirection = 'column';
+            } else {
+                summaryContainer.innerHTML = '';
+                summaryContainer.style.display = 'none';
+            }
+        }
+    };
+
+    // Select all checkbox
+    var selectAll = document.getElementById('smartSelectAll');
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            var checked = this.checked;
+            document.querySelectorAll('.smart-item-check').forEach(function(cb) {
+                var tr = cb.closest('tr');
+                if (tr && tr.style.display !== 'none' && !cb.disabled) {
+                    cb.checked = checked;
+                }
+            });
+            updateSmartCounts();
+        });
+    }
+
+    // Delegate change on checkboxes and qty inputs
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('smart-item-check') || e.target.classList.contains('smart-qty'))
+            updateSmartCounts();
+    });
+
+    // === Reset ===
+    window.smartImportReset = function() {
+        _smartData = null;
+        document.getElementById('smartStep1').classList.remove('d-none');
+        document.getElementById('smartStep1').querySelector('#smartDropZone').classList.remove('d-none');
+        document.getElementById('smartProgress').classList.add('d-none');
+        document.getElementById('smartStep2').classList.add('d-none');
+        document.getElementById('smartStep3').classList.add('d-none');
+        document.getElementById('smartFile').value = '';
+        document.getElementById('smartDockGrid').innerHTML = '';
+        document.getElementById('smartSelectedDockId').value = '';
+        var dockSearch = document.getElementById('smartDockSearch');
+        if (dockSearch) dockSearch.value = '';
+        var itemSearch = document.getElementById('smartItemSearch');
+        if (itemSearch) itemSearch.value = '';
+        window._smartDockItems = [];
+        var summaryContainer = document.getElementById('smartDockSummary');
+        if (summaryContainer) {
+            summaryContainer.innerHTML = '';
+            summaryContainer.style.display = 'none';
+        }
+    };
+
+    // === Confirm & Import ===
+    window.smartImportConfirm = function() {
+        var custId = parseInt(document.getElementById('smartSelectedDockId').value) || null;
+        var isTmminMultiDock = _smartData && _smartData.isTmminMultiDock;
+
+        // TMMIN multi-dock: dock tidak wajib dipilih karena sudah auto-matched per item
+        if (!custId && !isTmminMultiDock) {
+            // Highlight dock grid supaya user tahu harus pilih dock dulu
+            var dockGrid = document.getElementById('smartDockGrid');
+            dockGrid.style.outline = '2px solid #ef4444';
+            dockGrid.style.borderRadius = '6px';
+            setTimeout(function() {
+                dockGrid.style.outline = '';
+                dockGrid.style.borderRadius = '';
+            }, 3000);
+            // Scroll ke dock grid
+            dockGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Tampilkan notif merah di atas dock grid
+            var dockSection = dockGrid.closest('.mb-3') || dockGrid.parentElement;
+            var existingAlert = dockSection.querySelector('.dock-required-alert');
+            if (!existingAlert) {
+                var alertEl = document.createElement('div');
+                alertEl.className = 'dock-required-alert alert alert-danger py-1 px-2 small mt-1';
+                alertEl.style.animationDuration = '0.3s';
+                alertEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> <b>Wajib pilih Dock/Customer</b> dari daftar sebelum import!';
+                dockGrid.parentElement.insertBefore(alertEl, dockGrid);
+                setTimeout(function() { alertEl.remove(); }, 5000);
+            }
+            return;
+        }
+
+        var manifestOverride = document.getElementById('smartManifestOverride').value.trim();
+        var rows = document.querySelectorAll('#smartItemsBody tr');
+        var items = [];
+        var parseErrors = 0;
+        rows.forEach(function(tr) {
+            try {
+                var chk = tr.querySelector('.smart-item-check');
+                if (!chk || !chk.checked) return;
+                var codeEl = tr.querySelector('code');
+                if (!codeEl) { parseErrors++; return; }
+                var partNo = codeEl.textContent.trim();
+                var vin = tr.getAttribute('data-vin') || '';
+                var scheduledDate = tr.getAttribute('data-scheduled-date') || null;
+                var manifestInput = tr.querySelector('.smart-manifest');
+                var qtyInput = tr.querySelector('.smart-qty');
+                var manifest = (manifestInput ? manifestInput.value.trim() : '') || manifestOverride || '';
+                var qty = parseInt(qtyInput ? qtyInput.value : '0') || 0;
+                var excelKanban = parseInt(tr.getAttribute('data-excel-kanban')) || 0;
+                if (partNo && qty > 0) {
+                    var itemObj = { manifesting: manifest, partNo: partNo, vin: vin, qty: qty, excelKanban: excelKanban, scheduledDate: scheduledDate || undefined };
+                    // TMMIN multi-dock: ambil itemCustomerId dari data attribute
+                    // Hapus kondisi if (isTmminMultiDock) agar SELALU mengambil ID jika tersedia!
+                    var matchedCustId = parseInt(tr.getAttribute('data-matched-customer-id')) || 0;
+                    if (matchedCustId > 0) itemObj.itemCustomerId = matchedCustId;
+                    
+                    items.push(itemObj);
+                }
+            } catch(rowErr) {
+                console.error('[SmartImport] Row parse error:', rowErr);
+                parseErrors++;
+            }
+        });
+
+        console.log('[SmartImport] Confirm: customerId=' + custId + ', items=' + items.length + ', parseErrors=' + parseErrors);
+
+        if (items.length === 0) {
+            alert('Tidak ada item yang valid! Parse errors: ' + parseErrors);
+            return;
+        }
+
+        // Langsung eksekusi import &mdash; tidak pakai window.confirm() karena sering
+        // tersembunyi di balik Bootstrap modal dan tidak terlihat user
+
+        // Show step 3 loading
+        document.getElementById('smartStep2').classList.add('d-none');
+        document.getElementById('smartStep3').classList.remove('d-none');
+        document.getElementById('smartResultIcon').innerHTML = '<div class="spinner-border text-warning" style="width:3rem;height:3rem"></div>';
+        document.getElementById('smartResultTitle').textContent = 'Menyimpan ' + items.length + ' items...';
+        document.getElementById('smartResultMessage').textContent = 'Mohon tunggu...';
+
+        // Gunakan detectedScheduledDate dari preview sebagai fallback untuk item yang tidak punya tanggal
+        var detectedScheduledDate = (_smartData && _smartData.detectedScheduledDate) ? _smartData.detectedScheduledDate : null;
+
+        // Untuk TMMIN multi-dock tanpa global dock selection, gunakan CustomerId=0 sebagai fallback
+        var effectiveCustId = custId || (_smartData && _smartData.customerId ? _smartData.customerId : 0);
+
+        // Paksa perItemDock = true jika ada minimal 1 item yang memiliki itemCustomerId > 0
+        var hasAnyPerItemDock = items.some(function(i) { return i.itemCustomerId > 0; });
+        var finalPerItemDock = isTmminMultiDock || hasAnyPerItemDock;
+
+        fetch('/PreparationSchedule/SmartImportConfirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                customerId: effectiveCustId, 
+                items: items, 
+                detectedScheduledDate: detectedScheduledDate || undefined,
+                perItemDock: finalPerItemDock
+            })
+        })
+        .then(function(r) {
+            if (!r.ok) {
+                return r.text().then(function(t) {
+                    throw new Error('Server error ' + r.status + ': ' + t.substring(0, 200));
+                });
+            }
+            return r.json();
+        })
+        .then(function(res) {
+            console.log('[SmartImport] Response:', res);
+            if (res.success) {
+                document.getElementById('smartResultIcon').innerHTML = '<i class="bi bi-check-circle-fill text-success" style="font-size:3rem"></i>';
+                document.getElementById('smartResultTitle').textContent = 'Import Berhasil!';
+                document.getElementById('smartResultTitle').className = 'fw-bold text-success';
+                document.getElementById('smartResultMessage').textContent = res.message || '';
+                // Tampilkan warning item nonaktif (jika ada)
+                var warnEl = document.getElementById('smartResultWarning');
+                if (warnEl) {
+                    if (res.warnings) {
+                        warnEl.textContent = res.warnings;
+                        warnEl.style.display = '';
+                    } else {
+                        warnEl.style.display = 'none';
+                    }
+                }
+            } else {
+                document.getElementById('smartResultIcon').innerHTML = '<i class="bi bi-x-circle-fill text-danger" style="font-size:3rem"></i>';
+                document.getElementById('smartResultTitle').textContent = 'Import Gagal';
+                document.getElementById('smartResultTitle').className = 'fw-bold text-danger';
+                document.getElementById('smartResultMessage').textContent = res.message || 'Terjadi kesalahan tidak dikenal.';
+            }
+        })
+        .catch(function(err) {
+            console.error('[SmartImport] Fetch error:', err);
+            document.getElementById('smartResultIcon').innerHTML = '<i class="bi bi-x-circle-fill text-danger" style="font-size:3rem"></i>';
+            document.getElementById('smartResultTitle').textContent = 'Error Koneksi';
+            document.getElementById('smartResultTitle').className = 'fw-bold text-danger';
+        });
+    };
+
+    function filterItems() {
+        var itemSearch = document.getElementById('smartItemSearch');
+        if (!itemSearch) return;
+        var queryText = itemSearch.value.toLowerCase().trim();
+        var terms = queryText.split(/\s+/).filter(Boolean);
+        var rows = document.querySelectorAll('#smartItemsBody tr');
+        rows.forEach(function(tr) {
+            var searchVal = tr.getAttribute('data-search') || '';
+            var manifestInput = tr.querySelector('.smart-manifest');
+            var liveManifestVal = (manifestInput ? manifestInput.value : '').toLowerCase();
+            
+            var isMatch = true;
+            for (var i = 0; i < terms.length; i++) {
+                var term = terms[i];
+                if (searchVal.indexOf(term) === -1 && liveManifestVal.indexOf(term) === -1) {
+                    isMatch = false;
+                    break;
+                }
+            }
+            tr.style.display = isMatch ? '' : 'none';
+        });
+        if (window.updateSmartCounts) {
+            window.updateSmartCounts();
+        }
+    }
+
+    var itemSearchInput = document.getElementById('smartItemSearch');
+    if (itemSearchInput) {
+        itemSearchInput.addEventListener('input', filterItems);
+        itemSearchInput.addEventListener('keyup', filterItems);
+        itemSearchInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+            }
+        });
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str || ''));
+        return div.innerHTML;
+    }
+
+    // Reset on modal close
+    var smartModal = document.getElementById('smartImportModal');
+    if (smartModal) {
+        smartModal.addEventListener('hidden.bs.modal', function() {
+            smartImportReset();
+        });
+    }
+
+})();
+</script>

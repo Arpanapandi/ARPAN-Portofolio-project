@@ -1,0 +1,305 @@
+@model DeliveryControl.Models.DeliverySchedule
+
+@{
+    ViewData["Title"] = "Konfirmasi Kedatangan";
+    var now = DateTime.Now;
+    var isAdmin = Context.Session.GetString("Role") == "Admin";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-geo-alt-fill"></i> Konfirmasi Kedatangan</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Portal Driver</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Konfirmasi Kedatangan</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-geo-alt-fill"></i> Konfirmasi Waktu Kedatangan</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Arrival" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.ScheduleId" />
+
+                    <!-- Info Schedule -->
+                    <div class="alert alert-info">
+                        <h6><i class="bi bi-info-circle"></i> Informasi Schedule</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tr>
+                                <td width="150"><strong>No. Schedule:</strong></td>
+                                <td>@Model.ScheduleNumber</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Customer:</strong></td>
+                                <td>@(Model.Customer?.CustomerCode ?? "-") - @(Model.Customer?.CustomerName ?? "-")</td>
+                            </tr>
+                            @if (!string.IsNullOrWhiteSpace(Model.Route))
+                            {
+                                <tr>
+                                    <td><strong>Route:</strong></td>
+                                    <td>@Model.Route</td>
+                                </tr>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(Model.Area))
+                            {
+                                <tr>
+                                    <td><strong>Area:</strong></td>
+                                    <td><i class="bi bi-geo-alt"></i> @Model.Area</td>
+                                </tr>
+                            }
+                            @if (Model.PickupTime.HasValue)
+                            {
+                                <tr>
+                                    <td><strong>Pickup Time (Target):</strong></td>
+                                    <td class="text-primary fs-5"><strong>@Model.PickupTime.Value.ToString("HH:mm")</strong></td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+
+                    <!-- Actual Arrival / Pickup Time (Dapat Di-set Backdate / Ontime oleh Driver) -->
+                    <div class="mb-4">
+                        <label for="arrivalTime" class="form-label">
+                            <i class="bi bi-clock-fill text-warning"></i> <strong>Waktu Kedatangan / Pickup (Dapat Di-set Back-Date / Ontime)</strong>
+                        </label>
+                        <input type="datetime-local" 
+                               class="form-control form-control-lg bg-dark text-white border-warning" 
+                               id="arrivalTime" 
+                               name="arrivalTime" 
+                               value="@(Model.PickupTime.HasValue ? Model.PickupTime.Value.ToString("yyyy-MM-ddTHH:mm") : now.ToString("yyyy-MM-ddTHH:mm"))" 
+                               required />
+                        <div class="form-text text-secondary">
+                            <i class="bi bi-info-circle"></i> Sesuaikan dengan waktu kedatangan Anda. Pilih "Sesuai Target" atau sesuaikan jam (back-date) jika telah tiba lebih awal / tepat waktu.
+                        </div>
+                    </div>
+
+                    <!-- Quick Time Buttons -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Quick Select Waktu:</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="setTimeNow()">
+                                <i class="bi bi-clock"></i> Sekarang
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="adjustTime(-5)">
+                                <i class="bi bi-dash-circle"></i> -5 menit
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="adjustTime(-10)">
+                                <i class="bi bi-dash-circle"></i> -10 menit
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="adjustTime(-15)">
+                                <i class="bi bi-dash-circle"></i> -15 menit
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="adjustTime(-30)">
+                                <i class="bi bi-dash-circle"></i> -30 menit
+                            </button>
+                            @if (Model.PickupTime.HasValue)
+                            {
+                                <button type="button" class="btn btn-success btn-sm text-white fw-bold" onclick="setTimeTarget()">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Sesuai Target / Ontime (@Model.PickupTime.Value.ToString("HH:mm"))
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-4">
+                        <label for="notes" class="form-label">
+                            <i class="bi bi-journal-text"></i> Catatan (Opsional)
+                        </label>
+                        <textarea class="form-control" 
+                                  id="notes" 
+                                  name="notes" 
+                                  rows="3" 
+                                  placeholder="Contoh: Terlambat karena macet, Antrian panjang, dll."></textarea>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a asp-action="Index" asp-route-selectedDate="@Model.ScheduledDate.ToString("yyyy-MM-dd")" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="bi bi-check-circle-fill"></i> Konfirmasi Kedatangan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Current Time Display -->
+        <div class="card border-primary mb-3">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="bi bi-clock"></i> Waktu Saat Ini</h6>
+            </div>
+            <div class="card-body text-center">
+                <h1 class="display-4 text-primary mb-0" id="currentTime">__ : __</h1>
+                <p class="text-muted mb-0" id="currentDate">Minggu, 23 November 2025</p>
+            </div>
+        </div>
+
+        <!-- Info Card -->
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi</h6>
+            </div>
+            <div class="card-body">
+                <p class="small mb-2">
+                    <strong>Kedatangan:</strong> Waktu saat Anda tiba di lokasi customer
+                </p>
+                <p class="small mb-2">
+                    <strong>Status:</strong> Setelah konfirmasi, status akan berubah menjadi "Ready To Pickup"
+                </p>
+                <p class="small mb-0">
+                    <strong>Langkah Selanjutnya:</strong> Setelah selesai loading/unloading, konfirmasi keberangkatan
+                </p>
+            </div>
+        </div>
+
+        @if (Model.ActualStartTime.HasValue)
+        {
+            <div class="alert alert-warning mt-3">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>Perhatian!</strong> Schedule ini sudah dikonfirmasi kedatangan pada:
+                <div class="mt-2">
+                    <strong>@Model.ActualStartTime.Value.ToString("dd/MM/yyyy HH:mm")</strong>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Pastikan DOM sudah siap sebelum menjalankan script
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Update current time display
+            function updateCurrentTime() {
+                var now = new Date();
+                
+                // Format waktu dengan padding untuk digit tunggal
+                var hours = String(now.getHours()).padStart(2, '0');
+                var minutes = String(now.getMinutes()).padStart(2, '0');
+                var seconds = String(now.getSeconds()).padStart(2, '0');
+                var timeStr = hours + ':' + minutes + ':' + seconds;
+                
+                // Format tanggal dalam bahasa Indonesia
+                var days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+                var months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                
+                var dayName = days[now.getDay()];
+                var day = now.getDate();
+                var monthName = months[now.getMonth()];
+                var year = now.getFullYear();
+                
+                var dateStr = dayName + ', ' + day + ' ' + monthName + ' ' + year;
+                
+                // Update elemen HTML
+                var timeElement = document.getElementById('currentTime');
+                var dateElement = document.getElementById('currentDate');
+                
+                if (timeElement) {
+                    timeElement.textContent = timeStr;
+                }
+                if (dateElement) {
+                    dateElement.textContent = dateStr;
+                }
+            }
+            
+            // Set time to now - Hanya untuk Admin
+            window.setTimeNow = function() {
+                var input = document.getElementById('arrivalTime');
+                if (input && input.type === 'datetime-local') {
+                    var now = new Date();
+                    var dateString = now.getFullYear() + '-' + 
+                                   String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                                   String(now.getDate()).padStart(2, '0') + 'T' + 
+                                   String(now.getHours()).padStart(2, '0') + ':' + 
+                                   String(now.getMinutes()).padStart(2, '0');
+                    input.value = dateString;
+                }
+            }
+            
+            // Adjust time by minutes - Hanya untuk Admin
+            window.adjustTime = function(minutes) {
+                var input = document.getElementById('arrivalTime');
+                if (input && input.type === 'datetime-local') {
+                    var currentTime = new Date(input.value);
+                    currentTime.setMinutes(currentTime.getMinutes() + minutes);
+                    
+                    var dateString = currentTime.getFullYear() + '-' + 
+                                   String(currentTime.getMonth() + 1).padStart(2, '0') + '-' + 
+                                   String(currentTime.getDate()).padStart(2, '0') + 'T' + 
+                                   String(currentTime.getHours()).padStart(2, '0') + ':' + 
+                                   String(currentTime.getMinutes()).padStart(2, '0');
+                    input.value = dateString;
+                }
+            }
+            
+            // Set time to target pickup time - Hanya untuk Admin
+            window.setTimeTarget = function() {
+                var input = document.getElementById('arrivalTime');
+                if (input && input.type === 'datetime-local') {
+                    @if (Model.PickupTime.HasValue)
+                    {
+                        <text>
+                        var targetTime = new Date('@Model.PickupTime.Value.ToString("yyyy-MM-ddTHH:mm")');
+                        var dateString = targetTime.getFullYear() + '-' + 
+                                       String(targetTime.getMonth() + 1).padStart(2, '0') + '-' + 
+                                       String(targetTime.getDate()).padStart(2, '0') + 'T' + 
+                                       String(targetTime.getHours()).padStart(2, '0') + ':' + 
+                                       String(targetTime.getMinutes()).padStart(2, '0');
+                        input.value = dateString;
+                        </text>
+                    }
+                }
+            }
+            
+            // Initialize - Jalankan pertama kali
+            updateCurrentTime();
+            
+            // Update setiap detik
+            setInterval(updateCurrentTime, 1000);
+            
+            // Set waktu kedatangan saat form submit
+            document.querySelector('form').addEventListener('submit', function(e) {
+                var input = document.getElementById('arrivalTime');
+                
+                // Jika input adalah hidden field (untuk User), set dengan waktu sekarang
+                if (input && input.type === 'hidden') {
+                    var now = new Date();
+                    var dateString = now.getFullYear() + '-' + 
+                                   String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                                   String(now.getDate()).padStart(2, '0') + 'T' + 
+                                   String(now.getHours()).padStart(2, '0') + ':' + 
+                                   String(now.getMinutes()).padStart(2, '0');
+                    input.value = dateString;
+                }
+                // Jika input adalah datetime-local (untuk Admin), validasi jika perlu
+                else if (input && input.type === 'datetime-local') {
+                    var arrivalTime = new Date(input.value);
+                    var now = new Date();
+                    
+                    // Warning jika waktu kedatangan di masa depan (lebih dari 5 menit)
+                    if (arrivalTime > new Date(now.getTime() + 5 * 60000)) {
+                        if (!confirm('Waktu kedatangan yang Anda masukkan adalah di masa depan. Apakah ini benar?')) {
+                            e.preventDefault();
+                            return false;
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+}
+

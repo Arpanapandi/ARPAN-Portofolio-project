@@ -1,0 +1,81 @@
+@model DeliveryControl.Models.Item
+
+@{
+    ViewData["Title"] = "Hapus Item";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-trash"></i> Hapus Item</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Item</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Hapus</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Konfirmasi Hapus</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Perhatian!</strong> Anda yakin ingin menghapus item ini?
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-4">Kode Item</dt>
+                    <dd class="col-sm-8">@Model.ItemCode</dd>
+
+                    <dt class="col-sm-4">Nama Item</dt>
+                    <dd class="col-sm-8">@Model.ItemName</dd>
+
+                    <dt class="col-sm-4">Kategori</dt>
+                    <dd class="col-sm-8">
+                        @if (!string.IsNullOrEmpty(Model.Category))
+                        {
+                            <span class="badge bg-info">@Model.Category</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Unit</dt>
+                    <dd class="col-sm-8">@(Model.Unit ?? "-")</dd>
+
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge bg-success">Aktif</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">Tidak Aktif</span>
+                        }
+                    </dd>
+                </dl>
+
+                <form asp-action="Delete" method="post">
+                    <input type="hidden" asp-for="ItemId" />
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Ya, Hapus
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+

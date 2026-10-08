@@ -1,0 +1,234 @@
+@model IEnumerable<dashboardKlinik.Models.AntrianKlinik>
+@{
+    ViewData["Title"] = "Antrian Pasien";
+    var totalHariIni = (int)(ViewData["TotalHariIni"] ?? 0);
+    var totalMenunggu = (int)(ViewData["TotalMenunggu"] ?? 0);
+    var totalDipanggil = (int)(ViewData["TotalDipanggil"] ?? 0);
+    var totalDiperiksa = (int)(ViewData["TotalDiperiksa"] ?? 0);
+    var totalSelesai = (int)(ViewData["TotalSelesai"] ?? 0);
+    var currentStatus = ViewData["CurrentStatus"]?.ToString() ?? "";
+}
+
+<!-- Page Header -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h5 style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin: 0;">Antrian Pasien Hari Ini</h5>
+        <p style="font-size: 13.5px; color: var(--text-secondary); margin: 4px 0 0;">
+            <i class="bi bi-calendar3"></i> @DateTime.Now.ToString("dddd, dd MMMM yyyy") • Live Real-Time Management
+        </p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        @if (User.IsInRole("Admin"))
+        {
+            <a href="@Url.Action("Display", "Antrian")" target="_blank" class="btn-action btn-outline-custom" style="border-color: #6366f1; color: #6366f1;">
+                <i class="bi bi-tv-fill"></i> Buka Layar TV Display
+            </a>
+            <a href="@Url.Action("CetakQR", "Antrian")" class="btn-action btn-outline-custom" style="border-color: var(--primary); color: var(--primary);">
+                <i class="bi bi-qr-code"></i> Cetak QR Code Antrian
+            </a>
+        }
+        <a href="@Url.Action("Daftar", "Antrian")" target="_blank" class="btn-action btn-primary-custom">
+            <i class="bi bi-plus-lg"></i> Form Pendaftaran Mandiri
+        </a>
+    </div>
+</div>
+
+<!-- KPI Cards Antrian -->
+<div class="stat-cards" style="margin-bottom: 24px;">
+    <div class="stat-card primary fade-in">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Total Antrian</span>
+            <div class="stat-card-icon"><i class="bi bi-people-fill"></i></div>
+        </div>
+        <div class="stat-card-value">@totalHariIni</div>
+        <div class="stat-card-sub"><i class="bi bi-calendar-check"></i> Hari ini</div>
+    </div>
+    <div class="stat-card warning fade-in">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Menunggu</span>
+            <div class="stat-card-icon"><i class="bi bi-hourglass-split"></i></div>
+        </div>
+        <div class="stat-card-value" style="color: #d97706;">@totalMenunggu</div>
+        <div class="stat-card-sub"><i class="bi bi-clock"></i> Belum dipanggil</div>
+    </div>
+    <div class="stat-card info fade-in">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Dipanggil / Diperiksa</span>
+            <div class="stat-card-icon"><i class="bi bi-megaphone-fill"></i></div>
+        </div>
+        <div class="stat-card-value" style="color: #2563eb;">@(totalDipanggil + totalDiperiksa)</div>
+        <div class="stat-card-sub"><i class="bi bi-heart-pulse"></i> Di ruang dokter</div>
+    </div>
+    <div class="stat-card success fade-in">
+        <div class="stat-card-header">
+            <span class="stat-card-label">Selesai Berobat</span>
+            <div class="stat-card-icon"><i class="bi bi-check-circle-fill"></i></div>
+        </div>
+        <div class="stat-card-value">@totalSelesai</div>
+        <div class="stat-card-sub"><i class="bi bi-clipboard2-check"></i> Sudah diproses</div>
+    </div>
+</div>
+
+<!-- Filter Status Tabs -->
+<div class="card-custom fade-in" style="margin-bottom: 20px; padding: 12px 18px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+        <span style="font-size: 13px; font-weight: 700; color: var(--text-secondary); margin-right: 8px;">Filter Status:</span>
+        <a href="@Url.Action("Index")" class="btn-action @(string.IsNullOrEmpty(currentStatus) ? "btn-primary-custom" : "btn-outline-custom") btn-sm-custom">
+            Semua (@totalHariIni)
+        </a>
+        <a href="@Url.Action("Index", new { status = "Menunggu" })" class="btn-action @(currentStatus == "Menunggu" ? "btn-primary-custom" : "btn-outline-custom") btn-sm-custom">
+            Menunggu (@totalMenunggu)
+        </a>
+        <a href="@Url.Action("Index", new { status = "Dipanggil" })" class="btn-action @(currentStatus == "Dipanggil" ? "btn-primary-custom" : "btn-outline-custom") btn-sm-custom">
+            Dipanggil (@totalDipanggil)
+        </a>
+        <a href="@Url.Action("Index", new { status = "Sedang Diperiksa" })" class="btn-action @(currentStatus == "Sedang Diperiksa" ? "btn-primary-custom" : "btn-outline-custom") btn-sm-custom">
+            Diperiksa (@totalDiperiksa)
+        </a>
+        <a href="@Url.Action("Index", new { status = "Selesai" })" class="btn-action @(currentStatus == "Selesai" ? "btn-primary-custom" : "btn-outline-custom") btn-sm-custom">
+            Selesai (@totalSelesai)
+        </a>
+    </div>
+</div>
+
+<!-- Table Card -->
+<div class="card-custom fade-in">
+    <div class="card-body-custom" style="padding: 0;">
+        @if (Model != null && Model.Any())
+        {
+            <div style="overflow-x: auto;">
+                <table class="table-custom" id="table-antrian">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px; text-align: center;">No Antrian</th>
+                            <th style="width: 80px;">Waktu</th>
+                            <th>Nama Pasien</th>
+                            <th style="width: 100px;">NPK</th>
+                            <th>Plant & Dept</th>
+                            <th>Keluhan</th>
+                            <th style="width: 130px; text-align: center;">Status</th>
+                            <th style="width: 220px; text-align: center;">Aksi Pelayanan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in Model)
+                        {
+                            <tr style="@(a.StatusAntrian == "Dipanggil" ? "background: rgba(37, 99, 235, 0.05);" : (a.StatusAntrian == "Sedang Diperiksa" ? "background: rgba(124, 58, 237, 0.05);" : ""))">
+                                <td style="text-align: center;">
+                                    <span style="font-family: monospace; font-size: 16px; font-weight: 800; background: var(--primary-bg); color: var(--primary); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(26, 115, 232, 0.2);">
+                                        @a.NomorAntrian
+                                    </span>
+                                </td>
+                                <td>
+                                    <strong>@a.WaktuDaftar.ToString("HH:mm")</strong>
+                                    @if (a.WaktuDipanggil.HasValue)
+                                    {
+                                        <br /><small class="text-muted" style="font-size: 10px;">Panggil: @a.WaktuDipanggil.Value.ToString("HH:mm")</small>
+                                    }
+                                </td>
+                                <td>
+                                    <strong>@a.NamaPasien</strong>
+                                    <br /><small class="text-muted" style="font-size: 11px;">@(a.JenisKelamin == "L" ? "Laki-laki" : "Perempuan")</small>
+                                </td>
+                                <td><span style="font-family: monospace; font-weight: 700;">@a.NPK</span></td>
+                                <td>@a.Plant - @a.Departemen</td>
+                                <td><span title="@a.Keluhan">@(a.Keluhan.Length > 30 ? a.Keluhan.Substring(0, 30) + "..." : a.Keluhan)</span></td>
+                                <td style="text-align: center;">
+                                    @{
+                                        var badgeClass = a.StatusAntrian switch
+                                        {
+                                            "Menunggu" => "perawatan",
+                                            "Dipanggil" => "rawat-jalan",
+                                            "Sedang Diperiksa" => "rawat-jalan",
+                                            "Selesai" => "rawat-jalan",
+                                            "Batal" => "dirujuk",
+                                            _ => "rawat-jalan"
+                                        };
+                                    }
+                                    <span class="badge-status @badgeClass" style="@(a.StatusAntrian == "Dipanggil" ? "animation: pulseCard 1.5s infinite;" : "")">
+                                        @a.StatusAntrian
+                                    </span>
+                                </td>
+                                <td style="text-align: center;">
+                                    <div style="display: flex; gap: 6px; justify-content: center; flex-wrap: wrap;">
+                                        @if (a.StatusAntrian != "Selesai" && a.StatusAntrian != "Batal")
+                                        {
+                                            <!-- Tombol Panggil Suara -->
+                                            <form asp-action="Panggil" asp-route-id="@a.Id" method="post" style="display: inline;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn-action btn-primary-custom btn-sm-custom" title="Panggil Pasien & Bunyikan Suara di Layar TV">
+                                                    <i class="bi bi-megaphone-fill"></i> Panggil
+                                                </button>
+                                            </form>
+
+                                            <!-- Tombol Mulai Periksa -->
+                                            @if (a.StatusAntrian == "Dipanggil")
+                                            {
+                                                <form asp-action="MulaiPeriksa" asp-route-id="@a.Id" method="post" style="display: inline;">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn-action btn-outline-custom btn-sm-custom" title="Mulai Pemeriksaan" style="border-color: #6366f1; color: #6366f1;">
+                                                        <i class="bi bi-heart-pulse"></i> Periksa
+                                                    </button>
+                                                </form>
+                                            }
+
+                                            <!-- Tombol Proses Rekam Medis Kunjungan -->
+                                            <a href="@Url.Action("Create", "Kunjungan", new { antrianId = a.Id })"
+                                               class="btn-action btn-success-custom btn-sm-custom" title="Input Hasil Diagnosa Medis & Selesaikan">
+                                                <i class="bi bi-clipboard2-plus"></i> Rekam Medis
+                                            </a>
+
+                                            <!-- Tombol Batal -->
+                                            <form asp-action="Batal" asp-route-id="@a.Id" method="post" style="display: inline;"
+                                                  onsubmit="return confirm('Batalkan antrian @a.NomorAntrian?');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn-action btn-outline-custom btn-sm-custom" style="color: var(--danger); border-color: rgba(217, 48, 37, 0.3);" title="Batalkan">
+                                                    <i class="bi bi-x-circle"></i>
+                                                </button>
+                                            </form>
+                                        }
+                                        else if (a.StatusAntrian == "Selesai" && a.KunjunganId.HasValue)
+                                        {
+                                            <a href="@Url.Action("Details", "Kunjungan", new { id = a.KunjunganId })" class="btn-action btn-outline-custom btn-sm-custom">
+                                                <i class="bi bi-eye"></i> Rekam Medis
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted" style="font-size: 12px;">Selesai</span>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-people"></i>
+                <h5>Belum ada antrian pasien hari ini</h5>
+                <p>Pasien yang mendaftar via scan QR code akan muncul di sini secara real-time.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    // SignalR listener for live reload
+    const antrianConn = new signalR.HubConnectionBuilder()
+        .withUrl("/klinikHub")
+        .withAutomaticReconnect()
+        .build();
+
+    antrianConn.on("AntrianUpdated", () => {
+        // Subtle auto refresh
+        setTimeout(() => { window.location.reload(); }, 1000);
+    });
+
+    antrianConn.start().catch(err => console.error(err));
+</script>
+}

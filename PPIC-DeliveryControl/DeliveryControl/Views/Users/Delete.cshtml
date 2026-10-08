@@ -1,0 +1,130 @@
+@model DeliveryControl.Models.User
+
+@{
+    ViewData["Title"] = "Hapus User";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-trash"></i> Hapus User</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">User</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Hapus</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Konfirmasi Penghapusan</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    <strong>Peringatan!</strong> Apakah Anda yakin ingin menghapus user ini? Tindakan ini tidak dapat dibatalkan.
+                </div>
+
+                <dl class="row">
+                    <dt class="col-sm-4">
+                        <i class="bi bi-person"></i> Username
+                    </dt>
+                    <dd class="col-sm-8">
+                        <strong>@Model.Username</strong>
+                    </dd>
+
+                    <dt class="col-sm-4">
+                        <i class="bi bi-person-badge"></i> Nama Lengkap
+                    </dt>
+                    <dd class="col-sm-8">
+                        @Model.FullName
+                    </dd>
+
+                    <dt class="col-sm-4">
+                        <i class="bi bi-envelope"></i> Email
+                    </dt>
+                    <dd class="col-sm-8">
+                        @(Model.Email ?? "-")
+                    </dd>
+
+                    <dt class="col-sm-4">
+                        <i class="bi bi-shield-check"></i> Role
+                    </dt>
+                    <dd class="col-sm-8">
+                        @if (Model.Role == "Admin")
+                        {
+                            <span class="badge bg-danger">
+                                <i class="bi bi-shield-check"></i> Admin
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-info">
+                                <i class="bi bi-person"></i> User
+                            </span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">
+                        <i class="bi bi-check-circle"></i> Status
+                    </dt>
+                    <dd class="col-sm-8">
+                        @if (Model.IsActive)
+                        {
+                            <span class="badge bg-success">Aktif</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Nonaktif</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">
+                        <i class="bi bi-calendar"></i> Tanggal Dibuat
+                    </dt>
+                    <dd class="col-sm-8">
+                        @Model.CreatedDate.ToString("dd MMMM yyyy HH:mm", new System.Globalization.CultureInfo("id-ID"))
+                    </dd>
+                </dl>
+
+                <form asp-action="Delete" method="post" class="mt-4">
+                    <input type="hidden" asp-for="UserId" />
+                    <div class="d-flex gap-2 justify-content-end">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-trash"></i> Hapus
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi</h6>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Perhatian:</strong>
+                    <ul class="mb-0 mt-2 small">
+                        <li>Data yang dihapus tidak dapat dikembalikan</li>
+                        <li>User yang sedang login tidak dapat dihapus</li>
+                    </ul>
+                </div>
+                <hr class="my-3" />
+                <a asp-action="Index" class="btn btn-outline-primary btn-sm w-100">
+                    <i class="bi bi-arrow-left"></i> Kembali ke Daftar
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+

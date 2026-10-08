@@ -1,0 +1,353 @@
+@model OperationViewModel
+@{
+    ViewData["Title"] = "Operation Panel";
+    var machines = Model.Machines;
+    var woList = Model.WorkOrders;
+    var operators = Model.Operators;
+    var reasons = Model.DowntimeReasons;
+    var ngTypes = Model.NgTypes;
+}
+
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h3 class="mb-0">Operation Panel</h3>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-light btn-sm">
+            Kembali ke Dashboard
+        </a>
+    </div>
+</div>
+
+@if (TempData["OperationError"] is string err)
+{
+    <div class="alert alert-danger">@err</div>
+}
+
+@if (TempData["OperationSuccess"] is string msg)
+{
+    <div class="alert alert-success">@msg</div>
+}
+
+<div class="row g-3">
+    <!-- Input Downtime -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Input Downtime</h5>
+                <form asp-action="CreateDowntime" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <label class="form-label">Machine</label>
+                        <select class="form-select" name="machineId" id="dt-machine" required>
+                            <option value="">-- Pilih Mesin --</option>
+                            @foreach (var m in machines)
+                            {
+                                @if (Model.SelectedMachineId == m.Id)
+                                {
+                                    <option value="@m.Id" selected>@m.Name</option>
+                                }
+                                else
+                                {
+                                    <option value="@m.Id">@m.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Job Run (aktif)</label>
+                        <select class="form-select" name="jobRunId" id="dt-jobrun" required>
+                            <option value="">-- Pilih Job Run aktif --</option>
+                        </select>
+                        <div class="form-text small">
+                            Pilih mesin terlebih dahulu untuk melihat Job Run aktif.
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Reason</label>
+                        <select class="form-select" name="reasonId" id="dt-reason" required>
+                            <option value="">-- Pilih Reason --</option>
+                            @foreach (var r in reasons)
+                            {
+                                <option value="@r.Id">@r.Category - @r.Description</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Start Time</label>
+                        <input type="datetime-local" class="form-control" name="startTime"
+                               value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Time (opsional)</label>
+                        <input type="datetime-local" class="form-control" name="endTime" />
+                    </div>
+                    <button type="submit" class="btn btn-danger w-100">
+                        Simpan Downtime
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tambah Produk -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Tambah Produk</h5>
+                <form asp-action="CreateProduct" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <label class="form-label">Nama Produk</label>
+                        <input type="text" name="name" class="form-control" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Material Code</label>
+                        <input type="text" name="materialCode" class="form-control" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">UoM (Unit of Measure)</label>
+                        <input type="text" name="uom" class="form-control" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">SLOC (Storage Location)</label>
+                        <input type="text" name="sloc" class="form-control" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">PLANT</label>
+                        <input type="text" name="plant" class="form-control" placeholder="(gunakan master Plant di Admin)" disabled />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Image URL (opsional)</label>
+                        <input type="text" name="imageUrl" class="form-control" />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        Simpan Produk
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Run -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Buat Job Run</h5>
+                <form asp-action="CreateJobRun" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <label class="form-label">Machine</label>
+                        <select class="form-select" name="machineId" required>
+                            <option value="">-- Pilih Mesin --</option>
+                            @foreach (var m in machines)
+                            {
+                                @if (Model.SelectedMachineId == m.Id)
+                                {
+                                    <option value="@m.Id" selected>@m.Name</option>
+                                }
+                                else
+                                {
+                                    <option value="@m.Id">@m.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Work Order</label>
+                        <select class="form-select" name="workOrderId" required>
+                            <option value="">-- Pilih WO --</option>
+                            @foreach (var w in woList)
+                            {
+                                <option value="@w.Id">@w.OrderNumber - @w.Product?.Name (@w.Status)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Operator</label>
+                        <select class="form-select" name="operatorId" required>
+                            <option value="">-- Pilih Operator --</option>
+                            @foreach (var o in operators)
+                            {
+                                <option value="@o.Id">@o.Username</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Start Time</label>
+                        <input type="datetime-local" class="form-control" name="startTime"
+                               value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" required />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Time (opsional)</label>
+                        <input type="datetime-local" class="form-control" name="endTime" />
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        Simpan Job Run
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-2">
+    <!-- Input Production Count -->
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Input Production Count</h5>
+                <form asp-action="CreateProductionCount" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-2">
+                        <label class="form-label">Machine</label>
+                        <select class="form-select" name="machineId" id="pc-machine" required>
+                            <option value="">-- Pilih Mesin --</option>
+                            @foreach (var m in machines)
+                            {
+                                @if (Model.SelectedMachineId == m.Id)
+                                {
+                                    <option value="@m.Id" selected>@m.Name</option>
+                                }
+                                else
+                                {
+                                    <option value="@m.Id">@m.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Job Run (aktif)</label>
+                        <select class="form-select" name="jobRunId" id="pc-jobrun" required>
+                            <option value="">-- Pilih Job Run aktif --</option>
+                        </select>
+                        <div class="form-text small">
+                            Pilih mesin terlebih dahulu untuk melihat Job Run aktif.
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Good Qty</label>
+                        <input type="number" class="form-control" name="goodQty" value="0" min="0" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Reject Qty</label>
+                        <input type="number" class="form-control" name="rejectQty" value="0" min="0" required />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Jenis NG (jika ada reject)</label>
+                        <select class="form-select" name="ngTypeId" id="pc-ngtype">
+                            <option value="">-- Pilih Jenis NG --</option>
+                            @foreach (var ng in ngTypes)
+                            {
+                                <option value="@ng.Id">@ng.Code - @ng.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Alasan Reject (optional)</label>
+                        <input type="text" class="form-control" name="rejectReason" placeholder="Keterangan tambahan untuk reject" />
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        Simpan Production Count
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // ========== DOWNTIME FORM ==========
+        const dtMachineSelect = document.getElementById('dt-machine');
+        const dtReasonSelect = document.getElementById('dt-reason');
+        const dtJobRunSelect = document.getElementById('dt-jobrun');
+
+        // ========== PRODUCTION COUNT FORM ==========
+        const pcMachineSelect = document.getElementById('pc-machine');
+        const pcJobRunSelect = document.getElementById('pc-jobrun');
+
+        // ========== LOAD DOWNTIME REASONS ==========
+        function resetReasonOptions() {
+            if (!dtReasonSelect) return;
+            dtReasonSelect.innerHTML = '<option value="">-- Pilih Reason --</option>';
+        }
+
+        function loadReasons(machineId) {
+            if (!dtReasonSelect) return;
+            resetReasonOptions();
+            if (!machineId) return;
+
+            fetch(`/Operation/GetDowntimeReasonsForMachine?machineId=${machineId}`)
+                .then(r => r.ok ? r.json() : [])
+                .then(data => {
+                    if (!Array.isArray(data)) return;
+                    data.forEach(r => {
+                        const opt = document.createElement('option');
+                        opt.value = r.downtimeReasonId;
+                        opt.textContent = `${r.category} - ${r.description}`;
+                        dtReasonSelect.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error('Error loading downtime reasons:', err));
+        }
+
+        // ========== LOAD ACTIVE JOB RUNS ==========
+        function resetJobRunOptions(selectElement) {
+            if (!selectElement) return;
+            selectElement.innerHTML = '<option value="">-- Pilih Job Run aktif --</option>';
+        }
+
+        function loadActiveJobRuns(machineId, targetSelect) {
+            if (!targetSelect) return;
+            resetJobRunOptions(targetSelect);
+            if (!machineId) return;
+
+            fetch(`/Operation/GetActiveJobRuns?machineId=${machineId}`)
+                .then(r => r.ok ? r.json() : [])
+                .then(data => {
+                    if (!Array.isArray(data)) return;
+                    if (data.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = '-- Tidak ada Job Run aktif --';
+                        opt.disabled = true;
+                        targetSelect.appendChild(opt);
+                        return;
+                    }
+                    data.forEach(jr => {
+                        const opt = document.createElement('option');
+                        opt.value = jr.id;
+                        const startTime = new Date(jr.startTime).toLocaleString('id-ID');
+                        opt.textContent = `#${jr.id} - ${jr.workOrderNumber} (${jr.productName}) - ${startTime}`;
+                        targetSelect.appendChild(opt);
+                    });
+                })
+                .catch(err => console.error('Error loading active job runs:', err));
+        }
+
+        // ========== DOWNTIME FORM EVENT LISTENERS ==========
+        if (dtMachineSelect) {
+            dtMachineSelect.addEventListener('change', function () {
+                const machineId = this.value;
+                loadReasons(machineId);
+                loadActiveJobRuns(machineId, dtJobRunSelect);
+            });
+
+            if (dtMachineSelect.value) {
+                loadReasons(dtMachineSelect.value);
+                loadActiveJobRuns(dtMachineSelect.value, dtJobRunSelect);
+            }
+        }
+
+        // ========== PRODUCTION COUNT FORM EVENT LISTENERS ==========
+        if (pcMachineSelect) {
+            pcMachineSelect.addEventListener('change', function () {
+                const machineId = this.value;
+                loadActiveJobRuns(machineId, pcJobRunSelect);
+            });
+
+            if (pcMachineSelect.value) {
+                loadActiveJobRuns(pcMachineSelect.value, pcJobRunSelect);
+            }
+        }
+    });
+</script>

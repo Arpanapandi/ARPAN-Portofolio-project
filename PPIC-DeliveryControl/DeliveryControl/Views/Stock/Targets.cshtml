@@ -1,0 +1,173 @@
+@model List<DeliveryControl.Models.Item>
+@{
+    ViewData["Title"] = "Manage Stock Targets";
+    const int pageSize = 20;
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="mb-1"><i class="bi bi-gear text-info"></i> Manage Stock Targets</h2>
+                <p class="text-muted">Set threshold limits for Shortage, Normal, and Over stock categories.</p>
+            </div>
+            <a asp-controller="Items" asp-action="Index" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                <i class="bi bi-arrow-left me-1"></i> Kembali ke Master Item
+            </a>
+        </div>
+        <hr />
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <form asp-action="UpdateTargets" method="post">
+            <div class="cyber-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-info"><i class="bi bi-list-check me-2"></i> Items Threshold Configuration</span>
+                    <button type="submit" class="btn btn-info btn-sm">
+                        <i class="bi bi-check-circle me-1"></i> Save All Changes
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="targetsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Item (VIN)</th>
+                                <th style="width: 80px;">Rak</th>
+                                <th style="width: 80px;">No</th>
+                                <th style="width: 100px;">Qty/Lot</th>
+                                <th style="width: 100px;">Min (Lot)</th>
+                                <th style="width: 100px;">Max (Lot)</th>
+                                <th>Current Status Logic</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < Model.Count; i++)
+                            {
+                                var vinDisplay = !string.IsNullOrEmpty(Model[i].VIN) ? Model[i].VIN : Model[i].ItemCode;
+                                <tr class="targets-row" data-page-row="@(i + 1)">
+                                    <td>
+                                        <input type="hidden" name="updates[@i].ItemId" value="@Model[i].ItemId" />
+                                        <div class="fw-bold text-info">@vinDisplay</div>
+                                        <div class="small text-muted">@Model[i].ItemName</div>
+                                    </td>
+                                    <td>
+                                        <select name="updates[@i].Rack" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                            <option value="">-</option>
+                                            @foreach(var r in "ABCDEFGHI") {
+                                                if (Model[i].Rack == r.ToString()) {
+                                                    <option value="@r" selected>@r</option>
+                                                } else {
+                                                    <option value="@r">@r</option>
+                                                }
+                                            }
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="number" name="updates[@i].NoRack" value="@Model[i].NoRack" class="form-control form-control-sm bg-dark text-white border-secondary" />
+                                    </td>
+                                    <td>
+                                        <input type="number" name="updates[@i].QtyLot" value="@Model[i].QtyLot" class="form-control form-control-sm bg-dark text-white border-secondary" />
+                                    </td>
+                                    <td>
+                                        <input type="number" name="updates[@i].RackMin" value="@Model[i].RackMin" class="form-control form-control-sm bg-dark text-white border-danger" required />
+                                    </td>
+                                    <td>
+                                        <input type="number" name="updates[@i].RackMax" value="@Model[i].RackMax" class="form-control form-control-sm bg-dark text-white border-info" required />
+                                    </td>
+                                    <td>
+                                        <small class="text-muted">
+                                            Shortage: <span class="text-danger">&lt;@(Model[i].RackMin ?? 5)</span> | 
+                                            Normal: <span class="text-success">@(Model[i].RackMin ?? 5)-@(Model[i].RackMax ?? 20)</span> | 
+                                            Over: <span class="text-info">&gt;@(Model[i].RackMax ?? 20)</span>
+                                        </small>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="d-flex justify-content-between align-items-center px-3 py-3" id="targetsPaginationBar" style="border-top: 1px solid rgba(255,255,255,0.08);">
+                    <span class="text-muted small" id="targetsPageInfo"></span>
+                    <div id="targetsPagination" class="d-flex gap-1 flex-wrap"></div>
+                </div>
+
+                <div class="card-footer text-end p-3">
+                    <button type="submit" class="btn btn-info">
+                        <i class="bi bi-save me-1"></i> Save All Changes
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .form-control:focus {
+        background-color: #1e293b;
+        color: white;
+        border-color: #38bdf8;
+        box-shadow: 0 0 0 0.25rem rgba(56, 189, 248, 0.25);
+    }
+    .tpg-btn {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: #94a3b8;
+        border-radius: 5px;
+        padding: 3px 10px;
+        font-size: 0.78rem;
+        cursor: pointer;
+        min-width: 30px;
+        transition: all .15s;
+    }
+    .tpg-btn:hover { background: rgba(56,189,248,0.15); color: #fff; }
+    .tpg-btn.active { background: #0ea5e9; border-color: #0ea5e9; color: #fff; font-weight: 700; }
+    .tpg-btn:disabled { opacity: 0.35; cursor: default; }
+</style>
+
+<script>
+(function() {
+    const PAGE_SIZE = @pageSize;
+    const rows = Array.from(document.querySelectorAll('.targets-row'));
+    const total = rows.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    let currentPage = 1;
+
+    function showPage(page) {
+        currentPage = page;
+        rows.forEach((r, i) => {
+            const inPage = i >= (page - 1) * PAGE_SIZE && i < page * PAGE_SIZE;
+            r.style.display = inPage ? '' : 'none';
+        });
+        renderPagination();
+        const start = (page - 1) * PAGE_SIZE + 1;
+        const end = Math.min(page * PAGE_SIZE, total);
+        document.getElementById('targetsPageInfo').textContent =
+            `Menampilkan ${start}–${end} dari ${total} item`;
+    }
+
+    function renderPagination() {
+        const el = document.getElementById('targetsPagination');
+        if (totalPages <= 1) { el.innerHTML = ''; return; }
+        let html = `<button class="tpg-btn" onclick="tpgGo(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹ Prev</button>`;
+        for (let p = 1; p <= totalPages; p++) {
+            html += `<button class="tpg-btn ${p === currentPage ? 'active' : ''}" onclick="tpgGo(${p})">${p}</button>`;
+        }
+        html += `<button class="tpg-btn" onclick="tpgGo(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next ›</button>`;
+        el.innerHTML = html;
+    }
+
+    window.tpgGo = function(page) {
+        if (page < 1 || page > totalPages) return;
+        showPage(page);
+        document.getElementById('targetsTable').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    // Init
+    if (total > 0) showPage(1);
+    if (totalPages <= 1) document.getElementById('targetsPaginationBar').style.display = 'none';
+})();
+</script>

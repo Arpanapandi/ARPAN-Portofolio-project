@@ -1,0 +1,399 @@
+@model DeliveryControl.Models.DeliverySchedule
+
+@{
+    ViewData["Title"] = "Tambah Schedule Delivery";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-calendar-plus"></i> Tambah Schedule Delivery</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Delivery Schedule</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Tambah</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <ul class="nav nav-tabs mb-4" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button" role="tab">
+                    <i class="bi bi-pencil-square"></i> Input Manual
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="excel-tab" data-bs-toggle="tab" data-bs-target="#excel" type="button" role="tab">
+                    <i class="bi bi-file-earmark-excel"></i> Upload Excel
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="myTabContent">
+            <!-- Manual Input Tab -->
+            <div class="tab-pane fade show active" id="manual" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-9">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Form Schedule Delivery</h5>
+                            </div>
+                            <div class="card-body">
+                                <form asp-action="Create" method="post">
+                                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                                    
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label asp-for="ScheduleNumber" class="form-label"></label>
+                                            <input asp-for="ScheduleNumber" class="form-control" placeholder="SCH-001" readonly style="background-color: rgba(30, 41, 59, 0.6); color: var(--text-primary);" />
+                                            <span asp-validation-for="ScheduleNumber" class="text-danger"></span>
+                                            <small class="text-muted">Auto-generated</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label asp-for="ScheduledDate" class="form-label"></label>
+                                            <input asp-for="ScheduledDate" class="form-control" type="date" />
+                                            <span asp-validation-for="ScheduledDate" class="text-danger"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label asp-for="CustomerId" class="form-label"></label>
+                                            <select asp-for="CustomerId" class="form-select" asp-items="ViewBag.CustomerId" id="customerId">
+                                                <option value="">-- Pilih Customer --</option>
+                                            </select>
+                                            <span asp-validation-for="CustomerId" class="text-danger"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label asp-for="Route" class="form-label"></label>
+                                            <input asp-for="Route" class="form-control" id="routeInput" placeholder="Route/Jalur" readonly style="background-color: rgba(30, 41, 59, 0.6); color: var(--text-primary);" />
+                                            <span asp-validation-for="Route" class="text-danger"></span>
+                                            <small class="text-muted">Auto-filled from customer</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label asp-for="Cycle" class="form-label"></label>
+                                            <input asp-for="Cycle" class="form-control" id="cycleInput" placeholder="Cycle" readonly style="background-color: rgba(30, 41, 59, 0.6); color: var(--text-primary);" />
+                                            <span asp-validation-for="Cycle" class="text-danger"></span>
+                                            <small class="text-muted">Auto-filled from customer</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label asp-for="EnterDockTime" class="form-label"></label>
+                                            <input asp-for="EnterDockTime" class="form-control" type="datetime-local" />
+                                            <span asp-validation-for="EnterDockTime" class="text-danger"></span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="PickupTime" class="form-label"></label>
+                                            <input asp-for="PickupTime" class="form-control" type="datetime-local" />
+                                            <span asp-validation-for="PickupTime" class="text-danger"></span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="ETD" class="form-label"></label>
+                                            <input asp-for="ETD" class="form-control" type="datetime-local" />
+                                            <span asp-validation-for="ETD" class="text-danger"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label asp-for="Range" class="form-label"></label>
+                                            <input asp-for="Range" class="form-control" id="rangeInput" placeholder="Range" readonly style="background-color: rgba(30, 41, 59, 0.6); color: var(--text-primary);" />
+                                            <span asp-validation-for="Range" class="text-danger"></span>
+                                            <small class="text-muted">Auto-calculated (ETD - Pickup)</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="SKID" class="form-label"></label>
+                                            <input asp-for="SKID" class="form-control" id="skidInput" type="text" placeholder="Jumlah SKID" readonly style="background-color: rgba(30, 41, 59, 0.6); color: var(--text-primary);" />
+                                            <span asp-validation-for="SKID" class="text-danger"></span>
+                                            <small class="text-muted">Auto-filled from customer</small>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="Area" class="form-label"></label>
+                                            <input asp-for="Area" class="form-control" id="areaInput" placeholder="Area" readonly style="background-color: rgba(30, 41, 59, 0.6); color: var(--text-primary);" />
+                                            <span asp-validation-for="Area" class="text-danger"></span>
+                                            <small class="text-muted">Auto-filled from customer</small>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-4">
+                                            <label class="form-label">Start Prep</label>
+                                            <input type="text" class="form-control time-input-helper" placeholder="00:15" />
+                                            <input type="hidden" asp-for="StartPrepareTime" class="actual-minutes" id="startPrepareInput" />
+                                            <span asp-validation-for="StartPrepareTime" class="text-danger"></span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label">End Prep</label>
+                                            <input type="text" class="form-control time-input-helper" placeholder="00:30" />
+                                            <input type="hidden" asp-for="StdPrepareTime" class="actual-minutes" id="stdPrepareInput" />
+                                            <span asp-validation-for="StdPrepareTime" class="text-danger"></span>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label asp-for="TotalTargetQuantity" class="form-label">Total Target Quantity (Pcs)</label>
+                                            <input asp-for="TotalTargetQuantity" class="form-control" type="number" placeholder="0" />
+                                            <span asp-validation-for="TotalTargetQuantity" class="text-danger"></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row mb-3">
+                                        <div class="col-md-12">
+                                            <label asp-for="Notes" class="form-label"></label>
+                                            <textarea asp-for="Notes" class="form-control" rows="3" placeholder="Catatan tambahan"></textarea>
+                                            <span asp-validation-for="Notes" class="text-danger"></span>
+                                        </div>
+                                    </div>
+
+                                    <input type="hidden" asp-for="Status" value="Scheduled" />
+
+                                    <div class="d-flex gap-2 justify-content-end mt-4">
+                                        <a asp-action="Index" class="btn btn-secondary">
+                                            <i class="bi bi-x-circle"></i> Batal
+                                        </a>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-check-circle"></i> Simpan
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-info-circle"></i> Informasi</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small text-muted">
+                                    <strong>CUST:</strong> Customer yang akan menerima delivery
+                                </p>
+                                <p class="small text-muted">
+                                    <strong>ENTER DOCK:</strong> Waktu masuk ke dock
+                                </p>
+                                <p class="small text-muted">
+                                    <strong>PICKUP:</strong> Waktu pengambilan barang
+                                </p>
+                                <p class="small text-muted">
+                                    <strong>ETD:</strong> Estimated Time of Departure
+                                </p>
+                                <p class="small text-muted">
+                                    <strong>RANGE:</strong> Selisih waktu ETD - Pickup (auto-calculated)
+                                </p>
+                                <p class="small text-muted">
+                                    <strong>SKID:</strong> Jumlah pallet/skid
+                                </p>
+                                <p class="small text-muted">
+                                    <strong>NOTE:</strong> Route, Cycle, SKID, dan Area akan otomatis terisi berdasarkan Customer yang dipilih
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Excel Upload Tab -->
+            <div class="tab-pane fade" id="excel" role="tabpanel">
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="bi bi-file-earmark-excel"></i> Upload File Excel</h5>
+                            </div>
+                            <div class="card-body">
+                                <form asp-action="ImportExcel" method="post" enctype="multipart/form-data">
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle"></i>
+                                        <strong>Petunjuk:</strong>
+                                        <ol class="mb-0 mt-2">
+                                            <li>Download template Excel terlebih dahulu</li>
+                                            <li>Isi data sesuai format yang ada</li>
+                                            <li>Upload file yang sudah diisi</li>
+                                            <li>Sistem akan memproses dan menambahkan data secara massal</li>
+                                        </ol>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <a asp-action="DownloadTemplate" class="btn btn-success">
+                                            <i class="bi bi-download"></i> Download Template Excel
+                                        </a>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="excelFile" class="form-label">Pilih File Excel</label>
+                                        <input type="file" class="form-control" id="excelFile" name="file" accept=".xlsx,.xls" required />
+                                        <div class="form-text">Format file: .xlsx atau .xls (Max 5MB)</div>
+                                    </div>
+
+                                    <div class="d-flex gap-2 justify-content-end mt-4">
+                                        <a asp-action="Index" class="btn btn-secondary">
+                                            <i class="bi bi-x-circle"></i> Batal
+                                        </a>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-upload"></i> Upload & Import
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0"><i class="bi bi-table"></i> Format Excel</h6>
+                            </div>
+                            <div class="card-body">
+                                <p class="small text-muted">Kolom yang harus ada:</p>
+                                <table class="table table-sm table-bordered small">
+                                    <thead>
+                                        <tr>
+                                            <th>No</th>
+                                            <th>Kolom</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>1</td><td>CUST</td></tr>
+                                        <tr><td>2</td><td>ROUTE</td></tr>
+                                        <tr><td>3</td><td>CYCLE</td></tr>
+                                        <tr><td>4</td><td>ENTER DOCK</td></tr>
+                                        <tr><td>5</td><td>PICKUP</td></tr>
+                                        <tr><td>6</td><td>ETD</td></tr>
+                                        <tr><td>7</td><td>Range</td></tr>
+                                        <tr><td>8</td><td>SKID</td></tr>
+                                        <tr><td>9</td><td>AREA</td></tr>
+                                        <tr><td>10</td><td>QTY TARGET</td></tr>
+                                    </tbody>
+                                </table>
+                                <p class="small text-info mt-2">
+                                    <i class="bi bi-info-circle"></i> Route, Cycle, SKID, dan Area akan otomatis terisi dari data Customer
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <style>
+        /* Pastikan semua form control memiliki styling dark mode */
+        .form-control, .form-select {
+            background: rgba(30, 41, 59, 0.6) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: rgba(30, 41, 59, 0.8) !important;
+            border-color: var(--primary-blue) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .form-control[type="date"],
+        .form-control[type="datetime-local"],
+        .form-control[type="time"] {
+            background: rgba(30, 41, 59, 0.6) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .form-control[readonly] {
+            background-color: rgba(30, 41, 59, 0.6) !important;
+            color: var(--text-primary) !important;
+        }
+    </style>
+    <script>
+        $(document).ready(function() {
+            // Auto-fill customer details when customer is selected
+            $('#customerId').change(function() {
+                var customerId = $(this).val();
+                if (customerId) {
+                    $.get('/DeliverySchedules/GetCustomerDetails', { customerId: customerId }, function(data) {
+                        $('#routeInput').val(data.route);
+                        $('#cycleInput').val(data.cycle);
+                        $('#skidInput').val(data.skid);
+                        $('#areaInput').val(data.area);
+                        $('#startPrepareInput').val(data.startPrepareTime);
+                        $('#stdPrepareInput').val(data.stdPrepareTime);
+                    }).fail(function() {
+                        alert('Gagal memuat data customer');
+                    });
+                } else {
+                    // Clear fields if no customer selected
+                    $('#routeInput').val('');
+                    $('#cycleInput').val('');
+                    $('#skidInput').val('');
+                    $('#areaInput').val('');
+                }
+            });
+
+            // Auto-calculate Range when PickupTime or ETD changes
+            function calculateRange() {
+                var pickupTime = $('input[name="PickupTime"]').val();
+                var etd = $('input[name="ETD"]').val();
+                
+                if (pickupTime && etd) {
+                    var pickup = new Date(pickupTime);
+                    var etdDate = new Date(etd);
+                    
+                    // Calculate difference in minutes
+                    var diffMs = etdDate - pickup;
+                    var diffMins = Math.round(diffMs / 60000); // Convert to minutes
+                    
+                    if (diffMins >= 0) {
+                        // Convert to hours and minutes
+                        var hours = Math.floor(diffMins / 60);
+                        var minutes = diffMins % 60;
+                        
+                        var rangeText = '';
+                        if (hours > 0) {
+                            rangeText = hours + ' jam';
+                            if (minutes > 0) {
+                                rangeText += ' ' + minutes + ' menit';
+                            }
+                        } else {
+                            rangeText = minutes + ' menit';
+                        }
+                        
+                        $('#rangeInput').val(rangeText);
+                    } else {
+                        $('#rangeInput').val('Invalid (ETD < Pickup)');
+                    }
+                } else {
+                    $('#rangeInput').val('');
+                }
+            }
+            
+            $('input[name="PickupTime"]').change(calculateRange);
+            $('input[name="ETD"]').change(calculateRange);
+
+            // Time input helper conversion
+            $('form').on('submit', function() {
+                $('.time-input-helper').each(function() {
+                    var val = $(this).val().trim();
+                    var minutes = 0;
+                    if (val.includes(':')) {
+                        var parts = val.split(':');
+                        if (parts.length >= 2) {
+                            var hours = parseInt(parts[0]) || 0;
+                            var mins = parseInt(parts[1]) || 0;
+                            minutes = (hours * 60) + mins;
+                        }
+                    } else if (!isNaN(val) && val !== '') {
+                        minutes = parseInt(val);
+                    }
+                    $(this).siblings('.actual-minutes').val(minutes);
+                });
+            });
+        });
+    </script>
+}

@@ -1,0 +1,2719 @@
+@model IEnumerable<DeliveryControl.Models.DeliverySchedule>
+@using System.Text.RegularExpressions
+@using System.Linq
+
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+@functions {
+    private int? ParseRangeToMinutes(string? rangeText)
+    {
+        if (string.IsNullOrWhiteSpace(rangeText))
+            return null;
+
+        var lower = rangeText.ToLower();
+        int totalMinutes = 0;
+        bool found = false;
+
+        var hourMatch = Regex.Match(lower, @"(\d+)\s*(?:j|jam)");
+        if (hourMatch.Success && int.TryParse(hourMatch.Groups[1].Value, out int hours))
+        {
+            totalMinutes += hours * 60;
+            found = true;
+        }
+
+        var minuteMatch = Regex.Match(lower, @"(\d+)\s*(?:m|menit)");
+        if (minuteMatch.Success && int.TryParse(minuteMatch.Groups[1].Value, out int minutes))
+        {
+            totalMinutes += minutes;
+            found = true;
+        }
+
+        if (!found)
+        {
+            var digitsMatch = Regex.Match(lower, @"\d+");
+            if (digitsMatch.Success && int.TryParse(digitsMatch.Value, out int onlyMinutes))
+            {
+                totalMinutes = onlyMinutes;
+                found = true;
+            }
+        }
+
+        return found ? totalMinutes : null;
+    }
+}
+
+@* VERSION: 2.0 - Delay Truck-In dipindah ke kolom WAKTU ACTUAL *@
+<script>
+    // Debug information - tampilkan di console secara clean
+    console.group("DASHBOARD v2.0 - MONITORING STARTED");
+    console.log("Total Schedules Today:", @(ViewBag.TodaySchedules ?? 0));
+    console.log("Completed:", @(ViewBag.CompletedCount ?? 0));
+    console.log("In Progress:", @(ViewBag.InProgressCount ?? 0));
+    console.log("DELAY TRUCK-IN:", @(ViewBag.DelayPickupCount ?? 0));
+    console.log("DELAY DOCK IN:", @(ViewBag.NotArrivedCount ?? 0));
+    console.groupEnd();
+</script>
+
+<!-- Page Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between flex-wrap">
+            <div>
+                <h1 class="display-5 fw-bold mb-2" style="color: var(--primary-blue);">
+                    <i class="bi bi-speedometer2"></i> Dashboard Shipping
+                </h1>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <div id="signalr-status" class="realtime-status-badge status-connecting">
+                    <div class="status-pulse"></div>
+                    <i class="bi bi-circle-fill status-icon"></i>
+                    <span class="status-text">Connecting...</span>
+                </div>
+                <a asp-controller="DeliverySchedules" asp-action="Index" class="btn btn-outline-light px-3">
+                    <i class="bi bi-calendar3"></i> Lihat Semua Schedule
+                </a>
+                <a asp-controller="DeliverySchedules" asp-action="GanttChart" class="btn btn-outline-light px-3">
+                    <i class="bi bi-bar-chart-fill"></i> Gantt Chart
+                </a>
+                <a asp-controller="DeliverySchedules" asp-action="DelayChart" class="btn btn-outline-light px-3">
+                    <i class="bi bi-bar-chart"></i> History Chart
+                </a>
+                <a asp-controller="DeliverySchedules" asp-action="DelayPickupTrend" class="btn btn-outline-light px-3">
+                    <i class="bi bi-graph-up-arrow"></i> Tren Delay Truck-In
+                </a>
+
+                <!-- Filter Tanggal Compact -->
+                <div class="d-flex align-items-center gap-1" style="background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); border-radius:8px; padding:4px 10px;">
+                    <i class="bi bi-calendar-event text-white-50" style="font-size:0.85rem;"></i>
+                    <input type="date" id="dashboardDateFilter" 
+                           value="@(ViewBag.SelectedDate ?? DateTime.Today.ToString("yyyy-MM-dd"))"
+                           style="background:transparent; border:none; color:#fff; font-size:0.85rem; outline:none; width:130px; cursor:pointer;"
+                           title="Filter tanggal dashboard">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* CSS Kustom untuk Panel Indikator Dashboard */
+    .indicator-panel-card {
+        background: rgba(18, 24, 38, 0.95);
+        border: 1.5px solid rgba(255, 255, 255, 0.35);
+        border-radius: 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 140px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(8px);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .indicator-panel-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+        border-color: #ffffff !important;
+    }
+    .indicator-panel-header {
+        font-weight: 800;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 9px 6px;
+        letter-spacing: 0.8px;
+        border-bottom: 2px solid #ffffff !important;
+        color: #ffffff !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    }
+    .indicator-panel-body {
+        display: flex;
+        flex: 1;
+        width: 100%;
+    }
+    .indicator-subcol {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 6px 12px 6px;
+        border-right: 2px solid rgba(255, 255, 255, 0.35);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+    }
+    .indicator-subcol:last-child {
+        border-right: none !important;
+    }
+    .indicator-subcol:hover {
+        filter: brightness(1.2);
+    }
+    .indicator-qty {
+        font-size: 2.8rem;
+        font-weight: 800;
+        text-align: center;
+        line-height: 1.1;
+        margin-top: 4px;
+        margin-bottom: 8px;
+    }
+    .indicator-label {
+        font-size: 0.9rem;
+        font-weight: 800;
+        text-align: center;
+        text-transform: uppercase;
+        line-height: 1.2;
+        letter-spacing: 0.4px;
+        padding: 6px 2px 2px 2px;
+        border-top: 1.5px dashed rgba(255, 255, 255, 0.4);
+        width: 100%;
+    }
+
+    /* Subcol Fill Background Colors (Spesifik Hex Color Sesuai Instruksi User) */
+    /* 🔴 DELAY (#FF0000) - Dinamis > 0 */
+    .subcol-delay {
+        background: #FF0000 !important;
+    }
+    /* 🟢 ON TIME / CLOSED (#16A34A) */
+    .subcol-ontime {
+        background: #16A34A !important;
+    }
+    /* 🟡 WAITING PROSES / TOTAL (#FFCC00) */
+    .subcol-yellow {
+        background: #FFCC00 !important;
+    }
+    /* 🔵 SUDAH PROSES (Cyan/Blue) */
+    .subcol-blue {
+        background: #0284C7 !important;
+    }
+    /* ⬛ Theme Dark Container saat data = 0 */
+    .subcol-theme {
+        background: rgba(30, 41, 59, 0.65) !important;
+    }
+    .subcol-theme .indicator-qty {
+        color: #e2e8f0 !important;
+        text-shadow: none;
+    }
+    .subcol-theme .indicator-label {
+        color: #e2e8f0 !important;
+        opacity: 0.9;
+        text-shadow: none;
+        border-top: 1.5px dashed rgba(255, 255, 255, 0.4) !important;
+    }
+
+    /* Warna Qty & Label Text (Teks Putih dengan Shadow Kontras Tinggi) */
+    .qty-white { color: #ffffff !important; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6); }
+    .label-white { color: #ffffff !important; opacity: 1; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); font-weight: 800; }
+
+    /* Khusus Teks di atas Container Kuning #FFCC00 agar Keterbacaan Sangat Jelas */
+    .subcol-yellow .indicator-qty { color: #000000 !important; text-shadow: none; }
+    .subcol-yellow .indicator-label { color: #000000 !important; opacity: 1; font-weight: 800; border-top: 1.5px dashed rgba(0, 0, 0, 0.35) !important; }
+
+    /* Warna Header per Panel - Konsisten dengan Tema Dark Dashboard (Elegant Deep Tones + Garis Pembatas Putih Jelas) */
+    .header-order { background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%) !important; color: #ffffff !important; border-bottom: 2px solid #ffffff !important; }
+    .header-prepare { background: linear-gradient(135deg, #78350f 0%, #b45309 100%) !important; color: #ffffff !important; border-bottom: 2px solid #ffffff !important; }
+    .header-dock { background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 100%) !important; color: #ffffff !important; border-bottom: 2px solid #ffffff !important; }
+    .header-pickup { background: linear-gradient(135deg, #4c1d95 0%, #6d28d9 100%) !important; color: #ffffff !important; border-bottom: 2px solid #ffffff !important; }
+    .header-delivery { background: linear-gradient(135deg, #064e3b 0%, #047857 100%) !important; color: #ffffff !important; border-bottom: 2px solid #ffffff !important; }
+    .header-order-del { background: linear-gradient(135deg, #14532d 0%, #15803d 100%) !important; color: #ffffff !important; border-bottom: 2px solid #ffffff !important; }
+
+    /* Animation pulse untuk delay yang > 0 */
+    .delay-pulse-subcol {
+        animation: pulse-red 2s infinite ease-in-out;
+    }
+    @@keyframes pulse-red {
+        0%, 100% { background: #FF0000 !important; }
+        50% { background: #B91C1C !important; }
+    }
+</style>
+
+<!-- Statistics Cards (6 Panel Layout dengan Warna Container Red, Green, Yellow) -->
+@{
+    var totalToday = (int?)ViewBag.TodaySchedules ?? 0;
+    var sudahProses = (int?)ViewBag.SudahProsesCount ?? 0;
+    var waitingProses = (int?)ViewBag.WaitingProsesCount ?? 0;
+
+    var onTimePrepare = (int?)ViewBag.OnTimePrepareCount ?? 0;
+    var delayPrepare = (int?)ViewBag.DelayPrepareCount ?? 0;
+
+    var onTimeDockIn = (int?)ViewBag.OnTimeDockInCount ?? 0;
+    var delayDockIn = (int?)ViewBag.NotArrivedCount ?? 0;
+
+    var onTimeLoading = (int?)ViewBag.OnTimeLoadingCount ?? 0;
+    var delayPickup = (int?)ViewBag.DelayPickupCount ?? 0;
+
+    var onTimeDelivery = (int?)ViewBag.OnTimeDeliveryCount ?? 0;
+    var delayDelivery = (int?)ViewBag.DelayDeliveryCount ?? 0;
+
+    var completed = (int?)ViewBag.CompletedCount ?? 0;
+    var shortage = (int?)ViewBag.ShortageCount ?? 0;
+}
+
+<div class="row g-2 mb-4">
+    <!-- 1. ORDER HARI INI -->
+    <div class="col-xl-2 col-lg-4 col-md-4 col-6">
+        <div class="indicator-panel-card">
+            <div class="indicator-panel-header header-order">
+                ORDER HARI INI
+            </div>
+            <div class="indicator-panel-body">
+                <!-- TOTAL ORDER: Gray -->
+                <div class="indicator-subcol filter-card" style="background-color: #6B7280 !important;" data-filter="all" onclick="filterSchedules('all')" title="Total Order">
+                    <div class="indicator-qty qty-white" id="statTotalOrder">@totalToday</div>
+                    <div class="indicator-label label-white">TOTAL<br>ORDER</div>
+                </div>
+                <!-- SUDAH PROSES: Biru -->
+                <div class="indicator-subcol subcol-blue filter-card" data-filter="in_progress" onclick="filterSchedules('in_progress')" title="Sudah Proses">
+                    <div class="indicator-qty qty-white" id="statSudahProses">@sudahProses</div>
+                    <div class="indicator-label label-white">SUDAH<br>PROSES</div>
+                </div>
+                <!-- WAITING PROSES: Kuning -->
+                <div class="indicator-subcol subcol-yellow filter-card" data-filter="waiting" onclick="filterSchedules('waiting')" title="Waiting Proses">
+                    <div class="indicator-qty qty-white" id="statWaitingProses">@waitingProses</div>
+                    <div class="indicator-label label-white">WAITING<br>PROSES</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. STATUS PREPARE -->
+    <div class="col-xl-2 col-lg-4 col-md-4 col-6">
+        <div class="indicator-panel-card">
+            <div class="indicator-panel-header header-prepare">
+                STATUS PREPARE
+            </div>
+            <div class="indicator-panel-body">
+                <!-- ON TIME: Hijau Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(onTimePrepare > 0 ? "subcol-ontime" : "subcol-theme")" id="subcolOnTimePrepare" data-filter="ontimeprepare" onclick="filterSchedules('ontimeprepare')" title="On Time Prepare">
+                    <div class="indicator-qty @(onTimePrepare > 0 ? "qty-white" : "")" id="statOnTimePrepare">@onTimePrepare</div>
+                    <div class="indicator-label @(onTimePrepare > 0 ? "label-white" : "")">ON TIME<br>PREPARE</div>
+                </div>
+                <!-- DELAY: Merah Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(delayPrepare > 0 ? "subcol-delay delay-pulse-subcol" : "subcol-theme")" id="subcolDelayPrepare" data-filter="delayprepare" onclick="filterSchedules('delayprepare')" title="Delay Prepare">
+                    <div class="indicator-qty @(delayPrepare > 0 ? "qty-white" : "")" id="delayPrepareStatValue">@delayPrepare</div>
+                    <div class="indicator-label @(delayPrepare > 0 ? "label-white" : "")">DELAY<br>PREPARE</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. STATUS DOCK IN -->
+    <div class="col-xl-2 col-lg-4 col-md-4 col-6">
+        <div class="indicator-panel-card">
+            <div class="indicator-panel-header header-dock">
+                STATUS DOCK IN
+            </div>
+            <div class="indicator-panel-body">
+                <!-- ON TIME: Hijau Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(onTimeDockIn > 0 ? "subcol-ontime" : "subcol-theme")" id="subcolOnTimeDockIn" data-filter="ontimedock" onclick="filterSchedules('ontimedock')" title="On Time Dock In">
+                    <div class="indicator-qty @(onTimeDockIn > 0 ? "qty-white" : "")" id="statOnTimeDockIn">@onTimeDockIn</div>
+                    <div class="indicator-label @(onTimeDockIn > 0 ? "label-white" : "")">ON TIME<br>DOCK IN</div>
+                </div>
+                <!-- DELAY: Merah Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(delayDockIn > 0 ? "subcol-delay delay-pulse-subcol" : "subcol-theme")" id="subcolDelayDockIn" data-filter="notarrived" onclick="filterSchedules('notarrived')" title="Delay Dock In">
+                    <div class="indicator-qty @(delayDockIn > 0 ? "qty-white" : "")" id="delayDockInStatValue">@delayDockIn</div>
+                    <div class="indicator-label @(delayDockIn > 0 ? "label-white" : "")">DELAY<br>DOCK IN</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. PICK UP TIME -->
+    <div class="col-xl-2 col-lg-4 col-md-4 col-6">
+        <div class="indicator-panel-card">
+            <div class="indicator-panel-header header-pickup">
+                PICK UP TIME
+            </div>
+            <div class="indicator-panel-body">
+                <!-- ON TIME: Hijau Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(onTimeLoading > 0 ? "subcol-ontime" : "subcol-theme")" id="subcolOnTimeLoading" data-filter="ontimeloading" onclick="filterSchedules('ontimeloading')" title="On Time Loading">
+                    <div class="indicator-qty @(onTimeLoading > 0 ? "qty-white" : "")" id="statOnTimeLoading">@onTimeLoading</div>
+                    <div class="indicator-label @(onTimeLoading > 0 ? "label-white" : "")">ON TIME<br>LOADING</div>
+                </div>
+                <!-- DELAY: Merah Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(delayPickup > 0 ? "subcol-delay delay-pulse-subcol" : "subcol-theme")" id="subcolDelayPickup" data-filter="delaypickup" onclick="filterSchedules('delaypickup')" title="Delay Loading">
+                    <div class="indicator-qty @(delayPickup > 0 ? "qty-white" : "")" id="delayPickupStatValue">@delayPickup</div>
+                    <div class="indicator-label @(delayPickup > 0 ? "label-white" : "")">DELAY<br>LOADING</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. DELIVERY TIME -->
+    <div class="col-xl-2 col-lg-4 col-md-4 col-6">
+        <div class="indicator-panel-card">
+            <div class="indicator-panel-header header-delivery">
+                DELIVERY TIME
+            </div>
+            <div class="indicator-panel-body">
+                <!-- ON TIME: Hijau Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(onTimeDelivery > 0 ? "subcol-ontime" : "subcol-theme")" id="subcolOnTimeDelivery" data-filter="ontimedelivery" onclick="filterSchedules('ontimedelivery')" title="On Time Delivery">
+                    <div class="indicator-qty @(onTimeDelivery > 0 ? "qty-white" : "")" id="statOnTimeDelivery">@onTimeDelivery</div>
+                    <div class="indicator-label @(onTimeDelivery > 0 ? "label-white" : "")">ON TIME<br>DELIVERY</div>
+                </div>
+                <!-- DELAY: Merah Dinamis (> 0) -->
+                <div class="indicator-subcol filter-card @(delayDelivery > 0 ? "subcol-delay delay-pulse-subcol" : "subcol-theme")" id="subcolDelayDelivery" data-filter="delaydelivery" onclick="filterSchedules('delaydelivery')" title="Delay Delivery">
+                    <div class="indicator-qty @(delayDelivery > 0 ? "qty-white" : "")" id="statDelayDelivery">@delayDelivery</div>
+                    <div class="indicator-label @(delayDelivery > 0 ? "label-white" : "")">DELAY<br>DELIVERY</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. DELIVERY ORDER -->
+    <div class="col-xl-2 col-lg-4 col-md-4 col-6">
+        <div class="indicator-panel-card">
+            <div class="indicator-panel-header header-order-del">
+                DELIVERY ORDER
+            </div>
+            <div class="indicator-panel-body">
+                <!-- CLOSED: Hijau Dinamis (> 0) / Theme Gelap (= 0) -->
+                <div class="indicator-subcol filter-card @(completed > 0 ? "subcol-ontime" : "subcol-theme")" id="subcolCompleted" data-filter="completed" onclick="filterSchedules('completed')" title="Closed Delivery">
+                    <div class="indicator-qty @(completed > 0 ? "qty-white" : "")" id="completedStatValue">@completed</div>
+                    <div class="indicator-label @(completed > 0 ? "label-white" : "")">CLOSED<br>DELIVERY</div>
+                </div>
+                <!-- SHORTAGE: Merah Dinamis (> 0) / Theme Gelap (= 0) -->
+                <div class="indicator-subcol filter-card @(shortage > 0 ? "subcol-delay delay-pulse-subcol" : "subcol-theme")" id="subcolShortage" data-filter="shortage" onclick="filterSchedules('shortage')" title="Shortage Delivery">
+                    <div class="indicator-qty @(shortage > 0 ? "qty-white" : "")" id="shortageStatValue">@shortage</div>
+                    <div class="indicator-label @(shortage > 0 ? "label-white" : "")">SHORTAGE<br>DELIVERY</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@{
+    var currentUserRole = Context.Session?.GetString("Role") ?? string.Empty;
+    var isAdminOrSuperAdmin = currentUserRole == "Admin" || currentUserRole == "Super Admin";
+}
+
+<!-- Today's Schedule -->
+<div class="row">
+    <div class="col-12">
+        <div class="cyber-card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 fw-bold">
+                        <i class="bi bi-calendar-day me-2" style="color: var(--primary-blue);"></i>
+                        Jadwal Delivery Hari Ini
+                    </h5>
+                    @* H-1 info removed *@
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    @if (isAdminOrSuperAdmin)
+                    {
+                        <button type="button" class="btn btn-sm btn-danger" id="bulkDeleteBtn" style="display:none;" onclick="confirmBulkDelete()">
+                            <i class="bi bi-trash"></i> Hapus Terpilih (<span id="selectedCount">0</span>)
+                        </button>
+                        @if (currentUserRole == "Super Admin")
+                        {
+                            <button type="button" class="btn btn-sm @(ViewBag.ForceOnTimeMode == true ? "btn-success" : "btn-outline-success")" id="toggleForceOnTimeBtn" onclick="toggleForceOnTime()" title="Manipulasi Status Delay Menjadi On Time">
+                                <i class="bi bi-magic" id="forceOnTimeIcon"></i> <span id="forceOnTimeText">Manipulasi: @(ViewBag.ForceOnTimeMode == true ? "ON" : "OFF")</span>
+                            </button>
+                            <button type="button" class="btn btn-sm @(ViewBag.IsRangeFilterActive == true ? "btn-primary" : "btn-outline-primary")" id="dateRangeFilterBtn" onclick="openDateRangeModal()" title="Filter Range Tanggal Delivery (Super Admin)">
+                                <i class="bi bi-calendar-range" id="dateRangeFilterIcon"></i> <span id="dateRangeFilterText">Filter Tanggal: @(ViewBag.IsRangeFilterActive == true ? $"{ViewBag.ActiveStartDate} s/d {ViewBag.ActiveEndDate}" : "Default")</span>
+                            </button>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-info" id="minusKbnBtn" onclick="showMinusKanban()" title="Lihat summary kanban yang belum scan">
+                            <i class="bi bi-bar-chart-steps" id="minusKbnIcon"></i> Tarik Data Minus
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-warning" id="recalcKbnBtn" onclick="recalculateKanban()" title="Hitung ulang KBN PREP dari data scan sesungguhnya">
+                            <i class="bi bi-calculator" id="recalcKbnIcon"></i> Recalc KBN
+                        </button>
+                    }
+                    <button type="button" class="btn btn-sm btn-outline-light" id="refreshBtn" title="Refresh Data" onclick="manualRefresh()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleCompletedBtn"
+                            title="Tampilkan jadwal yang sudah Completed (mode Audit)"
+                            onclick="toggleCompleted()">
+                        <i class="bi bi-eye" id="toggleCompletedIcon"></i>
+                        <span id="toggleCompletedText">Tampilkan Selesai</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-light" id="autoScrollToggle" title="Toggle Auto Scroll">
+                        <i class="bi bi-arrow-down-up" id="autoScrollIcon"></i>
+                        <span id="autoScrollText">Auto Scroll: ON</span>
+                    </button>
+                    <span class="badge bg-primary" style="font-size: 0.9rem;">
+                        <i class="bi bi-clock-history"></i> Live
+                    </span>
+                </div>
+            </div>
+            <div class="card-body p-0" id="main-card-body">
+                @{
+                    bool hasData = Model != null && Model.Any();
+                }
+                <div id="table-wrapper" style="@(hasData ? "" : "display: none;")">
+                    <!-- Reset Filter Button -->
+                    <div class="d-flex justify-content-end p-3 pb-0">
+                        <button id="resetFilterBtn" class="btn btn-outline-secondary btn-sm" onclick="filterSchedules('all')" style="display: none;">
+                            <i class="bi bi-arrow-clockwise"></i> Reset All Filters
+                        </button>
+                    </div>
+                    <div id="table-container" style="max-height: 600px; overflow-y: auto; overflow-x: auto;">
+                        <table class="table table-hover table-bordered mb-0 align-middle">
+                        <thead class="table-dark" style="position: sticky; top: 0; z-index: 100; background-color: #212529;">
+                            <tr style="font-size: 0.9rem;">
+                                @if (isAdminOrSuperAdmin)
+                                {
+                                    <th class="text-center align-middle" style="width: 35px; background-color: #212529;">
+                                        <input type="checkbox" id="selectAll" class="form-check-input" title="Pilih Semua" style="cursor: pointer;">
+                                    </th>
+                                }
+                                <th class="text-center" style="width: 90px; background-color: #212529;"><i class="bi bi-building"></i> CUSTOMER</th>
+                                <th class="text-center" style="width: 95px; background-color: #212529;"><i class="bi bi-pin-map-fill"></i> DOCK</th>
+                                <th class="text-center" style="width: 65px; background-color: #212529;"><i class="bi bi-arrow-repeat"></i> CYCLE</th>
+                                <th class="text-center" style="width: 75px; background-color: #212529;"><i class="bi bi-signpost-split"></i> ROUTE</th>
+                                <th class="text-center" style="width: 115px; background-color: #212529; font-weight: 600;"><i class="bi bi-box-seam"></i> KBN PREP</th>
+                                <th class="text-center" style="width: 225px; min-width: 215px; background-color: #212529; font-weight: 600;"><i class="bi bi-hourglass-split"></i> PREPARE (STD/ACT)</th>
+                                <th class="text-center" style="width: 220px; min-width: 210px; background-color: #212529; font-weight: 600;"><i class="bi bi-door-open"></i> DOCK (STD/ACT)</th>
+                                <th class="text-center" style="width: 210px; min-width: 200px; background-color: #212529; font-weight: 600;"><i class="bi bi-truck"></i> PICKUP (STD/ACT)</th>
+                                <th class="text-center" style="width: 105px; background-color: #212529; font-weight: 600;"><i class="bi bi-geo-alt-fill"></i> ACT DELIVERY</th>
+                                <th class="text-center" style="width: 110px; background-color: #212529; font-weight: 600;"><i class="bi bi-check-circle"></i> STATUS ORDER</th>
+                                <th class="text-center" style="width: 85px; background-color: #212529; font-weight: 600;"><i class="bi bi-gear"></i> ACTION</th>
+                            </tr>
+                        </thead>
+                        <tbody style="font-size: 0.85rem;">
+                            @try
+                            {
+                                @await Html.PartialAsync("_ScheduleTablePartial", Model)
+                            }
+                            catch
+                            {
+                                <tr><td colspan="12" class="text-center text-danger py-4">Terjadi kesalahan menampilkan jadwal. Silakan refresh halaman.</td></tr>
+                            }
+                        </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Legend Information -->
+                    <div class="legend-container">
+                        <h6 class="legend-title">
+                            <i class="bi bi-info-circle-fill"></i> Keterangan Icon:
+                        </h6>
+                        <div class="d-flex flex-wrap gap-4">
+                            <div class="legend-item-simple">
+                                <i class="bi bi-door-open text-info"></i>
+                                <span>Enter Dock (Schedule)</span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <i class="bi bi-door-open-fill text-success"></i>
+                                <span>Actual Enter Dock</span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <i class="bi bi-clock text-primary"></i>
+                                <span>Pickup Time</span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <i class="bi bi-arrow-right"></i>
+                                <span>ETD</span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <i class="bi bi-geo-alt-fill" style="color: #10b981;"></i>
+                                <span>Kedatangan</span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <i class="bi bi-check-circle-fill" style="color: #10b981;"></i>
+                                <span>Keberangkatan</span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <span class="badge bg-danger" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">
+                                    <i class="bi bi-clock text-primary"></i> Delay
+                                </span>
+                            </div>
+                            <div class="legend-item-simple">
+                                <span class="badge bg-success" style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">
+                                    <i class="bi bi-check-circle-fill"></i> On Time
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="empty-state-container" class="text-center py-5" style="@(hasData ? "display: none;" : "")">
+                    <div class="empty-state">
+                        <i class="bi bi-calendar-x" style="font-size: 4rem; color: var(--primary-blue); opacity: 0.5;"></i>
+                        <h4 class="mt-3 mb-2">Tidak Ada Jadwal Hari Ini</h4>
+                        <p class="text-muted mb-0">Belum ada jadwal delivery yang terdaftar untuk hari ini.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .blink-badge {
+        animation: blink-badge-anim 1.2s ease-in-out infinite !important;
+    }
+    @@keyframes blink-badge-anim {
+        0%, 100% {
+            opacity: 1;
+            box-shadow: 0 0 10px rgba(220, 53, 69, 0.9);
+        }
+        50% {
+            opacity: 0.35;
+            box-shadow: 0 0 2px rgba(220, 53, 69, 0.2);
+        }
+    }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    .spin-icon { display: inline-block; animation: spin 0.8s linear infinite; }
+
+    /* ========================================
+       REALTIME STATUS BADGE - Enhanced Styling
+       ======================================== */
+    .realtime-status-badge {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        backdrop-filter: blur(10px);
+    }
+
+    .realtime-status-badge .status-pulse {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 25px;
+        opacity: 0;
+        animation: pulse-ring 2s infinite;
+        pointer-events: none;
+    }
+
+    .realtime-status-badge .status-icon {
+        font-size: 0.7rem;
+        filter: drop-shadow(0 0 4px currentColor);
+    }
+
+    .realtime-status-badge .status-text {
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Status: Connecting (Gray) */
+    .status-connecting {
+        background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        border-color: #adb5bd;
+        color: #fff;
+    }
+
+    .status-connecting .status-pulse {
+        background: rgba(108, 117, 125, 0.5);
+    }
+
+    .status-connecting .status-icon {
+        animation: pulse-icon 1.5s infinite;
+    }
+
+    /* Status: Live (Green) */
+    .status-live {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border-color: #34d399;
+        color: #fff;
+        animation: glow-green 2s infinite alternate;
+    }
+
+    .status-live .status-pulse {
+        background: rgba(16, 185, 129, 0.5);
+    }
+
+    .status-live .status-icon {
+        animation: pulse-icon-success 1.5s infinite;
+    }
+
+    /* Status: Reconnecting (Yellow) */
+    .status-reconnecting {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        border-color: #fbbf24;
+        color: #fff;
+        animation: glow-yellow 1s infinite alternate;
+    }
+
+    .status-reconnecting .status-pulse {
+        background: rgba(245, 158, 11, 0.5);
+    }
+
+    .status-reconnecting .status-icon {
+        animation: spin 2s linear infinite;
+    }
+
+    /* Status: Disconnected (Red) */
+    .status-disconnected {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        border-color: #f87171;
+        color: #fff;
+    }
+
+    .status-disconnected .status-pulse {
+        background: rgba(239, 68, 68, 0.5);
+    }
+
+    .status-disconnected .status-icon {
+        animation: blink-icon 1s infinite;
+    }
+
+    /* Animations */
+    @@keyframes pulse-ring {
+        0% {
+            transform: scale(1);
+            opacity: 0.5;
+        }
+        100% {
+            transform: scale(1.2);
+            opacity: 0;
+        }
+    }
+
+    @@keyframes pulse-icon {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
+
+    @@keyframes pulse-icon-success {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 0.8;
+        }
+    }
+
+    @@keyframes glow-green {
+        0% {
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+        100% {
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.8), 0 0 30px rgba(16, 185, 129, 0.4);
+        }
+    }
+
+    @@keyframes glow-yellow {
+        0% {
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+        100% {
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.8);
+        }
+    }
+
+    @@keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @@keyframes blink-icon {
+        0%, 49% {
+            opacity: 1;
+        }
+        50%, 100% {
+            opacity: 0.3;
+        }
+    }
+
+    /* ========================================
+       EXISTING STYLES
+       ======================================== */
+    .stat-unit {
+        font-size: 1rem;
+        margin-left: 0.25rem;
+    }
+
+    .stat-card {
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .stat-card:hover::after {
+        opacity: 1;
+    }
+
+    .filter-card {
+        border: 3px solid transparent;
+        transition: all 0.3s ease;
+    }
+
+    .filter-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+
+    .filter-card.active {
+        border-color: #ffffff;
+        box-shadow: 0 0 20px rgba(255,255,255,0.5);
+        transform: scale(1.05);
+    }
+
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        color: var(--primary-blue);
+    }
+
+    .stat-icon-purple {
+        background: rgba(96, 165, 250, 0.15);
+        color: var(--secondary-blue);
+    }
+
+    .stat-icon-orange {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning-orange);
+    }
+
+    .stat-icon-green {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--success-green);
+    }
+
+    .schedule-row {
+        transition: all 0.3s ease;
+    }
+
+    .schedule-row:hover {
+        transform: translateX(5px);
+    }
+
+    .schedule-row.hidden {
+        display: none;
+    }
+
+    .customer-avatar {
+        width: 35px;
+        height: 35px;
+        border-radius: 8px;
+        background: var(--primary-blue);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+
+    .row-number-badge {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 600;
+        font-size: 0.9rem;
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .empty-state {
+        padding: 2rem;
+    }
+
+    .badge-delay-pickup {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+        animation: pulse-badge 1.5s ease-in-out infinite;
+    }
+
+    @@keyframes pulse-badge {
+        0%, 100% {
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        }
+        50% {
+            box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+        }
+    }
+
+    .blink-text {
+        animation: blink 1s step-start infinite;
+    }
+
+    @@keyframes blink {
+        0%, 49% {
+            opacity: 1;
+        }
+        50%, 100% {
+            opacity: 0;
+        }
+    }
+
+    @@keyframes pulse-card {
+        0%, 100% {
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+        }
+        50% {
+            box-shadow: 0 0 0 15px rgba(220, 53, 69, 0);
+        }
+    }
+
+    .stat-card-yellow:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(245, 158, 11, 0.5);
+    }
+
+    /* Allow horizontal scroll in table container if needed */
+    #table-container {
+        overflow-x: auto;
+    }
+
+    #table-container table {
+        table-layout: auto;
+        width: 100%;
+        min-width: 1200px;
+    }
+
+    #table-container td, #table-container th {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    /* Specific column adjustments if needed */
+    #table-container td, #table-container th {
+        padding: 8px 4px;
+    }
+
+    /* Legend Styles */
+    .legend-container {
+        background: rgba(30, 41, 59, 0.4);
+        border-top: 2px solid var(--border-color);
+        padding: 1.5rem 2rem;
+        margin-top: 1rem;
+    }
+
+    .legend-title {
+        color: var(--primary-blue);
+        font-size: 1.1rem;
+        font-weight: 700;
+        margin-bottom: 1.2rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .legend-title i {
+        font-size: 1.2rem;
+    }
+
+    .legend-section {
+        background: rgba(59, 130, 246, 0.05);
+        border-left: 3px solid var(--primary-blue);
+        padding: 1rem;
+        border-radius: 8px;
+        height: 100%;
+    }
+
+    .legend-section-title {
+        color: var(--secondary-blue);
+        font-size: 0.95rem;
+        font-weight: 700;
+        margin-bottom: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+    }
+
+    .legend-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .legend-item i {
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .legend-item .badge {
+        flex-shrink: 0;
+        min-width: fit-content;
+    }
+
+    .legend-item span {
+        line-height: 1.5;
+    }
+
+    .legend-item strong {
+        color: var(--primary-blue);
+        font-weight: 600;
+    }
+
+    /* Simple Legend Item */
+    .legend-item-simple {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(59, 130, 246, 0.08);
+        border-radius: 6px;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        font-size: 0.85rem;
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+    }
+
+    .legend-item-simple:hover {
+        background: rgba(59, 130, 246, 0.15);
+        border-color: rgba(96, 165, 250, 0.4);
+        transform: translateY(-1px);
+    }
+
+    .legend-item-simple i {
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+
+    .legend-item-simple .badge {
+        flex-shrink: 0;
+    }
+    
+    /* Schedule Separator Row */
+    .schedule-separator-row {
+        background: rgba(30, 41, 59, 0.3) !important;
+    }
+    
+    .schedule-separator-row td {
+        white-space: normal !important;
+    }
+    
+    .schedule-separator-row:hover {
+        background: rgba(30, 41, 59, 0.3) !important;
+    }
+
+    /* Auto Scroll Toggle Button */
+    #autoScrollToggle {
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    #autoScrollToggle:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    #autoScrollToggle.btn-outline-success {
+        border-color: #198754;
+        color: #198754;
+    }
+
+    #autoScrollToggle.btn-outline-success:hover {
+        background-color: #198754;
+        color: white;
+    }
+
+    #autoScrollToggle.btn-outline-secondary {
+        border-color: #6c757d;
+        color: #6c757d;
+    }
+
+    #autoScrollToggle.btn-outline-secondary:hover {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    /* ===== DELAY PREPARE POPUP ===== */
+    #delayPreparePopup {
+        position: fixed;
+        top: 80px;
+        right: 24px;
+        width: 360px;
+        z-index: 10500;
+        border-radius: 14px;
+        border: 2px solid #ef4444;
+        background: linear-gradient(135deg, #1e1b2e 0%, #2d1515 100%);
+        box-shadow: 0 0 30px rgba(239,68,68,0.55), 0 8px 32px rgba(0,0,0,0.5);
+        display: none;
+        animation: slideInRight 0.35s ease;
+    }
+    @@keyframes slideInRight {
+        from { transform: translateX(120%); opacity: 0; }
+        to   { transform: translateX(0);   opacity: 1; }
+    }
+    #delayPreparePopup .popup-header {
+        background: linear-gradient(90deg, #dc2626, #ef4444);
+        border-radius: 12px 12px 0 0;
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+    #delayPreparePopup .popup-title {
+        font-weight: 700;
+        font-size: 0.95rem;
+        color: #fff;
+        letter-spacing: 0.5px;
+    }
+    #delayPreparePopup .popup-body {
+        padding: 12px 16px;
+        max-height: 280px;
+        overflow-y: auto;
+    }
+    #delayPreparePopup .delay-item {
+        background: rgba(239,68,68,0.12);
+        border: 1px solid rgba(239,68,68,0.3);
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    #delayPreparePopup .delay-item:last-child { margin-bottom: 0; }
+    #delayPreparePopup .delay-customer {
+        font-weight: 700;
+        color: #fca5a5;
+        font-size: 1rem;
+        min-width: 48px;
+    }
+    #delayPreparePopup .delay-meta {
+        font-size: 0.78rem;
+        color: #e5e7eb;
+    }
+    #delayPreparePopup .popup-footer {
+        padding: 8px 16px 14px;
+        display: flex;
+        gap: 8px;
+    }
+    .popup-blink-icon {
+        animation: blink-red 1s step-start infinite;
+        font-size: 1.3rem;
+    }
+    @@keyframes blink-red {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.2; }
+    }
+</style>
+
+<!-- ===== DELAY PREPARE WARNING POPUP ===== -->
+<div id="delayPreparePopup">
+    <div class="popup-header">
+        <span class="popup-title">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            DELAY PREPARE TERDETEKSI!
+        </span>
+        <button type="button" class="btn-close btn-close-white btn-sm" id="closeDelayPrepPopup" aria-label="Close"></button>
+    </div>
+    <div class="popup-body" id="delayPrepPopupBody">
+        <!-- filled by JS -->
+    </div>
+    <div class="popup-footer">
+        <button class="btn btn-danger btn-sm w-100" onclick="filterSchedules('delayprepare'); document.getElementById('delayPreparePopup').style.display='none';">
+            <i class="bi bi-funnel-fill me-1"></i> Lihat Detail Delay
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" id="dismissDelayPrepPopup" style="white-space:nowrap;">
+            <i class="bi bi-x-lg"></i> Tutup
+        </button>
+    </div>
+</div>
+
+<script>
+    let currentFilter = 'all';
+
+    // ===== DELAY PREPARE POPUP STATE =====
+    const knownDelayPrepKeys = new Set(); // tracks customer+cycle combos already shown
+    let delayPopupSnoozed = false;        // true while popup is manually dismissed
+
+    function checkDelayPrepareAlerts() {
+        const allDelayRows = document.querySelectorAll('.schedule-row[data-delayprepare="true"][data-prepared="false"]');
+        const newItems = [];
+        allDelayRows.forEach(function(row) {
+            const customer = row.getAttribute('data-customer') || '-';
+            const cycle    = row.getAttribute('data-cycle')    || '-';
+            const startP   = row.getAttribute('data-startprep') || '-';
+            const endP     = row.getAttribute('data-endprep')   || '-';
+            const key = customer + '|' + cycle;
+            if (!knownDelayPrepKeys.has(key)) {
+                knownDelayPrepKeys.add(key);
+                newItems.push({ customer, cycle, startP, endP });
+            }
+        });
+
+        if (newItems.length > 0) {
+            // Build popup item list
+            const body = document.getElementById('delayPrepPopupBody');
+            if (body) {
+                newItems.forEach(function(it) {
+                    const div = document.createElement('div');
+                    div.className = 'delay-item';
+                    div.innerHTML =
+                        '<span class="popup-blink-icon text-danger"><i class="bi bi-exclamation-triangle-fill"></i></span>' +
+                        '<div>' +
+                            '<div class="delay-customer">' + it.customer + ' &mdash; ' + it.cycle + '</div>' +
+                            '<div class="delay-meta"><i class="bi bi-clock-fill me-1 text-warning"></i>Prepare: ' + it.startP + ' – ' + it.endP + ' (Terlambat)</div>' +
+                        '</div>';
+                    body.appendChild(div);
+                });
+            }
+            // Show popup (reset snooze because new item appeared)
+            delayPopupSnoozed = false;
+            const popup = document.getElementById('delayPreparePopup');
+            if (popup) {
+                popup.style.display = 'block';
+                popup.style.animation = 'none';
+                popup.offsetHeight; // reflow
+                popup.style.animation = 'slideInRight 0.35s ease';
+            }
+        }
+    }
+
+    // ── Hide Completed State (persisted in localStorage) ───────────────────
+    var storedHide = localStorage.getItem('dashHideCompleted');
+    var _hideCompleted = storedHide === null ? true : storedHide === 'true'; // default: true (sembunyikan closed delivery)
+
+    function _updateToggleCompletedBtn() {
+        var btn  = document.getElementById('toggleCompletedBtn');
+        var icon = document.getElementById('toggleCompletedIcon');
+        var txt  = document.getElementById('toggleCompletedText');
+        if (!btn) return;
+        if (_hideCompleted) {
+            btn.className  = 'btn btn-sm btn-outline-secondary';
+            icon.className = 'bi bi-eye';
+            txt.textContent = 'Tampilkan Selesai';
+            btn.title = 'Tampilkan jadwal yang sudah Completed (mode Audit)';
+        } else {
+            btn.className  = 'btn btn-sm btn-outline-success';
+            icon.className = 'bi bi-eye-slash';
+            txt.textContent = 'Sembunyikan Selesai';
+            btn.title = 'Sembunyikan jadwal yang sudah Completed';
+        }
+    }
+
+    window.toggleCompleted = function() {
+        _hideCompleted = !_hideCompleted;
+        localStorage.setItem('dashHideCompleted', _hideCompleted ? 'true' : 'false');
+        _updateToggleCompletedBtn();
+        filterSchedules(currentFilter);
+    };
+
+    function filterSchedules(filter) {
+        currentFilter = filter;
+
+        // Update active card
+        document.querySelectorAll('.filter-card').forEach(card => {
+            card.classList.remove('active');
+        });
+        const activeCard = document.querySelector(`[data-filter="${filter}"]`);
+        if (activeCard) {
+            activeCard.classList.add('active');
+        }
+
+        // Show/hide reset button
+        const resetBtn = document.getElementById('resetFilterBtn');
+        if (resetBtn) {
+            resetBtn.style.display = filter === 'all' ? 'none' : 'inline-block';
+        }
+
+        // Filter table rows
+        const rows = document.querySelectorAll('.schedule-row');
+        let visibleCount = 0;
+
+        rows.forEach(row => {
+            const status = row.getAttribute('data-status');
+            const hasArrived = row.getAttribute('data-arrived') === 'true';
+            const isDelayPickup = row.getAttribute('data-delaypickup') === 'true';
+            const isDelayPrepare = row.getAttribute('data-delayprepare') === 'true';
+            const isCompleted = row.getAttribute('data-completed') === 'true' || status === 'completed' || status === 'closeddelivery';
+            let shouldShow = false;
+
+            if (filter === 'all') {
+                shouldShow = true;
+            } else if (filter === 'shortage') {
+                shouldShow = row.getAttribute('data-shortage') === 'true' || status === 'shortagedelivery';
+            } else if (filter === 'completed') {
+                shouldShow = isCompleted;
+            } else if (filter === 'in_progress') {
+                shouldShow = row.getAttribute('data-sudahproses') === 'true';
+            } else if (filter === 'waiting') {
+                shouldShow = row.getAttribute('data-waitingproses') === 'true';
+            } else if (filter === 'inprogress') {
+                shouldShow = status === 'progrespreparation' || status === 'inprogress';
+            } else if (filter === 'delaydelivery') {
+                shouldShow = row.getAttribute('data-delaydelivery') === 'true' || status === 'delaydelivery';
+            } else if (filter === 'delaypickup') {
+                shouldShow = isDelayPickup || row.getAttribute('data-delaypickup') === 'true' || status === 'waitingpickup';
+            } else if (filter === 'delayprepare') {
+                shouldShow = isDelayPrepare === true || row.getAttribute('data-delayprepare') === 'true';
+            } else if (filter === 'notarrived') {
+                shouldShow = row.getAttribute('data-notarrived') === 'true' || status === 'waitingdockin';
+            } else if (filter === 'prepared') {
+                shouldShow = row.getAttribute('data-prepared') === 'true';
+            } else if (filter === 'ontimeprepare') {
+                shouldShow = row.getAttribute('data-ontimeprepare') === 'true';
+            } else if (filter === 'ontimedock') {
+                shouldShow = row.getAttribute('data-ontimedock') === 'true';
+            } else if (filter === 'ontimeloading') {
+                shouldShow = row.getAttribute('data-ontimeloading') === 'true';
+            } else if (filter === 'ontimedelivery') {
+                shouldShow = row.getAttribute('data-ontimedelivery') === 'true';
+            }
+
+            // Sembunyikan completed jika mode hide aktif (hanya saat filter === 'all')
+            if (shouldShow && _hideCompleted && isCompleted && filter === 'all') {
+                shouldShow = false;
+            }
+
+            if (shouldShow) {
+                row.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+
+        // Update row numbers
+        let rowNumber = 1;
+        rows.forEach(row => {
+            const badge = row.querySelector('.row-number-text');
+            if (!badge) return;
+            if (!row.classList.contains('hidden')) {
+                badge.textContent = rowNumber++;
+            } else {
+                badge.textContent = '';
+            }
+        });
+
+        // Update section headers visibility: sembunyikan header section jika tidak ada child schedule-row yang terlihat
+        document.querySelectorAll('.schedule-section-header').forEach(hdr => {
+            let nextEl = hdr.nextElementSibling;
+            let hasVisibleChild = false;
+            while (nextEl && !nextEl.classList.contains('schedule-section-header')) {
+                if (nextEl.classList.contains('schedule-row') && !nextEl.classList.contains('hidden')) {
+                    hasVisibleChild = true;
+                    break;
+                }
+                nextEl = nextEl.nextElementSibling;
+            }
+            hdr.style.display = hasVisibleChild ? '' : 'none';
+        });
+
+        // ─── Penanganan UI Table vs Empty State ───
+        const tableWrapper = document.getElementById('table-wrapper');
+        const emptyContainer = document.getElementById('empty-state-container');
+        
+        // Hapus empty state wrapper dan info row lama
+        document.querySelectorAll('.empty-state-filter-wrapper').forEach(el => el.remove());
+        document.querySelectorAll('.empty-filter-row').forEach(el => el.remove());
+
+        if (rows.length === 0) {
+            // Memang 0 data sama sekali dari server untuk tanggal ini
+            if (tableWrapper) tableWrapper.style.display = 'none';
+            if (emptyContainer) emptyContainer.style.display = 'block';
+        } else {
+            // Ada data jadwal di DOM — tabel UTAMA HARUS SELALU TETAP TAMPIL
+            if (tableWrapper) tableWrapper.style.display = 'block';
+            if (emptyContainer) emptyContainer.style.display = 'none';
+
+            if (visibleCount === 0) {
+                // Ada data, tapi filter saat ini tidak memiliki baris yang cocok
+                const tbody = document.querySelector('#table-container tbody');
+                if (tbody) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.className = 'empty-filter-row';
+                    const colCount = document.querySelectorAll('#table-container thead th').length || 12;
+                    emptyRow.innerHTML = `
+                        <td colspan="${colCount}" class="text-center py-4" style="background: rgba(30,41,59,0.3); color: #94a3b8; font-size: 0.95rem;">
+                            <i class="bi bi-funnel me-2 text-info"></i>Tidak ada jadwal yang sesuai dengan filter ini.
+                            <button class="btn btn-sm btn-outline-info ms-3 px-3" onclick="filterSchedules('all')">
+                                <i class="bi bi-arrow-counterclockwise me-1"></i>Tampilkan Semua Jadwal
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(emptyRow);
+                }
+            }
+        }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        _updateToggleCompletedBtn();
+
+        // Default: tampilkan semua & aktifkan card Total Order
+        filterSchedules('all');
+
+        // Pastikan card Total Order aktif secara visual saat pertama load
+        const totalOrderCard = document.querySelector('[data-filter="all"]');
+        if (totalOrderCard) totalOrderCard.classList.add('active');
+
+        if (window.currentForceOnTimeMode === true) {
+            applyForceOnTimeVisuals(true);
+        } else {
+            // Check for pre-existing delay prepare on initial load
+            safeSetTimeout(checkDelayPrepareAlerts, 500);
+        }
+
+        // Close/dismiss buttons for delay prepare popup
+        document.getElementById('closeDelayPrepPopup')?.addEventListener('click', function() {
+            delayPopupSnoozed = true;
+            document.getElementById('delayPreparePopup').style.display = 'none';
+        });
+        document.getElementById('dismissDelayPrepPopup')?.addEventListener('click', function() {
+            delayPopupSnoozed = true;
+            document.getElementById('delayPreparePopup').style.display = 'none';
+        });
+    });
+</script>
+
+<!-- Modal: Summary Kanban Minus -->
+<div class="modal fade" id="minusKanbanModal" tabindex="-1" aria-labelledby="minusKanbanModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable" style="max-width:800px; margin:4.5rem auto 3rem auto;">
+    <div class="modal-content" style="background:#1a1f2e; color:#e2e8f0; border:1px solid rgba(255,255,255,0.1); max-height:78vh;">
+      <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,0.1);">
+        <h5 class="modal-title" id="minusKanbanModalLabel">
+          <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>Summary Kanban Minus
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="minusKbnModalBody" style="overflow-y:auto;">
+        <div class="text-center py-4 text-muted"><i class="bi bi-hourglass-split"></i> Memuat data...</div>
+      </div>
+      <div class="modal-footer flex-column align-items-start" id="minusKbnWaSection" style="display:none; border-top:1px solid rgba(255,255,255,0.1);">
+        <label class="form-label small text-muted mb-1">Kirim ringkasan via WhatsApp:</label>
+        <div class="input-group input-group-sm w-100">
+          <span class="input-group-text" style="background:#2d3748; border-color:rgba(255,255,255,0.2); color:#e2e8f0;">+62</span>
+          <input type="text" class="form-control" id="waPhoneInput"
+                 placeholder="81234567890" maxlength="15" inputmode="numeric"
+                 style="background:#2d3748; border-color:rgba(255,255,255,0.2); color:#e2e8f0;">
+          <button class="btn btn-success btn-sm" onclick="sendToWhatsApp()">
+            <i class="bi bi-whatsapp"></i> Salin WA
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="copyWaMessage()">
+            <i class="bi bi-clipboard"></i> Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+<script>
+    // ============================================
+    // INITIALIZATION - HARUS DI AWAL
+    // ============================================
+    
+    // Initialize timeout tracking array - HARUS di awal sebelum fungsi apapun
+    if (typeof window.dashboardTimeouts === 'undefined') {
+        window.dashboardTimeouts = [];
+    }
+    
+    // Helper untuk track timeout dengan safety check - HARUS didefinisikan di awal
+    function safeSetTimeout(callback, delay) {
+        // Pastikan array selalu terinisialisasi (double-check untuk safety)
+        if (!window.dashboardTimeouts || !Array.isArray(window.dashboardTimeouts)) {
+            window.dashboardTimeouts = [];
+        }
+        
+        const timeoutId = setTimeout(() => {
+            try {
+                callback();
+            } catch (error) {
+                console.error("Error in safeSetTimeout callback:", error);
+            }
+            
+            // Remove dari array setelah execute (dengan safety check)
+            if (window.dashboardTimeouts && Array.isArray(window.dashboardTimeouts)) {
+                const index = window.dashboardTimeouts.indexOf(timeoutId);
+                if (index > -1) {
+                    window.dashboardTimeouts.splice(index, 1);
+                }
+            }
+        }, delay);
+        
+        // Add ke tracking array (dengan safety check)
+        if (window.dashboardTimeouts && Array.isArray(window.dashboardTimeouts)) {
+            window.dashboardTimeouts.push(timeoutId);
+        }
+        
+        return timeoutId;
+    }
+    
+    // ============================================
+    // SIGNALR REAL-TIME UPDATE CONFIGURATION
+    // ============================================
+    
+    console.log("Initializing SignalR connection...");
+    
+    // Build SignalR connection
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl("/deliveryHub")
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // Reconnect intervals
+        .configureLogging(signalR.LogLevel.Information)
+        .build();
+
+    // Connection state management
+    let isConnected = false;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    let pollingInterval = null;
+    let usePollingFallback = false;
+    
+    // Global state for force on time mode
+    window.currentForceOnTimeMode = @(ViewBag.ForceOnTimeMode == true ? "true" : "false");
+    // Flag ini dihapus karena mekanisme abort dari request AJAX sudah menangani tumpang tindih.
+    
+    // Track pending AJAX requests to prevent stale responses from overwriting fresh data
+    let pendingTableRequest = null;
+    let pendingStatsRequest = null;
+
+    // Toast notification function
+    function showToast(message, type = 'info') {
+        if (window.showUpdateNotification) {
+            const notifType = type === 'success' ? 'delivery' : type === 'danger' ? 'danger' : 'info';
+            window.showUpdateNotification(message, notifType, 5000);
+            return;
+        }
+        // Fallback: Bootstrap toast
+        const toastHtml = `
+            <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+                <div class="toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'danger' ? 'danger' : 'info'} border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-${type === 'success' ? 'check-circle-fill' : type === 'danger' ? 'exclamation-triangle-fill' : 'info-circle-fill'}"></i> ${message}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('body').append(toastHtml);
+        safeSetTimeout(() => {
+            $('.toast').fadeOut(300, function() { $(this).parent().remove(); });
+        }, 5000);
+    }
+
+    // Update statistics cards dengan error handling dan retry
+    let statisticsRetryCount = 0;
+    const maxStatisticsRetries = 3;
+    
+    function updateStatistics() {
+        // Batalkan request sebelumnya yang masih in-flight agar response lama tidak menimpa
+        if (pendingStatsRequest && pendingStatsRequest.readyState !== 4) {
+            pendingStatsRequest.abort();
+            console.log("[updateStatistics] Aborted stale request");
+        }
+        
+        var timestamp = new Date().getTime();
+        var date = $('#dashboardDateFilter').val();
+        
+        var requestData = { _: timestamp, date: date };
+        if (window.currentForceOnTimeMode !== null) {
+            requestData.forceOnTime = window.currentForceOnTimeMode;
+        }
+        
+        pendingStatsRequest = $.ajax({
+            url: '@Url.Action("GetDashboardStatistics", "Home")',
+            type: 'GET',
+            cache: false,
+            timeout: 15000, 
+            headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
+            data: requestData,
+            success: function(data) {
+                console.log("📊 Statistics updated:", data);
+                statisticsRetryCount = 0; // Reset retry count on success
+                
+                // Hitung display text untuk card completed (X / Y)
+                var completedDisplay = data.completedCount;
+                if (data.todaySchedules && data.todaySchedules > 0) {
+                    completedDisplay = data.completedCount + ' / ' + data.todaySchedules;
+                }
+
+                // Update card values immediately for speed (13 sub-poin)
+                if ($('#statTotalOrder').length) $('#statTotalOrder').text(data.todaySchedules || 0);
+                if ($('#statSudahProses').length) $('#statSudahProses').text(data.sudahProsesCount || 0);
+                if ($('#statWaitingProses').length) $('#statWaitingProses').text(data.waitingProsesCount || 0);
+
+                if ($('#statOnTimePrepare').length) $('#statOnTimePrepare').text(data.onTimePrepareCount || 0);
+                if ($('#delayPrepareStatValue').length) $('#delayPrepareStatValue').text(data.delayPrepareCount || 0);
+
+                if ($('#statOnTimeDockIn').length) $('#statOnTimeDockIn').text(data.onTimeDockInCount || 0);
+                if ($('#delayDockInStatValue').length) $('#delayDockInStatValue').text(data.notArrivedCount || 0);
+
+                if ($('#statOnTimeLoading').length) $('#statOnTimeLoading').text(data.onTimeLoadingCount || 0);
+                if ($('#delayPickupStatValue').length) $('#delayPickupStatValue').text(data.delayPickupCount || 0);
+
+                if ($('#statOnTimeDelivery').length) $('#statOnTimeDelivery').text(data.onTimeDeliveryCount || 0);
+                if ($('#statDelayDelivery').length) $('#statDelayDelivery').text(data.delayDeliveryCount || 0);
+
+                if ($('#completedStatValue').length) $('#completedStatValue').text(data.completedCount || 0);
+                if ($('#shortageStatValue').length) $('#shortageStatValue').text(data.shortageCount || 0);
+
+                // Helper to update dynamic subcol theme vs red background based on count
+                function updateSubcolState(subcolId, count) {
+                    const $el = $('#' + subcolId);
+                    if (!$el.length) return;
+                    if (count > 0) {
+                        $el.removeClass('subcol-theme subcol-yellow').addClass('subcol-delay delay-pulse-subcol');
+                        $el.find('.indicator-qty').addClass('qty-white');
+                        $el.find('.indicator-label').addClass('label-white');
+                    } else {
+                        $el.removeClass('subcol-delay delay-pulse-subcol subcol-yellow').addClass('subcol-theme');
+                        $el.find('.indicator-qty').removeClass('qty-white');
+                        $el.find('.indicator-label').removeClass('label-white');
+                    }
+                }
+
+                function updateSubcolOnTimeState(subcolId, count) {
+                    const $el = $('#' + subcolId);
+                    if (!$el.length) return;
+                    if (count > 0) {
+                        $el.removeClass('subcol-theme').addClass('subcol-ontime');
+                        $el.find('.indicator-qty').addClass('qty-white');
+                        $el.find('.indicator-label').addClass('label-white');
+                    } else {
+                        $el.removeClass('subcol-ontime').addClass('subcol-theme');
+                        $el.find('.indicator-qty').removeClass('qty-white');
+                        $el.find('.indicator-label').removeClass('label-white');
+                    }
+                }
+
+                updateSubcolState('subcolDelayPrepare', data.delayPrepareCount || 0);
+                updateSubcolState('subcolDelayDockIn', data.notArrivedCount || 0);
+                updateSubcolState('subcolDelayPickup', data.delayPickupCount || 0);
+                updateSubcolState('subcolDelayDelivery', data.delayDeliveryCount || 0);
+                updateSubcolState('subcolShortage', data.shortageCount || 0);
+                
+                updateSubcolOnTimeState('subcolOnTimePrepare', data.onTimePrepareCount || 0);
+                updateSubcolOnTimeState('subcolOnTimeDockIn', data.onTimeDockInCount || 0);
+                updateSubcolOnTimeState('subcolOnTimeLoading', data.onTimeLoadingCount || 0);
+                updateSubcolOnTimeState('subcolOnTimeDelivery', data.onTimeDeliveryCount || 0);
+                updateSubcolOnTimeState('subcolCompleted', data.completedCount || 0);
+
+                // Global synchronization check across all devices (even when SignalR is disconnected)
+                if (typeof data.forceOnTimeMode !== 'undefined' && window.currentForceOnTimeMode !== data.forceOnTimeMode) {
+                    console.log("⚡ Auto-sync forceOnTimeMode from server state:", data.forceOnTimeMode);
+                    window.currentForceOnTimeMode = data.forceOnTimeMode;
+                    const btn = $('#toggleForceOnTimeBtn');
+                    const text = $('#forceOnTimeText');
+                    if (btn.length) {
+                        if (data.forceOnTimeMode) {
+                            text.text('Manipulasi: ON');
+                            btn.removeClass('btn-outline-success').addClass('btn-success');
+                        } else {
+                            text.text('Manipulasi: OFF');
+                            btn.removeClass('btn-success').addClass('btn-outline-success');
+                        }
+                    }
+                    applyForceOnTimeVisuals(data.forceOnTimeMode);
+                    updateTableData();
+                } else if (window.currentForceOnTimeMode === true) {
+                    applyForceOnTimeVisuals(true);
+                }
+            },
+            error: function(err) {
+                // Jangan retry jika request dibatalkan (abort/canceled) atau tidak sempat terkirim (readyState 0)
+                if (err.statusText === 'abort' || err.statusText === 'canceled' || err.readyState === 0) {
+                    return;
+                }
+                
+                console.error("Failed to update statistics:", err);
+                statisticsRetryCount++;
+                
+                // Retry dengan exponential backoff
+                if (statisticsRetryCount < maxStatisticsRetries) {
+                    const retryDelay = Math.min(1000 * Math.pow(2, statisticsRetryCount), 10000);
+                    console.log(`🔄 Retrying statistics update in ${retryDelay}ms (attempt ${statisticsRetryCount}/${maxStatisticsRetries})`);
+                    safeSetTimeout(updateStatistics, retryDelay);
+                } else {
+                    console.error("Max retries reached for statistics update");
+                    statisticsRetryCount = 0; // Reset untuk next cycle
+                }
+            }
+        });
+        return pendingStatsRequest;
+    }
+
+    // Update table data dengan error handling dan retry
+    let tableRetryCount = 0;
+    const maxTableRetries = 3;
+    
+    function updateTableData() {
+        // Batalkan request sebelumnya yang masih in-flight agar response lama tidak menimpa
+        if (pendingTableRequest && pendingTableRequest.readyState !== 4) {
+            pendingTableRequest.abort();
+            console.log("[updateTableData] Aborted stale request");
+        }
+        
+        var timestamp = new Date().getTime();
+        var date = $('#dashboardDateFilter').val();
+        
+        var requestData = { _: timestamp, date: date };
+        if (window.currentForceOnTimeMode !== null) {
+            requestData.forceOnTime = window.currentForceOnTimeMode;
+        }
+        
+        pendingTableRequest = $.ajax({
+            url: '@Url.Action("GetScheduleTableData", "Home")',
+            type: 'GET',
+            cache: false,
+            timeout: 15000, 
+            headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
+            data: requestData,
+            success: function(html) {
+                // Update tbody safely if HTML returned
+                if (html && typeof html === 'string') {
+                    $('#table-container tbody').html(html);
+                }
+                
+                // Re-apply visual after load
+                if (window.currentForceOnTimeMode !== null) applyForceOnTimeVisuals(window.currentForceOnTimeMode);
+
+                // Jalankan filterSchedules untuk update visibility dan sinkronisasi
+                filterSchedules(currentFilter || 'all');
+
+                // Check for any new delay prepare rows only if not in manipulation mode
+                if (!window.currentForceOnTimeMode) {
+                    checkDelayPrepareAlerts();
+                }
+                console.log("[updateTableData] Table update complete.");
+            },
+            error: function(err) {
+                // Jangan retry jika request dibatalkan (abort/canceled) atau tidak sempat terkirim (readyState 0)
+                if (err.statusText === 'abort' || err.statusText === 'canceled' || err.readyState === 0) {
+                    return;
+                }
+                
+                console.error("Failed to update table:", err);
+                console.error("Error details:", err.responseText);
+                tableRetryCount++;
+                
+                // Retry dengan exponential backoff
+                if (tableRetryCount < maxTableRetries) {
+                    const retryDelay = Math.min(1000 * Math.pow(2, tableRetryCount), 15000);
+                    console.log(`🔄 Retrying table update in ${retryDelay}ms (attempt ${tableRetryCount}/${maxTableRetries})`);
+                    safeSetTimeout(updateTableData, retryDelay);
+                } else {
+                    console.error("Max retries reached for table update");
+                    tableRetryCount = 0; // Reset untuk next cycle
+                }
+            }
+        });
+        return pendingTableRequest;
+    }
+
+    // Helper function to update status badge
+    function updateStatusBadge(status, text) {
+        const badge = $('#signalr-status');
+        badge.removeClass('status-connecting status-live status-reconnecting status-disconnected');
+        badge.addClass(`status-${status}`);
+        badge.find('.status-text').text(text);
+    }
+
+    // SignalR event handlers
+    connection.on("connected", function(connectionId) {
+        console.log("SignalR Connected! Connection ID:", connectionId);
+        isConnected = true;
+        reconnectAttempts = 0;
+        
+        // Update connection indicator
+        updateStatusBadge('live', 'Live');
+    });
+
+    // Debounce timer for SignalR updates
+    let signalRUpdateTimer = null;
+    function debouncedSignalRUpdate() {
+        if (signalRUpdateTimer) {
+            clearTimeout(signalRUpdateTimer);
+        }
+        signalRUpdateTimer = safeSetTimeout(() => {
+            Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+            signalRUpdateTimer = null;
+        }, 500); // 500ms debounce
+    }
+
+    // Listen for Stock updates (often related to preparation)
+    connection.on("updateStock", function() {
+        console.log("Stock update received! Refreshing dashboard...");
+        if (window.showUpdateNotification) {
+            window.showUpdateNotification('Stock diperbarui — data baru masuk.', 'pulling', 4000);
+        }
+        debouncedSignalRUpdate();
+    });
+
+    connection.on("deliveryUpdated", function(data) {
+        const timestamp = new Date().toLocaleTimeString();
+        console.log(`[${timestamp}] Delivery Update Received:`, data);
+        
+        // Use camelCase for data properties (SignalR default)
+        const action = data.action || data.Action || '';
+        const message = data.message || data.Message || 'Data delivery diperbarui.';
+        
+        // Show notification
+        const icon = action === 'arrival' ? '🚚' : (action === 'departure' ? '✅' : '🔄');
+        showToast(`${icon} ${message}`, 'success');
+        
+        // Update dashboard data in parallel silently (debounced)
+        debouncedSignalRUpdate();
+    });
+
+    // Global listener for ForceOnTime mode toggling
+    connection.on("forceOnTimeToggled", function(data) {
+        console.log("⚡ SignalR ForceOnTimeToggled Received:", data);
+        
+        // Sinkronkan state lokal dengan nilai dari server
+        window.currentForceOnTimeMode = !!data.isActive;
+        
+        const btn = $('#toggleForceOnTimeBtn');
+        const text = $('#forceOnTimeText');
+        if (btn.length) {
+            if (data.isActive) {
+                text.text('Manipulasi: ON');
+                btn.removeClass('btn-outline-success').addClass('btn-success');
+            } else {
+                text.text('Manipulasi: OFF');
+                btn.removeClass('btn-success').addClass('btn-outline-success');
+            }
+            btn.prop('disabled', false);
+            if (isConnected) updateStatusBadge('live', 'Live');
+        }
+        
+        applyForceOnTimeVisuals(data.isActive);
+        
+        // Fetch real data dari server (dengan mode terbaru dari DB)
+        Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+    });
+
+    // Connection lifecycle events
+    connection.onreconnecting((error) => {
+        console.warn("SignalR reconnecting...", error);
+        isConnected = false;
+        updateStatusBadge('reconnecting', 'Reconnecting...');
+    });
+
+    connection.onreconnected((connectionId) => {
+        console.log("SignalR reconnected! Connection ID:", connectionId);
+        isConnected = true;
+        reconnectAttempts = 0;
+        updateStatusBadge('live', 'Live');
+        
+        // Refresh data after reconnection
+        Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+    });
+
+    connection.onclose((error) => {
+        console.error("SignalR connection closed:", error);
+        isConnected = false;
+        updateStatusBadge('disconnected', 'Disconnected');
+        
+        // Auto reconnect
+        if (reconnectAttempts < maxReconnectAttempts) {
+            reconnectAttempts++;
+            console.log(`🔄 Attempting to reconnect... (${reconnectAttempts}/${maxReconnectAttempts})`);
+            safeSetTimeout(() => startConnection(), 5000);
+        } else {
+            console.error("❌ Max reconnect attempts reached. Switching to polling fallback.");
+            showToast('SignalR tidak tersedia. Menggunakan polling sebagai fallback.', 'warning');
+            startPollingFallback();
+        }
+    });
+
+    // Start connection function
+    async function startConnection() {
+        try {
+            await connection.start();
+            console.log("✅ SignalR connection started successfully!");
+            isConnected = true;
+            reconnectAttempts = 0;
+            usePollingFallback = false;
+            stopPollingFallback(); // Stop polling if SignalR is working
+            updateStatusBadge('live', 'Live'); // Update badge langsung saat connect berhasil
+        } catch (err) {
+            console.error("❌ SignalR connection failed:", err);
+            isConnected = false;
+            
+            // After max attempts, switch to polling
+            if (reconnectAttempts >= maxReconnectAttempts) {
+                console.warn("⚠️ SignalR failed after max attempts. Using polling fallback.");
+                startPollingFallback();
+            } else {
+                reconnectAttempts++;
+                safeSetTimeout(() => startConnection(), 5000);
+            }
+        }
+    }
+
+    // Polling fallback function (jika SignalR tidak tersedia)
+    function startPollingFallback() {
+        if (usePollingFallback) {
+            console.log("⚠️ Polling fallback already started, skipping...");
+            return; // Already started
+        }
+        
+        // Pastikan SignalR benar-benar stopped sebelum mulai polling
+        if (connection && isConnected) {
+            try {
+                connection.stop().catch(err => console.error("Error stopping SignalR before polling:", err));
+                isConnected = false;
+            } catch (err) {
+                console.error("Error in SignalR stop:", err);
+            }
+        }
+        
+        usePollingFallback = true;
+        console.log("🔄 Starting polling fallback (every 5 seconds)...");
+        updateStatusBadge('reconnecting', 'Polling Mode');
+        
+        // Clear existing interval if any (double-check)
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+        
+        // Immediate update
+        Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+        
+        // Then poll every 5 seconds
+        pollingInterval = setInterval(function() {
+            // Double-check: jika SignalR sudah connect, stop polling
+            if (isConnected) {
+                console.log("✅ SignalR reconnected, stopping polling fallback");
+                stopPollingFallback();
+                return;
+            }
+            
+            // Pastikan polling masih aktif
+            if (!usePollingFallback) {
+                console.log("⚠️ Polling fallback disabled, stopping interval");
+                if (pollingInterval) {
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                }
+                return;
+            }
+            
+            console.log("🔄 Polling update...");
+            Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+        }, 5000);
+    }
+
+    function stopPollingFallback() {
+        console.log("🛑 Stopping polling fallback...");
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+        usePollingFallback = false;
+        console.log("✅ Polling fallback stopped");
+    }
+
+    // Initialize connection on page load
+    startConnection();
+
+    // ============================================
+    // FILTER TANGGAL DASHBOARD SHIPPING
+    // ============================================
+    document.getElementById('dashboardDateFilter').addEventListener('change', function() {
+        const selectedDate = this.value;
+        if (selectedDate) {
+            window.location.href = '/Home/Index?date=' + selectedDate;
+        }
+    });
+    
+    // Fallback: Jika SignalR tidak connect dalam 10 detik, gunakan polling
+    safeSetTimeout(function() {
+        if (!isConnected && !usePollingFallback) {
+            console.warn("⚠️ SignalR not connected after 10 seconds. Starting polling fallback.");
+            startPollingFallback();
+        }
+    }, 10000);
+
+    // Cleanup on page unload - CRITICAL untuk mencegah memory leak
+    function cleanupAllResources() {
+        console.log("🧹 Cleaning up all resources...");
+        
+        // Stop SignalR connection
+        if (connection) {
+            try {
+                if (isConnected) {
+                    connection.stop().catch(err => console.error("Error stopping SignalR:", err));
+                }
+            } catch (err) {
+                console.error("Error in SignalR cleanup:", err);
+            }
+        }
+        
+        // Clear all intervals
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
+        
+        if (autoScrollInterval) {
+            clearInterval(autoScrollInterval);
+            autoScrollInterval = null;
+        }
+        
+        // Clear all pending timeouts (dengan menyimpan reference)
+        if (window.dashboardTimeouts && Array.isArray(window.dashboardTimeouts)) {
+            window.dashboardTimeouts.forEach(timeout => {
+                try {
+                    clearTimeout(timeout);
+                } catch (err) {
+                    console.error("Error clearing timeout:", err);
+                }
+            });
+            window.dashboardTimeouts = [];
+        }
+        
+        console.log("✅ Cleanup complete");
+    }
+    
+    // Cleanup saat page unload
+    window.addEventListener('beforeunload', cleanupAllResources);
+    
+    // Cleanup saat page visibility change (tab hidden/visible)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            // Tab hidden - bisa pause beberapa operasi untuk hemat resource
+            console.log("📱 Tab hidden - pausing non-critical operations");
+        } else {
+            // Tab visible - resume operations
+            console.log("📱 Tab visible - resuming operations");
+            // Refresh data saat tab kembali visible
+            if (isConnected || usePollingFallback) {
+                Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+            }
+        }
+    });
+
+    // Manual refresh function
+    function manualRefresh() {
+        console.log("🔄 Manual refresh triggered");
+        updateStatusBadge('reconnecting', 'Refreshing...');
+        Promise.all([updateStatistics(), updateTableData()])
+            .then(() => {
+                if (isConnected) updateStatusBadge('live', 'Live');
+                else if (usePollingFallback) updateStatusBadge('reconnecting', 'Polling Mode');
+            })
+            .catch(e => console.log('Update aborted', e));
+    }
+    
+    // Periodic refresh fallback sudah di-handle oleh polling fallback
+    // Tidak perlu interval tambahan karena polling fallback sudah menangani ini
+
+    console.log("SignalR initialization complete!");
+
+    // ============================================
+    // AUTO-SCROLL VERTICAL TABLE
+    // ============================================
+    let autoScrollInterval = null;
+    let isScrollingDown = true;
+    let isPaused = false;
+    let isAutoScrollEnabled = false; // Default disabled
+    const scrollSpeed = 1; // pixels per frame
+    const scrollDelay = 20; // milliseconds between scrolls
+    const STORAGE_KEY = 'dashboard_autoscroll_enabled';
+
+    // Load state from localStorage
+    function loadAutoScrollState() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved !== null) {
+            isAutoScrollEnabled = saved === 'true';
+        }
+        updateAutoScrollToggleUI();
+    }
+
+    // Update toggle button UI
+    function updateAutoScrollToggleUI() {
+        const toggleBtn = document.getElementById('autoScrollToggle');
+        const toggleIcon = document.getElementById('autoScrollIcon');
+        const toggleText = document.getElementById('autoScrollText');
+        
+        if (toggleBtn && toggleIcon && toggleText) {
+            if (isAutoScrollEnabled) {
+                toggleBtn.classList.remove('btn-outline-secondary');
+                toggleBtn.classList.add('btn-outline-success');
+                toggleIcon.classList.remove('bi-pause-circle', 'bi-arrow-down-up');
+                toggleIcon.classList.add('bi-arrow-down-up');
+                toggleText.textContent = 'Auto Scroll: ON';
+            } else {
+                toggleBtn.classList.remove('btn-outline-success');
+                toggleBtn.classList.add('btn-outline-secondary');
+                toggleIcon.classList.remove('bi-arrow-down-up');
+                toggleIcon.classList.add('bi-pause-circle');
+                toggleText.textContent = 'Auto Scroll: OFF';
+            }
+        }
+    }
+
+    // Toggle auto-scroll on/off
+    function toggleAutoScroll() {
+        isAutoScrollEnabled = !isAutoScrollEnabled;
+        localStorage.setItem(STORAGE_KEY, isAutoScrollEnabled.toString());
+        updateAutoScrollToggleUI();
+        
+        if (isAutoScrollEnabled) {
+            startAutoScroll();
+        } else {
+            stopAutoScroll();
+        }
+    }
+
+    function startAutoScroll() {
+        if (!isAutoScrollEnabled) {
+            console.log("⚠️ Auto-scroll disabled, not starting");
+            return; // Don't start if disabled
+        }
+        
+        const tableContainer = document.getElementById('table-container');
+        if (!tableContainer) {
+            console.log("⚠️ Table container not found, cannot start auto-scroll");
+            return;
+        }
+
+        // Hanya jalankan jika konten lebih tinggi dari container
+        if (tableContainer.scrollHeight <= tableContainer.clientHeight) {
+            console.log("ℹ️ Content doesn't overflow, auto-scroll not needed");
+            return; // Tidak perlu scroll jika konten tidak overflow
+        }
+
+        // Hapus interval yang sudah ada jika ada (prevent duplicate)
+        if (autoScrollInterval) {
+            console.log("⚠️ Auto-scroll interval already exists, clearing first");
+            clearInterval(autoScrollInterval);
+            autoScrollInterval = null;
+        }
+
+        console.log("▶️ Starting auto-scroll");
+        autoScrollInterval = setInterval(function() {
+            // Double-check enabled state
+            if (isPaused || !isAutoScrollEnabled) {
+                return;
+            }
+            
+            // Re-check container existence
+            const container = document.getElementById('table-container');
+            if (!container) {
+                console.log("⚠️ Table container removed, stopping auto-scroll");
+                stopAutoScroll();
+                return;
+            }
+
+            const maxScroll = container.scrollHeight - container.clientHeight;
+            const currentScroll = container.scrollTop;
+
+            if (isScrollingDown) {
+                // Scroll ke bawah
+                if (currentScroll < maxScroll) {
+                    container.scrollTop += scrollSpeed;
+                } else {
+                    // Sudah sampai bawah, mulai scroll ke atas
+                    isScrollingDown = false;
+                }
+            } else {
+                // Scroll ke atas
+                if (currentScroll > 0) {
+                    container.scrollTop -= scrollSpeed;
+                } else {
+                    // Sudah sampai atas, mulai scroll ke bawah
+                    isScrollingDown = true;
+                }
+            }
+        }, scrollDelay);
+    }
+
+    function stopAutoScroll() {
+        if (autoScrollInterval) {
+            console.log("🛑 Stopping auto-scroll");
+            clearInterval(autoScrollInterval);
+            autoScrollInterval = null;
+        }
+    }
+
+    // Initialize auto-scroll setelah DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load saved state
+        loadAutoScrollState();
+        
+        // Setup toggle button
+        const toggleBtn = document.getElementById('autoScrollToggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', toggleAutoScroll);
+        }
+        
+        // Tunggu sebentar untuk memastikan tabel sudah ter-render
+        safeSetTimeout(function() {
+            if (isAutoScrollEnabled) {
+                startAutoScroll();
+            }
+        }, 1000);
+
+        // Pause saat hover, resume saat tidak hover
+        const tableContainer = document.getElementById('table-container');
+        if (tableContainer) {
+            tableContainer.addEventListener('mouseenter', function() {
+                isPaused = true;
+            });
+
+            tableContainer.addEventListener('mouseleave', function() {
+                isPaused = false;
+            });
+        }
+    });
+
+    // Restart auto-scroll setelah update tabel (untuk SignalR update)
+    const originalUpdateTableData = updateTableData;
+    updateTableData = function() {
+        const promise = originalUpdateTableData();
+        
+        // Restart auto-scroll setelah tabel di-update (dengan delay kecil agar DOM render selesai)
+        if (promise && typeof promise.then === 'function') {
+            promise.then(() => {
+                safeSetTimeout(function() {
+                    stopAutoScroll();
+                    if (isAutoScrollEnabled) {
+                        startAutoScroll();
+                    }
+                }, 500);
+            });
+        } else {
+            safeSetTimeout(function() {
+                stopAutoScroll();
+                if (isAutoScrollEnabled) {
+                    startAutoScroll();
+                }
+            }, 500);
+        }
+        
+        return promise;
+    };
+
+    // ============================================
+    // BULK DELETE FUNCTIONALITY
+    // ============================================
+    
+    // Select All functionality
+    $(document).ready(function() {
+        $('#selectAll').change(function() {
+            $('.row-checkbox').prop('checked', this.checked);
+            updateBulkDeleteButton();
+        });
+
+        // Row checkbox functionality - use delegation for dynamic content
+        $(document).on('change', '.row-checkbox', function() {
+            updateBulkDeleteButton();
+            const allChecked = $('.row-checkbox').length === $('.row-checkbox:checked').length;
+            $('#selectAll').prop('checked', allChecked);
+        });
+
+        function updateBulkDeleteButton() {
+            const checkedCount = $('.row-checkbox:checked').length;
+            $('#selectedCount').text(checkedCount);
+            if (checkedCount > 0) {
+                $('#bulkDeleteBtn').show();
+            } else {
+                $('#bulkDeleteBtn').hide();
+            }
+        }
+    });
+
+    // ============================================
+    // MINUS KANBAN SUMMARY
+    // ============================================
+    let _minusKanbanData = [];
+
+    async function showMinusKanban() {
+        const btn = document.getElementById('minusKbnBtn');
+        const icon = document.getElementById('minusKbnIcon');
+        const dateVal = document.getElementById('dashboardDateFilter')?.value || '@DateTime.Today.ToString("yyyy-MM-dd")';
+
+        btn.disabled = true;
+        icon.className = 'bi bi-arrow-repeat spin-icon';
+
+        try {
+            const resp = await fetch(`/Home/GetMinusKanbanSummary?date=${encodeURIComponent(dateVal)}`);
+            const result = await resp.json();
+            _minusKanbanData = result.data || [];
+
+            const body = document.getElementById('minusKbnModalBody');
+            const waSection = document.getElementById('minusKbnWaSection');
+
+            if (_minusKanbanData.length === 0) {
+                body.innerHTML = '<div class="text-center py-4" style="color:#10b981;"><i class="bi bi-check-circle-fill fs-2"></i><p class="mt-2 mb-0">Semua kanban sudah terpenuhi!</p></div>';
+                waSection.style.display = 'none';
+            } else {
+                // Group by customer+dock+cycle untuk rowspan
+                const groups = [];
+                const keyMap = {};
+                for (const row of _minusKanbanData) {
+                    const key = `${row.customer}||${row.dock}||${row.cycle}`;
+                    if (!keyMap[key]) { keyMap[key] = []; groups.push({ customer: row.customer, dock: row.dock, cycle: row.cycle, rows: keyMap[key] }); }
+                    keyMap[key].push(row);
+                }
+
+                const totalUnits = _minusKanbanData.reduce((s, r) => s + r.minusKanban, 0);
+                let html = `<p class="text-muted small mb-2">Tanggal: <strong>${escHtml(result.date)}</strong> &nbsp;\u2014&nbsp; <strong class="text-warning">${_minusKanbanData.length}</strong> item &nbsp;|&nbsp; Total kurang: <strong class="text-danger">${totalUnits} kanban unit</strong></p>`;
+                html += `<div class="table-responsive" style="max-height:calc(78vh - 160px); overflow-y:auto;">`;
+                html += `<table class="table table-sm table-hover align-middle mb-0" style="color:#e2e8f0; font-size:0.85rem; border-collapse:collapse;">`;
+                html += `<thead style="background:#1e2638; position:sticky; top:0; z-index:2;"><tr><th style="padding:6px 10px;">Customer</th><th style="padding:6px 10px;">Dock</th><th style="padding:6px 10px;">Cycle</th><th style="padding:6px 10px;">VIN</th><th class="text-center" style="padding:6px 10px;">Minus KBN</th></tr></thead><tbody>`;
+                for (const grp of groups) {
+                    const n = grp.rows.length;
+                    for (let i = 0; i < n; i++) {
+                        const row = grp.rows[i];
+                        html += `<tr>`;
+                        if (i === 0) {
+                            html += `<td rowspan="${n}" style="vertical-align:middle; font-weight:600; border-right:1px solid rgba(255,255,255,0.1); padding:5px 10px;">${escHtml(grp.customer)}</td>`;
+                            html += `<td rowspan="${n}" style="vertical-align:middle; border-right:1px solid rgba(255,255,255,0.1); padding:5px 10px;">${escHtml(grp.dock)}</td>`;
+                            html += `<td rowspan="${n}" style="vertical-align:middle; border-right:1px solid rgba(255,255,255,0.1); padding:5px 10px;">${escHtml(grp.cycle)}</td>`;
+                        }
+                        html += `<td style="padding:5px 10px;"><code style="color:#67e8f9;">${escHtml(row.vin)}</code></td>`;
+                        html += `<td class="text-center" style="padding:5px 10px;"><span class="badge bg-danger">-${row.minusKanban}</span></td>`;
+                        html += `</tr>`;
+                    }
+                }
+                html += `</tbody></table></div>`;
+                body.innerHTML = html;
+                waSection.style.display = '';
+            }
+
+            const modal = new bootstrap.Modal(document.getElementById('minusKanbanModal'));
+            modal.show();
+        } catch (e) {
+            alert('\u274C Error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            icon.className = 'bi bi-bar-chart-steps';
+        }
+    }
+
+    function buildWaMessage() {
+        const dateVal = document.getElementById('dashboardDateFilter')?.value || '@DateTime.Today.ToString("yyyy-MM-dd")';
+        let msg = `*Summary Kanban Minus - ${dateVal}*\n\n`;
+        // Group by customer+dock+cycle
+        const keyMap = {};
+        const order = [];
+        for (const row of _minusKanbanData) {
+            const key = `${row.customer}||${row.dock}||${row.cycle}`;
+            if (!keyMap[key]) { keyMap[key] = []; order.push(key); }
+            keyMap[key].push(row);
+        }
+        for (const key of order) {
+            const [cust, dock, cycle] = key.split('||');
+            msg += `- ${cust} ${dock} [${cycle}]\n`;
+            for (const row of keyMap[key])
+                msg += `  VIN: ${row.vin} | -${row.minusKanban} Kanban\n`;
+            msg += `\n`;
+        }
+        msg += `Total: *${_minusKanbanData.length} item* belum lengkap`;
+        return msg;
+    }
+
+    function sendToWhatsApp() {
+        const raw = (document.getElementById('waPhoneInput').value || '').replace(/\D/g, '');
+        if (!raw) { alert('Masukkan nomor WhatsApp terlebih dahulu'); return; }
+        copyWaMessage();
+        alert('Fitur kirim WhatsApp dinonaktifkan untuk penggunaan lokal tanpa internet. Pesan telah disalin ke clipboard.');
+    }
+
+    function copyWaMessage() {
+        const msg = buildWaMessage();
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(msg).then(() => alert('\u2705 Pesan berhasil dicopy!'));
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = msg; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); document.body.removeChild(ta);
+            alert('\u2705 Pesan berhasil dicopy!');
+        }
+    }
+
+    function escHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function recalculateKanban() {
+        const btn = document.getElementById('recalcKbnBtn');
+        const icon = document.getElementById('recalcKbnIcon');
+        const dateVal = document.getElementById('dashboardDateFilter')?.value || '@DateTime.Today.ToString("yyyy-MM-dd")';
+
+        btn.disabled = true;
+        icon.className = 'bi bi-arrow-repeat spin-icon';
+
+        try {
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+            const resp = await fetch(`/PreparationWorkflow/RecalculateActualQty?date=${encodeURIComponent(dateVal)}`, {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token }
+            });
+            const data = await resp.json();
+            if (data.success) {
+                const msg = data.totalItemsFixed > 0
+                    ? `✅ ${data.message}\n\nDetail:\n${data.details.map(d => `• ${d.schedule} – ${d.item}: ${d.oldKanban}→${d.newKanban} (scan DB: ${d.dbScanCount}/${d.targetKanban})`).join('\n')}`
+                    : `✅ ${data.message}`;
+                alert(msg);
+                manualRefresh();
+            } else {
+                alert('⚠️ ' + (data.message || 'Gagal recalculate.'));
+            }
+        } catch (e) {
+            alert('❌ Error: ' + e.message);
+        } finally {
+            btn.disabled = false;
+            icon.className = 'bi bi-calculator';
+        }
+    }
+
+    function confirmBulkDelete() {
+        const checkedBoxes = $('.row-checkbox:checked');
+        const checkedCount = checkedBoxes.length;
+        
+        if (checkedCount === 0) {
+            alert('Tidak ada schedule yang dipilih!');
+            return false;
+        }
+        
+        const selectedIds = checkedBoxes.map(function() {
+            return this.value;
+        }).get().join(',');
+        
+        if (confirm(`⚠️ KONFIRMASI BULK DELETE\n\nApakah Anda yakin ingin menghapus ${checkedCount} schedule yang dipilih?\n\n📋 Yang akan dihapus:\n✓ ${checkedCount} schedule delivery\n✓ Semua delivery items terkait\n✓ Link ke preparation records\n\n❌ TINDAKAN INI TIDAK BISA DIBATALKAN!\n\n💡 Tip: Export data dulu sebelum menghapus.`)) {
+            // Create form for submission
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '@Url.Action("BulkDelete", "DeliverySchedules")';
+            
+            // Add anti-forgery token
+            const token = $('input[name="__RequestVerificationToken"]').val();
+            if (!token) {
+                alert('Error: Anti-forgery token tidak ditemukan! Silakan refresh halaman.');
+                return false;
+            }
+            
+            const tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = '__RequestVerificationToken';
+            tokenInput.value = token;
+            form.appendChild(tokenInput);
+            
+            // Add selected IDs
+            const idsInput = document.createElement('input');
+            idsInput.type = 'hidden';
+            idsInput.name = 'selectedIds';
+            idsInput.value = selectedIds;
+            form.appendChild(idsInput);
+            
+            // Submit form
+            document.body.appendChild(form);
+            form.submit();
+        }
+        
+        return false;
+    }
+
+    let isToggleDebouncing = false;
+    
+    function applyForceOnTimeVisuals(isON) {
+        if (isON) {
+            // 1. Force delay cards to 0 with correct element IDs
+            $('#delayPickupStatValue, #delayDockInStatValue, #delayPrepareStatValue')
+                .text('0')
+                .removeClass('text-danger blink-text');
+
+            // Pastikan indikator kartu delay tetap berwarna merah (red gradient)
+            $('[data-filter="delaypickup"], [data-filter="notarrived"], [data-filter="delayprepare"]')
+                .css('background', 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)');
+
+            // 2. Force table badges instantly for optimistic UI response
+            $('#table-container tbody tr').each(function() {
+                // Sembunyikan badge KBN Kurang
+                $(this).find('.badge.bg-warning.text-dark:contains("KBN Kurang")').remove();
+
+                $(this).find('.badge.bg-danger').each(function() {
+                    const txt = $(this).text().toLowerCase();
+                    if (txt.includes('delay') || txt.includes('terlambat') || txt.includes('belum tiba') || txt.includes('dock in') || txt.includes('delivery')) {
+                        $(this).removeClass('bg-danger').addClass('bg-success text-white');
+                        $(this).html('<i class="bi bi-check-circle-fill"></i> Completed');
+                    }
+                });
+                // Hide red blink texts (+ X m)
+                $(this).find('.text-danger.blink-text').hide();
+                
+                // Ubah status kuning Delayed/DelayPickup/DelayDelivery ke Completed
+                $(this).find('.badge.bg-warning.text-dark').each(function() {
+                    const txt = $(this).text().toLowerCase();
+                    if (txt.includes('delay')) {
+                        $(this).removeClass('bg-warning text-dark').addClass('bg-success text-white');
+                        $(this).html('<i class="bi bi-check-circle-fill"></i> Completed');
+                    }
+                });
+            });
+
+            // Dismiss delay prepare alert popup if visible
+            const popup = document.getElementById('delayPreparePopup');
+            if (popup) popup.style.display = 'none';
+        } else {
+            // Mode OFF tetap pertahankan warna merah
+            $('[data-filter="delaypickup"], [data-filter="notarrived"], [data-filter="delayprepare"]')
+                .css('background', 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)');
+        }
+    }
+
+    function toggleForceOnTime() {
+        if (isToggleDebouncing) return;
+        isToggleDebouncing = true;
+        
+        const btn = $('#toggleForceOnTimeBtn');
+        const text = $('#forceOnTimeText');
+        const isCurrentlyOn = btn.hasClass('btn-success');
+        const targetMode = !isCurrentlyOn;
+        
+        // Update local state instantly
+        window.currentForceOnTimeMode = targetMode;
+        
+        // 1. OPTIMISTIC UI UPDATE: Seketika rubah tombol agar terasa instan (< 0ms)
+        if (targetMode) {
+            text.text('Manipulasi: ON');
+            btn.removeClass('btn-outline-success').addClass('btn-success');
+            applyForceOnTimeVisuals(true);
+        } else {
+            text.text('Manipulasi: OFF');
+            btn.removeClass('btn-success').addClass('btn-outline-success');
+            applyForceOnTimeVisuals(false);
+        }
+        
+        btn.prop('disabled', true);
+        if (isConnected) updateStatusBadge('live', 'Applying...');
+
+        // 2. BACKGROUND SYNC: Kirim POST ke server
+        $.post('@Url.Action("ToggleForceOnTime", "Home")', function (res) {
+            isToggleDebouncing = false;
+            btn.prop('disabled', false);
+            if (isConnected) updateStatusBadge('live', 'Live');
+
+            if (res.success) {
+                // Update local state secara pasti dari response server
+                window.currentForceOnTimeMode = res.isActive;
+                applyForceOnTimeVisuals(res.isActive);
+                // LANGSUNG eksekusi update tabel dan angka statistik tanpa menunggu SignalR!
+                Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+                showToast(res.isActive ? '✨ Mode manipulasi aktif (On Time).' : 'Mode manipulasi dinonaktifkan.', 'info');
+            } else {
+                // Revert jika respon bukan success
+                window.currentForceOnTimeMode = isCurrentlyOn;
+                if (isCurrentlyOn) {
+                    text.text('Manipulasi: ON');
+                    btn.removeClass('btn-outline-success').addClass('btn-success');
+                } else {
+                    text.text('Manipulasi: OFF');
+                    btn.removeClass('btn-success').addClass('btn-outline-success');
+                }
+                applyForceOnTimeVisuals(isCurrentlyOn);
+            }
+        }).fail(() => {
+            isToggleDebouncing = false;
+            window.currentForceOnTimeMode = isCurrentlyOn;
+            if (isCurrentlyOn) {
+                text.text('Manipulasi: ON');
+                btn.removeClass('btn-outline-success').addClass('btn-success');
+            } else {
+                text.text('Manipulasi: OFF');
+                btn.removeClass('btn-success').addClass('btn-outline-success');
+            }
+            applyForceOnTimeVisuals(isCurrentlyOn);
+            btn.prop('disabled', false);
+            if (isConnected) updateStatusBadge('live', 'Live');
+            showToast('Gagal mengganti mode manipulasi. Coba lagi.', 'danger');
+            
+            // Re-fetch untuk mengembalikan UI ke state asli
+            updateTableData();
+            updateStatistics();
+        });
+    }
+
+    // SignalR listener for global date range filter
+    connection.on("globalDateRangeFilterToggled", function(data) {
+        console.log("⚡ SignalR globalDateRangeFilterToggled:", data);
+        if (data.startDate && data.endDate) {
+            $('#dateRangeFilterText').text('Filter Tanggal: ' + data.startDate + ' s/d ' + data.endDate);
+            $('#dateRangeFilterBtn').removeClass('btn-outline-primary').addClass('btn-primary');
+            $('#rangeStartDateSelect').val(data.startDate);
+            $('#rangeEndDateSelect').val(data.endDate);
+        } else {
+            $('#dateRangeFilterText').text('Filter Tanggal: Default');
+            $('#dateRangeFilterBtn').removeClass('btn-primary').addClass('btn-outline-primary');
+            $('#rangeStartDateSelect').val('');
+            $('#rangeEndDateSelect').val('');
+        }
+        Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+    });
+
+    function openDateRangeModal() {
+        var modal = new bootstrap.Modal(document.getElementById('dateRangeFilterModal'));
+        modal.show();
+    }
+
+    function applyDateRangeFilter() {
+        const start = $('#rangeStartDateSelect').val();
+        const end = $('#rangeEndDateSelect').val();
+        
+        if (!start || !end) {
+            showToast('Silakan pilih Tanggal Mulai dan Tanggal Selesai terlebih dahulu.', 'warning');
+            return;
+        }
+
+        if (start > end) {
+            showToast('Tanggal Mulai tidak boleh lebih besar dari Tanggal Selesai.', 'warning');
+            return;
+        }
+
+        $.ajax({
+            url: '@Url.Action("SetGlobalDateRangeFilter", "Home")',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ startDate: start, endDate: end }),
+            success: function(res) {
+                if (res.success) {
+                    var modalEl = document.getElementById('dateRangeFilterModal');
+                    var modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                    showToast('✨ Filter range tanggal aktif: ' + start + ' s/d ' + end, 'info');
+                    $('#dateRangeFilterText').text('Filter Tanggal: ' + start + ' s/d ' + end);
+                    $('#dateRangeFilterBtn').removeClass('btn-outline-primary').addClass('btn-primary');
+                    Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+                } else {
+                    showToast(res.message || 'Gagal menerapkan filter.', 'danger');
+                }
+            },
+            error: function() {
+                showToast('Gagal terhubung ke server.', 'danger');
+            }
+        });
+    }
+
+    function resetDateRangeFilter() {
+        $.ajax({
+            url: '@Url.Action("ResetGlobalDateRangeFilter", "Home")',
+            type: 'POST',
+            success: function(res) {
+                if (res.success) {
+                    var modalEl = document.getElementById('dateRangeFilterModal');
+                    var modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+                    $('#rangeStartDateSelect').val('');
+                    $('#rangeEndDateSelect').val('');
+                    showToast('Filter range tanggal di-reset ke Default.', 'info');
+                    $('#dateRangeFilterText').text('Filter Tanggal: Default');
+                    $('#dateRangeFilterBtn').removeClass('btn-primary').addClass('btn-outline-primary');
+                    Promise.all([updateStatistics(), updateTableData()]).catch(e => console.log('Update aborted', e));
+                } else {
+                    showToast('Gagal mereset filter.', 'danger');
+                }
+            },
+            error: function() {
+                showToast('Gagal terhubung ke server.', 'danger');
+            }
+        });
+    }
+</script>
+}
+
+<!-- Modal Filter Range Tanggal (Super Admin) -->
+<div class="modal fade" id="dateRangeFilterModal" tabindex="-1" aria-labelledby="dateRangeFilterModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-primary shadow-lg">
+            <div class="modal-header border-secondary py-3">
+                <h5 class="modal-title text-primary font-weight-bold" id="dateRangeFilterModalLabel">
+                    <i class="bi bi-calendar-range me-2"></i>Filter Range Tanggal Delivery (Super Admin)
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert bg-primary bg-opacity-10 border-primary text-info small mb-4">
+                    <i class="bi bi-info-circle-fill me-2"></i>Filter ini bersifat <strong>global</strong> dan dinamis sesuai jadwal pengiriman yang ada pada database.
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="rangeStartDateSelect" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event me-1"></i>Tanggal Mulai (Start)
+                        </label>
+                        <select class="form-select bg-secondary text-white border-secondary" id="rangeStartDateSelect">
+                            <option value="">-- Pilih Tanggal Mulai --</option>
+                            @if (ViewBag.AvailableDates != null)
+                            {
+                                foreach (var d in (List<string>)ViewBag.AvailableDates)
+                                {
+                                    var isSel = (string)ViewBag.ActiveStartDate == d ? "selected" : "";
+                                    @:<option value="@d" @isSel>@d</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="rangeEndDateSelect" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event-fill me-1"></i>Tanggal Selesai (End)
+                        </label>
+                        <select class="form-select bg-secondary text-white border-secondary" id="rangeEndDateSelect">
+                            <option value="">-- Pilih Tanggal Selesai --</option>
+                            @if (ViewBag.AvailableDates != null)
+                            {
+                                foreach (var d in (List<string>)ViewBag.AvailableDates)
+                                {
+                                    var isSel = (string)ViewBag.ActiveEndDate == d ? "selected" : "";
+                                    @:<option value="@d" @isSel>@d</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary py-2 justify-content-between">
+                <button type="button" class="btn btn-sm btn-outline-warning" onclick="resetDateRangeFilter()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset Filter (Default)
+                </button>
+                <div>
+                    <button type="button" class="btn btn-sm btn-secondary me-2" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="applyDateRangeFilter()">
+                        <i class="bi bi-check-circle-fill me-1"></i>Terapkan Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* Hidden form for anti-forgery token *@
+<form id="hiddenTokenForm" style="display:none;">
+    @Html.AntiForgeryToken()
+</form>

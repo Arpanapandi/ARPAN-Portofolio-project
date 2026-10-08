@@ -1,0 +1,2233 @@
+@model IEnumerable<DeliveryControl.Models.ViewModels.DriverTripViewModel>
+
+@{
+    ViewData["Title"] = "Portal Preparation - Overview Detail";
+    var selectedDate = ViewData["SelectedDate"]?.ToString() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var dayName = ViewData["DayName"]?.ToString() ?? "";
+    bool autoDockActiveInitial = (ViewBag.AutoEnterDockActive as bool?) ?? false;
+    bool skipLeaderVerifActiveInitial = (ViewBag.SkipLeaderVerificationActive as bool?) ?? false;
+}
+
+<style>
+    :root {
+        --cyber-yellow: #facc15;
+        --cyber-bg: #0f172a;
+        --cyber-card-bg: #1e293b;
+        --cyber-header-bg: #1e293b;
+        --cyber-border: #334155;
+        --cyber-text-muted: #94a3b8;
+    }
+
+    body {
+        background-color: var(--cyber-bg);
+        color: white;
+    }
+
+    .gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1.5rem;
+        padding: 1rem 0;
+    }
+
+    /* Responsive adjustments for mobile */
+    @@media (max-width: 576px) {
+        .gallery-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            padding: 0.5rem 0;
+        }
+        
+        .prep-card-body {
+            padding: 16px;
+        }
+        
+        .customer-name {
+            font-size: 1.2rem;
+        }
+        
+        .cycle-value {
+            font-size: 1.4rem;
+        }
+        
+        .filter-bar {
+            padding: 1rem;
+        }
+        
+        .filter-bar .row > div {
+            margin-bottom: 0.5rem;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .container-fluid {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+        
+        .prep-card-header {
+            padding: 10px 15px;
+            font-size: 1rem;
+        }
+        
+        .detail-value {
+            font-size: 1rem;
+        }
+    }
+
+    .prep-card {
+        background: var(--cyber-card-bg);
+        border: 2px solid var(--cyber-border);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        cursor: pointer;
+    }
+
+    .prep-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0 20px rgba(250, 204, 21, 0.2);
+    }
+
+    .prep-card.border-warning { border-color: var(--cyber-yellow) !important; }
+    .prep-card.border-orange { border-color: #f97316 !important; }
+    .prep-card.border-info { border-color: #3b82f6 !important; }
+    .prep-card.border-success { border-color: #10b981 !important; }
+
+    .prep-card-header {
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 800;
+        font-size: 1.1rem;
+    }
+
+    .header-scheduled { background: var(--cyber-yellow); color: #000; }
+    .header-preparing { background: #f97316; color: white; }
+    .header-prepared { background: #3b82f6; color: white; }
+    .header-leader-verification { background: #7c3aed; color: white; }
+    .header-completed { background: #10b981; color: white; }
+
+    .prep-card.border-leader { border-color: #7c3aed !important; }
+
+    .prep-card-body {
+        padding: 24px;
+        flex-grow: 1;
+        color: white;
+    }
+
+    .customer-name {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-transform: uppercase;
+    }
+
+    .delivery-banner {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 20px;
+    }
+
+    .cycle-label {
+        font-size: 0.85rem;
+        color: var(--cyber-text-muted);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .cycle-value {
+        font-size: 1.8rem;
+        font-weight: 800;
+        line-height: 1.2;
+        margin-bottom: 15px;
+    }
+
+    .detail-row {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 15px;
+    }
+
+    .detail-label {
+        color: var(--cyber-text-muted);
+        font-size: 0.85rem;
+        margin-bottom: 2px;
+    }
+
+    .detail-value {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .icon-spacing {
+        width: 24px;
+        display: inline-block;
+        text-align: center;
+        margin-right: 8px;
+        color: var(--cyber-yellow);
+    }
+
+    .prep-card-footer {
+        padding: 20px;
+        background: rgba(0,0,0,0.25);
+        border-top: 1px solid var(--cyber-border);
+    }
+
+    .badge-status {
+        background: white;
+        color: #1e293b;
+        padding: 4px 12px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 800;
+    }
+
+    .card-items-list {
+        margin-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding-top: 15px;
+    }
+
+    .card-item-progress {
+        margin-bottom: 12px;
+    }
+
+    .item-info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        margin-bottom: 4px;
+    }
+
+    .item-vin {
+        color: var(--cyber-yellow);
+        font-weight: 600;
+    }
+
+    .item-progress-val {
+        font-weight: 700;
+    }
+
+    .progress-mini {
+        height: 8px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 4px;
+    }
+
+    .filter-bar {
+        background: var(--cyber-card-bg);
+        border: 1px solid var(--cyber-border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .cyber-input {
+        background: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid var(--cyber-border) !important;
+        color: white !important;
+    }
+
+    @@keyframes glow-pulse {
+        0% { box-shadow: 0 0 5px var(--cyber-yellow); border-color: var(--cyber-yellow); }
+        50% { box-shadow: 0 0 25px var(--cyber-yellow); border-color: #fff; transform: scale(1.02); }
+        100% { box-shadow: 0 0 5px var(--cyber-yellow); border-color: var(--cyber-yellow); }
+    }
+
+    .glow-active {
+        animation: glow-pulse 1.5s infinite;
+        z-index: 100;
+        border-color: var(--cyber-yellow) !important;
+    }
+</style>
+
+<div class="container-fluid py-4">
+    <!-- ... header content ... -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold mb-1"><i class="bi bi-box-seam me-2 text-warning"></i> Portal Preparation</h2>
+        </div>
+        <div class="text-end">
+            <h5 class="text-yellow mb-0">@dayName</h5>
+            <small class="text-white-50">@DateTime.Now.ToString("HH:mm:ss")</small>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar shadow-sm">
+        <form asp-action="Index" method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-white-50 small fw-bold">PILIH TANGGAL</label>
+                <input type="date" name="selectedDate" value="@selectedDate" class="form-control cyber-input" onchange="this.form.submit()" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-white-50 small fw-bold">CUSTOMER</label>
+                <select name="customerId" class="form-select cyber-input" onchange="this.form.submit()">
+                    <option value="">Semua Customer</option>
+                    @if (ViewBag.Customers != null)
+                    {
+                        foreach (var c in ViewBag.Customers)
+                        {
+                            bool isSel = ViewData["SelectedCustomerId"]?.ToString() == c.CustomerId.ToString();
+                            <option value="@c.CustomerId" selected="@isSel">@c.CustomerName</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white-50 small fw-bold">CYCLE</label>
+                <select name="cycle" class="form-select cyber-input" onchange="this.form.submit()">
+                    <option value="">Semua</option>
+                    @if (ViewBag.Cycles != null)
+                    {
+                        foreach (var cy in ViewBag.Cycles)
+                    {
+                            bool isSel = ViewData["SelectedCycle"]?.ToString() == cy;
+                            <option value="@cy" selected="@isSel">@cy</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2 offset-md-2 d-flex gap-2">
+                <a asp-action="Index" class="btn btn-secondary flex-grow-1">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    @* ── DUA TOGGLE: MODE OTOMATIS ENTER DOCK & MODE SKIP VERIFIKASI LEADER (Admin / Super Admin only) ── *@
+    @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+    {
+        <div class="d-flex flex-wrap align-items-center gap-4 mb-3 px-3 py-2" style="background: rgba(30, 41, 59, 0.6); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
+            <!-- Toggle 1: Mode Otomatis Enter Dock -->
+            <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="autoEnterDockToggle"
+                           style="width:2.8rem;height:1.4rem;cursor:pointer;"
+                           @(autoDockActiveInitial ? "checked" : "")
+                           onchange="toggleAutoEnterDock(this.checked)" />
+                    <label class="form-check-label fw-bold ms-1" for="autoEnterDockToggle"
+                           style="color:#f59e0b;font-size:0.85rem;cursor:pointer;">
+                        <i class="bi bi-lightning-charge-fill me-1"></i>Mode Otomatis Enter Dock
+                    </label>
+                </div>
+                <span id="autoDockStatusBadge" class="badge @(autoDockActiveInitial ? "bg-warning text-dark" : "bg-secondary")" style="font-size:0.75rem;">
+                    @(autoDockActiveInitial ? "AKTIF — Enter Dock otomatis saat Prepared" : "NONAKTIF — Enter Dock manual")
+                </span>
+            </div>
+
+            <!-- Divider -->
+            <div class="d-none d-md-block" style="width: 1px; height: 24px; background: rgba(255, 255, 255, 0.15);"></div>
+
+            <!-- Toggle 2: Mode Skip Verifikasi Leader -->
+            <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="skipLeaderVerifToggle"
+                           style="width:2.8rem;height:1.4rem;cursor:pointer;"
+                           @(skipLeaderVerifActiveInitial ? "checked" : "")
+                           onchange="toggleSkipLeaderVerif(this.checked)" />
+                    <label class="form-check-label fw-bold ms-1" for="skipLeaderVerifToggle"
+                           style="color:#a78bfa;font-size:0.85rem;cursor:pointer;">
+                        <i class="bi bi-shield-check me-1"></i>Mode Skip Verifikasi Leader
+                    </label>
+                </div>
+                <span id="skipLeaderVerifStatusBadge" class="badge text-white" style="font-size:0.75rem; background: @(skipLeaderVerifActiveInitial ? "#7c3aed" : "#64748b");">
+                    @(skipLeaderVerifActiveInitial ? "AKTIF — Leader Verification di-Skip" : "NONAKTIF — Leader Verification wajib")
+                </span>
+            </div>
+        </div>
+    }
+
+    @if (!Model.Any())
+    {
+        <div class="alert bg-dark border-secondary text-info">
+            <i class="bi bi-info-circle me-2"></i> Tidak ada jadwal yang ditemukan untuk kriteria ini.
+        </div>
+    }
+    else
+    {
+        var activeTrips    = Model.Where(t => t.OverallStatus != "Completed").ToList();
+        var completedTrips = Model.Where(t => t.OverallStatus == "Completed").ToList();
+
+        @* ── AKTIF ── *@
+        @if (activeTrips.Any())
+        {
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <i class="bi bi-lightning-charge-fill text-warning fs-5"></i>
+                <span class="fw-bold text-white-50 small" style="letter-spacing: 1px;">@(Context.Session.GetString("Role") == "Leader" ? "PERLU VERIFIKASI LEADER" : "BUTUH AKSI PREPARATION")</span>
+                <span class="badge bg-warning text-dark ms-1">@activeTrips.Count</span>
+            </div>
+            <div class="gallery-grid mb-5">
+                @foreach (var trip in activeTrips)
+                {
+                    var firstSch = trip.Schedules.FirstOrDefault();
+                    if (firstSch == null) continue;
+
+                    var isCompleted  = trip.OverallStatus == "Completed";
+                    var isPrepared   = trip.OverallStatus == "Prepared";
+                    var isInProgress = trip.OverallStatus == "In Progress";
+                    var isScheduled  = trip.OverallStatus == "Scheduled";
+
+                    var headerClass = "header-scheduled";
+                    var borderClass = "border-warning";
+                    if (isInProgress) { headerClass = "header-preparing"; borderClass = "border-orange"; }
+                    else if (isPrepared) { headerClass = "header-prepared"; borderClass = "border-info"; }
+                    else if (isCompleted) { headerClass = "header-completed"; borderClass = "border-success"; }
+
+                    var targetEnterDockDt = trip.Schedules.FirstOrDefault()?.EnterDockTime;
+                    var actualEnterDockDt = trip.Schedules.FirstOrDefault(s => s.ActualEnterDockTime.HasValue)?.ActualEnterDockTime;
+                    var targetEnterDockStr = targetEnterDockDt?.ToString("HH:mm") ?? "";
+                    var targetEnterDockFullStr = targetEnterDockDt?.ToString("yyyy-MM-ddTHH:mm") ?? "";
+                    var actualEnterDockStr = actualEnterDockDt?.ToString("HH:mm") ?? "";
+                    var actualEnterDockFullStr = actualEnterDockDt?.ToString("yyyy-MM-ddTHH:mm") ?? "";
+                    var schedDateStr = (trip.ScheduledDate ?? DateTime.Today).ToString("yyyy-MM-dd");
+                    var pickupTimeStr = trip.PickupTime?.ToString("HH:mm") ?? "";
+
+                    <div class="prep-card @borderClass"
+                         id="card-@trip.RepresentativeScheduleId"
+                         data-schedule-number="@if(firstSch != null){<text>@firstSch.ScheduleNumber</text>}"
+                         data-date="@(trip.PickupTime?.ToString("yyyy-MM-dd") ?? (firstSch?.ScheduledDate.ToString("yyyy-MM-dd"))) ">
+
+                        <div class="prep-card-header @headerClass">
+                                @{
+                                    var manifestGroups = trip.Schedules
+                                        .GroupBy(s => {
+                                            var sn = s.ScheduleNumber ?? "";
+                                            return sn.Contains("/") ? sn.Substring(0, sn.IndexOf('/')).Trim().ToUpper() : sn.Trim().ToUpper();
+                                        })
+                                        .OrderBy(g => g.Key)
+                                        .ToList();
+                                }
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light dropdown-toggle opacity-75 fw-bold" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.7rem; border-radius: 6px; padding: 2px 8px;">
+                                        <i class="bi bi-list-check me-1"></i> MANIFESTS (@manifestGroups.Count)
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-dark shadow-lg border-secondary" style="max-height: 250px; overflow-y: auto; min-width: 220px; z-index: 1050;">
+                                        @foreach (var mg in manifestGroups)
+                                        {
+                                            double mKanbanTarget = 0; double mKanbanActual = 0;
+                                            foreach (var m in mg)
+                                            {
+                                                if (m.DeliveryItems != null)
+                                                {
+                                                    foreach (var di in m.DeliveryItems)
+                                                    {
+                                                        var qpc = di.Item?.QtyLot ?? 1;
+                                                        if (qpc > 0) {
+                                                            var diKbnTgt = Math.Ceiling((double)di.Quantity / qpc);
+                                                            mKanbanTarget += diKbnTgt;
+                                                            // Konsisten dengan dashboard: completed item → gunakan target kanban
+                                                            mKanbanActual += (di.ActualQuantity ?? 0) >= di.Quantity
+                                                                ? diKbnTgt
+                                                                : Math.Ceiling((double)(di.ActualQuantity ?? 0) / qpc);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            // Manifest tanpa item (0/0) dianggap selesai — tidak ada yang perlu di-scan
+                                            var isMComplete = mKanbanTarget == 0 || mKanbanActual >= mKanbanTarget;
+                                            <li>
+                                                <div class="dropdown-item-text py-2 px-3 d-flex justify-content-between align-items-center" style="font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                    <span class="fw-bold @(isMComplete ? "text-success" : "")">@mg.Key</span>
+                                                    <span class="badge @(isMComplete ? "bg-success" : (mKanbanActual > 0 ? "bg-warning text-dark" : "bg-secondary")) ms-2" style="font-family: 'Courier New', monospace;">
+                                                        @((int)mKanbanActual)/@((int)mKanbanTarget)
+                                                    </span>
+                                                </div>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+
+                            <span class="badge-status ms-2">@(trip.OverallStatus == "Completed" ? "PREPARED" : trip.OverallStatus.ToUpper())</span>
+                            @if (trip.IsCarryOver)
+                            {
+                                <span class="badge bg-danger ms-1" style="font-size: 0.6rem; vertical-align: middle;">CARRY OVER<br>@(trip.ScheduledDate?.ToString("dd/MM") ?? "")</span>
+                            }
+                        </div>
+
+                        <div class="prep-card-body">
+                            <div class="customer-name mb-1"><i class="bi bi-building"></i> @trip.CustomerName</div>
+                            @if (trip.PickupTime.HasValue)
+                            {
+                                var pickupDate = trip.PickupTime.Value.Date;
+                                var isToday = pickupDate == DateTime.Today;
+                                var isTomorrow = pickupDate == DateTime.Today.AddDays(1);
+                                var dateLabel = isToday ? "HARI INI" : (isTomorrow ? "BESOK" : pickupDate.ToString("dd/MM/yyyy"));
+                                var badgeColor = isToday ? "bg-success" : (isTomorrow ? "bg-info" : "bg-secondary");
+                                <div class="delivery-banner">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-white-50"><i class="bi bi-calendar-check me-1"></i> <strong>Tanggal Delivery:</strong></small>
+                                        <span class="badge @badgeColor">@dateLabel - @trip.PickupTime.Value.ToString("HH:mm")</span>
+                                    </div>
+                                </div>
+                            }
+                            <div class="mb-3"><div class="cycle-label">Cycle:</div><div class="cycle-value">@trip.Cycle</div></div>
+                            <div class="detail-row"><div class="detail-label">Route:</div><div class="detail-value text-info fw-bold">@trip.Route</div></div>
+                            <div class="detail-row"><div class="detail-label">Area:</div><div class="detail-value"><i class="bi bi-geo-alt-fill icon-spacing"></i>@trip.Area</div></div>
+                            <hr class="border-secondary opacity-25">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="detail-row mb-0">
+                                        <div class="detail-label"><i class="bi bi-box-arrow-in-right icon-spacing"></i>Enter Dock:</div>
+                                        <div class="detail-value">@(trip.Schedules.Any(s => s.ActualEnterDockTime.HasValue) ? trip.Schedules.First(s => s.ActualEnterDockTime.HasValue).ActualEnterDockTime?.ToString("HH:mm") : (trip.Schedules.FirstOrDefault()?.EnterDockTime?.ToString("HH:mm") ?? "-"))</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="detail-row mb-0">
+                                        <div class="detail-label"><i class="bi bi-truck icon-spacing"></i>Pickup Time:</div>
+                                        <div class="detail-value">@(trip.PickupTime?.ToString("HH:mm") ?? "-")</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prep-card-footer">
+                            @if (trip.OverallStatus == "Scheduled")
+                            {
+                                <div class="text-center text-white-50"><small><i class="bi bi-clock me-1"></i> WAITING FOR SCAN</small></div>
+                            }
+                            else if (trip.OverallStatus == "In Progress")
+                            {
+                                var sessionRole = Context.Session.GetString("Role");
+                                var isLeaderRole = (sessionRole == "Leader");
+                                var isAdminRole = (sessionRole == "Admin" || sessionRole == "Super Admin");
+                                var canEnterDock = (sessionRole == "Admin" || sessionRole == "Super Admin" || sessionRole == "Preparation");
+                                var canVerify = (isLeaderRole || isAdminRole);
+                                var allVerified = trip.Schedules.All(s => s.IsLeaderVerified);
+                                var totalScanned = trip.Schedules.Sum(s => s.DeliveryItems?.Sum(di => di.ActualQuantity ?? 0) ?? 0);
+
+                                <div class="text-center text-orange mb-2"><small><i class="bi bi-person-walking me-1"></i> PREPARATION IN PROGRESS</small></div>
+
+                                @if (totalScanned > 0)
+                                {
+                                    <div class="partial-dock-section" style="@(autoDockActiveInitial ? "display:none;" : "display:block;")">
+                                        @* Tombol Leader Verification (tampil jika skip mode OFF & belum verified) *@
+                                        <div class="partial-verif-btn" style="@((!skipLeaderVerifActiveInitial && !allVerified) ? "" : "display:none;")">
+                                            @if (canVerify)
+                                            {
+                                                <button type="button"
+                                                        class="btn btn-sm w-100 fw-bold py-2 mb-1"
+                                                        onclick="openVerificationModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.Area ?? trip.CustomerName)', '@Html.Raw(trip.CustomerName)')"
+                                                        style="background:#7c3aed;color:white;border:none;border-radius:6px;font-size:0.85rem;">
+                                                    <i class="bi bi-shield-check me-1"></i> LEADER VERIFICATION
+                                                </button>
+                                            }
+                                        </div>
+                                        @* Tombol Enter Dock reguler (jika skip mode OFF & sudah verified) *@
+                                        <div class="partial-dock-btn" style="@((!skipLeaderVerifActiveInitial && allVerified) ? "" : "display:none;")">
+                                            @if (canEnterDock)
+                                            {
+                                                <button type="button" 
+                                                        class="btn btn-warning w-100 fw-bold py-2 mb-2 text-dark btn-konfirmasi-dock"
+                                                        onclick="openKonfirmasiDockModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.CustomerName)', '@Html.Raw(trip.Cycle)', '@Html.Raw(trip.Route)', '@Html.Raw(trip.Area)', '@targetEnterDockStr', '@targetEnterDockFullStr', '@actualEnterDockStr', '@actualEnterDockFullStr', '@schedDateStr', '@pickupTimeStr')"
+                                                        style="border:none;border-radius:6px;font-size:0.85rem;">
+                                                    <i class="bi bi-clock-history me-1"></i> KONFIRMASI DOCK
+                                                </button>
+                                                <form asp-action="QuickEnterDock" method="post">
+                                                    <input type="hidden" name="id" value="@trip.RepresentativeScheduleId" />
+                                                    <input type="hidden" name="bypassVerification" value="false" />
+                                                    <input type="hidden" name="returnDate" value="@ViewData["SelectedDate"]" />
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-info w-100 fw-bold py-2 text-white" style="border:none;border-radius:6px;font-size:0.85rem;">
+                                                        <i class="bi bi-check-circle-fill me-1"></i> ENTER DOCK
+                                                    </button>
+                                                </form>
+                                            }
+                                        </div>
+                                        @* Tombol Enter Dock bypass (tampil langsung saat skip mode ON) *@
+                                        <div class="partial-bypass-btn" style="@(skipLeaderVerifActiveInitial ? "" : "display:none;")">
+                                            @if (canEnterDock)
+                                            {
+                                                <button type="button" 
+                                                        class="btn btn-warning w-100 fw-bold py-2 mb-2 text-dark btn-konfirmasi-dock"
+                                                        onclick="openKonfirmasiDockModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.CustomerName)', '@Html.Raw(trip.Cycle)', '@Html.Raw(trip.Route)', '@Html.Raw(trip.Area)', '@targetEnterDockStr', '@targetEnterDockFullStr', '@actualEnterDockStr', '@actualEnterDockFullStr', '@schedDateStr', '@pickupTimeStr')"
+                                                        style="border:none;border-radius:6px;font-size:0.85rem;">
+                                                    <i class="bi bi-clock-history me-1"></i> KONFIRMASI DOCK
+                                                </button>
+                                                <form asp-action="QuickEnterDock" method="post">
+                                                    <input type="hidden" name="id" value="@trip.RepresentativeScheduleId" />
+                                                    <input type="hidden" name="bypassVerification" value="true" />
+                                                    <input type="hidden" name="returnDate" value="@ViewData["SelectedDate"]" />
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-info w-100 fw-bold py-2 text-white" style="border:none;border-radius:6px;font-size:0.85rem;">
+                                                        <i class="bi bi-check-circle-fill me-1"></i> ENTER DOCK
+                                                    </button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            else if (trip.OverallStatus == "Prepared")
+                            {
+                                var sessionRole = Context.Session.GetString("Role");
+                                var isLeaderRole = (sessionRole == "Leader");
+                                var isAdminRole = (sessionRole == "Admin" || sessionRole == "Super Admin");
+                                var canEnterDock = (sessionRole == "Admin" || sessionRole == "Super Admin" || sessionRole == "Preparation");
+                                var canVerify = (isLeaderRole || isAdminRole);
+                                var allVerified = trip.Schedules.All(s => s.IsLeaderVerified);
+                                var verifiedCount = trip.Schedules.Count(s => s.IsLeaderVerified);
+                                var totalCount = trip.Schedules.Count;
+
+                                @if (canVerify)
+                                {
+                                    @* Leader & Admin: tampil tombol verifikasi + Enter Dock jika sudah verified *@
+                                    if (allVerified)
+                                    {
+                                        @if (canEnterDock)
+                                        {
+                                            <button type="button" 
+                                                    class="btn btn-warning w-100 fw-bold py-2 mb-2 text-dark btn-konfirmasi-dock"
+                                                    onclick="openKonfirmasiDockModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.CustomerName)', '@Html.Raw(trip.Cycle)', '@Html.Raw(trip.Route)', '@Html.Raw(trip.Area)', '@targetEnterDockStr', '@targetEnterDockFullStr', '@actualEnterDockStr', '@actualEnterDockFullStr', '@schedDateStr', '@pickupTimeStr')"
+                                                    style="border:none;border-radius:6px;font-size:0.85rem;">
+                                                <i class="bi bi-clock-history me-1"></i> KONFIRMASI DOCK
+                                            </button>
+                                            @* Form ini juga jadi target auto-dock saat toggle ON *@
+                                            <form asp-action="QuickEnterDock" method="post" class="auto-dock-form" data-auto-dock-id="@trip.RepresentativeScheduleId">
+                                                <input type="hidden" name="id" value="@trip.RepresentativeScheduleId" />
+                                                <input type="hidden" name="bypassVerification" value="false" />
+                                                <input type="hidden" name="returnDate" value="@ViewData["SelectedDate"]" />
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-info w-100 fw-bold py-3 text-white">
+                                                    <i class="bi bi-check-circle-fill me-2"></i> ENTER DOCK
+                                                </button>
+                                            </form>
+                                            <div class="text-center mt-1" style="color:#34d399;">
+                                                <small><i class="bi bi-check-circle-fill me-1"></i> Terverifikasi (@verifiedCount/@totalCount)</small>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-center py-2" style="color:#34d399;">
+                                                <i class="bi bi-check-circle-fill me-2"></i>
+                                                <small class="fw-bold">Semua Terverifikasi (<span>@verifiedCount/@totalCount</span>)</small>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        @* Belum semua terverifikasi: tampil tombol Leader Verification / Skip Leader Dock *@
+                                        <div class="leader-verif-section">
+                                            <button type="button"
+                                                    class="btn btn-leader leader-verif-btn w-100 fw-bold py-3"
+                                                    onclick="openVerificationModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.Area ?? trip.CustomerName)', '@Html.Raw(trip.CustomerName)')"
+                                                    style="background:#7c3aed;color:white;border:none;border-radius:8px;">
+                                                <i class="bi bi-shield-check me-2"></i> LEADER VERIFICATION
+                                                @if (verifiedCount > 0)
+                                                {
+                                                    <span class="badge bg-light text-dark ms-1" style="font-size:0.7rem;">@verifiedCount/@totalCount</span>
+                                                }
+                                            </button>
+                                            @* Form bypass — tampil saat skip leader verification toggle ON *@
+                                            <div class="skip-leader-dock-form" style="display:none;" data-auto-dock-id="@trip.RepresentativeScheduleId">
+                                                <button type="button" 
+                                                        class="btn btn-warning w-100 fw-bold py-2 mb-2 text-dark btn-konfirmasi-dock"
+                                                        style="border:none;border-radius:8px;font-size:0.85rem;"
+                                                        onclick="openKonfirmasiDockModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.CustomerName)', '@Html.Raw(trip.Cycle)', '@Html.Raw(trip.Route)', '@Html.Raw(trip.Area)', '@targetEnterDockStr', '@targetEnterDockFullStr', '@actualEnterDockStr', '@actualEnterDockFullStr', '@schedDateStr', '@pickupTimeStr')">
+                                                    <i class="bi bi-clock-history me-1"></i> KONFIRMASI DOCK
+                                                </button>
+                                                <form asp-action="QuickEnterDock" method="post" class="auto-dock-form" data-is-bypass="true" data-auto-dock-id="@trip.RepresentativeScheduleId">
+                                                    <input type="hidden" name="id" value="@trip.RepresentativeScheduleId" />
+                                                    <input type="hidden" name="bypassVerification" value="true" />
+                                                    <input type="hidden" name="returnDate" value="@ViewData["SelectedDate"]" />
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-info w-100 fw-bold py-3 text-white"
+                                                            style="border:none;border-radius:8px;">
+                                                        <i class="bi bi-check-circle-fill me-2"></i> ENTER DOCK
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            <div class="text-center mt-1 leader-verif-btn" style="color:#a78bfa;font-size:0.7rem;">
+                                                <i class="bi bi-shield-exclamation me-1"></i>@verifiedCount/@totalCount manifest terverifikasi
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                                else
+                                {
+                                    @* Role lain: hanya info status *@
+                                    <div class="text-center py-2 text-muted">
+                                        <small><i class="bi bi-clock me-1"></i> Status: Prepared</small>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        @* ── COMPLETED ── *@
+        @if (completedTrips.Any())
+        {
+            <div class="d-flex align-items-center mb-3 gap-2" style="border-top: 2px solid rgba(16,185,129,0.35); padding-top: 1.5rem;">
+                <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                <span class="fw-bold text-success small" style="letter-spacing: 1px;">SUDAH SELESAI / TIDAK PERLU AKSI</span>
+                <span class="badge bg-success ms-1">@completedTrips.Count</span>
+            </div>
+            <div class="gallery-grid" style="opacity: 0.72;">
+                @foreach (var trip in completedTrips)
+                {
+                    var firstSch = trip.Schedules.FirstOrDefault();
+                    if (firstSch == null) continue;
+
+                    var targetEnterDockDtC = trip.Schedules.FirstOrDefault()?.EnterDockTime;
+                    var actualEnterDockDtC = trip.Schedules.FirstOrDefault(s => s.ActualEnterDockTime.HasValue)?.ActualEnterDockTime;
+                    var targetEnterDockStrC = targetEnterDockDtC?.ToString("HH:mm") ?? "";
+                    var targetEnterDockFullStrC = targetEnterDockDtC?.ToString("yyyy-MM-ddTHH:mm") ?? "";
+                    var actualEnterDockStrC = actualEnterDockDtC?.ToString("HH:mm") ?? "";
+                    var actualEnterDockFullStrC = actualEnterDockDtC?.ToString("yyyy-MM-ddTHH:mm") ?? "";
+                    var schedDateStrC = (trip.ScheduledDate ?? DateTime.Today).ToString("yyyy-MM-dd");
+                    var pickupTimeStrC = trip.PickupTime?.ToString("HH:mm") ?? "";
+
+                    <div class="prep-card border-success"
+                         id="card-@trip.RepresentativeScheduleId"
+                         data-schedule-number="@if(firstSch != null){<text>@firstSch.ScheduleNumber</text>}"
+                         data-date="@(trip.PickupTime?.ToString("yyyy-MM-dd") ?? (firstSch?.ScheduledDate.ToString("yyyy-MM-dd"))) ">
+
+                        <div class="prep-card-header header-completed">
+                                @{
+                                    var manifestGroupsC = trip.Schedules
+                                        .GroupBy(s => {
+                                            var sn = s.ScheduleNumber ?? "";
+                                            return sn.Contains("/") ? sn.Substring(0, sn.IndexOf('/')).Trim().ToUpper() : sn.Trim().ToUpper();
+                                        })
+                                        .OrderBy(g => g.Key)
+                                        .ToList();
+                                }
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light dropdown-toggle opacity-75 fw-bold" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.7rem; border-radius: 6px; padding: 2px 8px;">
+                                        <i class="bi bi-list-check me-1"></i> MANIFESTS (@manifestGroupsC.Count)
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-dark shadow-lg border-secondary" style="max-height: 250px; overflow-y: auto; min-width: 220px; z-index: 1050;">
+                                        @foreach (var mg in manifestGroupsC)
+                                        {
+                                            double mKanbanTarget = 0; double mKanbanActual = 0;
+                                            foreach (var m in mg)
+                                            {
+                                                if (m.DeliveryItems != null)
+                                                {
+                                                    foreach (var di in m.DeliveryItems)
+                                                    {
+                                                        var qpc = di.Item?.QtyLot ?? 1;
+                                                        if (qpc > 0) {
+                                                            var diKbnTgt = Math.Ceiling((double)di.Quantity / qpc);
+                                                            mKanbanTarget += diKbnTgt;
+                                                            mKanbanActual += (di.ActualQuantity ?? 0) >= di.Quantity
+                                                                ? diKbnTgt
+                                                                : Math.Ceiling((double)(di.ActualQuantity ?? 0) / qpc);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            // Manifest tanpa item (0/0) dianggap selesai — tidak ada yang perlu di-scan
+                                            var isMComplete = mKanbanTarget == 0 || mKanbanActual >= mKanbanTarget;
+                                            <li>
+                                                <div class="dropdown-item-text py-2 px-3 d-flex justify-content-between align-items-center" style="font-size: 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                                    <span class="fw-bold text-success">@mg.Key</span>
+                                                    <span class="badge bg-success ms-2" style="font-family: 'Courier New', monospace;">
+                                                        @((int)mKanbanActual)/@((int)mKanbanTarget)
+                                                    </span>
+                                                </div>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+
+                            <span class="badge-status ms-2">PREPARED</span>
+                            @if (trip.IsCarryOver)
+                            {
+                                <span class="badge bg-danger ms-1" style="font-size: 0.6rem; vertical-align: middle;">CARRY OVER<br>@(trip.ScheduledDate?.ToString("dd/MM") ?? "")</span>
+                            }
+                        </div>
+
+                        <div class="prep-card-body">
+                            <div class="customer-name mb-1"><i class="bi bi-building"></i> @trip.CustomerName</div>
+                            @if (trip.PickupTime.HasValue)
+                            {
+                                var pickupDate = trip.PickupTime.Value.Date;
+                                var isToday = pickupDate == DateTime.Today;
+                                var isTomorrow = pickupDate == DateTime.Today.AddDays(1);
+                                var dateLabel = isToday ? "HARI INI" : (isTomorrow ? "BESOK" : pickupDate.ToString("dd/MM/yyyy"));
+                                var badgeColor = isToday ? "bg-success" : (isTomorrow ? "bg-info" : "bg-secondary");
+                                <div class="delivery-banner">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-white-50"><i class="bi bi-calendar-check me-1"></i> <strong>Tanggal Delivery:</strong></small>
+                                        <span class="badge @badgeColor">@dateLabel - @trip.PickupTime.Value.ToString("HH:mm")</span>
+                                    </div>
+                                </div>
+                            }
+                            <div class="mb-3"><div class="cycle-label">Cycle:</div><div class="cycle-value">@trip.Cycle</div></div>
+                            <div class="detail-row"><div class="detail-label">Route:</div><div class="detail-value text-info fw-bold">@trip.Route</div></div>
+                            <div class="detail-row"><div class="detail-label">Area:</div><div class="detail-value"><i class="bi bi-geo-alt-fill icon-spacing"></i>@trip.Area</div></div>
+                            <hr class="border-secondary opacity-25">
+                            <div class="row">
+                                <div class="col-6">
+                                    <div class="detail-row mb-0">
+                                        <div class="detail-label"><i class="bi bi-box-arrow-in-right icon-spacing"></i>Enter Dock:</div>
+                                        <div class="detail-value">@(trip.Schedules.Any(s => s.ActualEnterDockTime.HasValue) ? trip.Schedules.First(s => s.ActualEnterDockTime.HasValue).ActualEnterDockTime?.ToString("HH:mm") : (trip.Schedules.FirstOrDefault()?.EnterDockTime?.ToString("HH:mm") ?? "-"))</div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="detail-row mb-0">
+                                        <div class="detail-label"><i class="bi bi-truck icon-spacing"></i>Pickup Time:</div>
+                                        <div class="detail-value">@(trip.PickupTime?.ToString("HH:mm") ?? "-")</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prep-card-footer">
+                            <div class="text-center">
+                                <span class="badge bg-success w-100 py-3" style="font-size: 0.9rem; border-radius: 8px;">
+                                    @{
+                                        var compTime = trip.Schedules.FirstOrDefault(s => s.ActualEnterDockTime.HasValue)?.ActualEnterDockTime
+                                                      ?? trip.Schedules.FirstOrDefault(s => s.ReadyToDockTime.HasValue)?.ReadyToDockTime;
+                                    }
+                                    <i class="bi bi-check-circle-fill me-2"></i> PREPARED@(compTime.HasValue ? ": " + compTime.Value.ToString("HH:mm") : "")
+                                </span>
+                            </div>
+                            <button type="button" 
+                                    class="btn btn-sm btn-outline-warning w-100 fw-bold py-1 mt-2 btn-konfirmasi-dock"
+                                    onclick="openKonfirmasiDockModal(@trip.RepresentativeScheduleId, '@Html.Raw(trip.CustomerName)', '@Html.Raw(trip.Cycle)', '@Html.Raw(trip.Route)', '@Html.Raw(trip.Area)', '@targetEnterDockStrC', '@targetEnterDockFullStrC', '@actualEnterDockStrC', '@actualEnterDockFullStrC', '@schedDateStrC', '@pickupTimeStrC')"
+                                    style="border-radius: 6px; font-size: 0.75rem;">
+                                <i class="bi bi-pencil-square me-1"></i> Atur / Edit Waktu Dock
+                            </button>
+                            @{
+                                var resetRole = Context.Session.GetString("Role");
+                                var canReset = resetRole == "Admin" || resetRole == "Super Admin";
+                                // Hitung total kanban untuk deteksi apakah enter dock terjadi saat kanban belum 100%
+                                double totalKbnTarget = 0; double totalKbnActual = 0;
+                                foreach (var rs in trip.Schedules)
+                                {
+                                    if (rs.DeliveryItems != null)
+                                    {
+                                        foreach (var di in rs.DeliveryItems)
+                                        {
+                                            var qpc = di.Item?.QtyLot ?? 1;
+                                            if (qpc > 0) { totalKbnTarget += Math.Ceiling((double)di.Quantity / qpc); totalKbnActual += Math.Ceiling((double)(di.ActualQuantity ?? 0) / qpc); }
+                                        }
+                                    }
+                                }
+                                var isKanbanIncomplete = totalKbnActual < totalKbnTarget;
+                            }
+                            @if (canReset)
+                            {
+                                <form asp-action="ResetEnterDock" asp-route-id="@trip.RepresentativeScheduleId" method="post" class="mt-2">
+                                    @Html.AntiForgeryToken()
+                                    @* returnDate dipakai untuk redirect balik ke tanggal yang sedang dilihat, bukan ke ScheduledDate item *@
+                                    <input type="hidden" name="returnDate" value="@ViewData["SelectedDate"]" />
+                                    <button type="submit"
+                                            class="btn w-100 py-2 fw-bold @(isKanbanIncomplete ? "btn-danger" : "btn-outline-secondary")"
+                                            style="font-size:0.8rem;border-radius:8px;"
+                                            onclick="return confirm('Reset Enter Dock untuk @Html.Raw(trip.CustomerName)? Jadwal akan bisa di-scan ulang.')">
+                                        <i class="bi bi-arrow-counterclockwise me-1"></i>
+                                        @if (isKanbanIncomplete)
+                                        {
+                                            <span>⚠ RESET (KBN @((int)totalKbnActual)/@((int)totalKbnTarget))</span>
+                                        }
+                                        else
+                                        {
+                                            <span>Reset Enter Dock</span>
+                                        }
+                                    </button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+
+
+</div>
+
+@section Scripts {
+    <script src="~/lib/signalr.min.js"></script>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL KONFIRMASI DOCK (ATUR WAKTU ENTER DOCK)
+    ══════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalKonfirmasiDock" tabindex="-1" aria-labelledby="modalKonfirmasiDockLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background:#1e293b;border:2px solid #f59e0b;border-radius:16px;">
+                <div class="modal-header d-flex justify-content-between align-items-center" style="background:#f59e0b;border-radius:14px 14px 0 0;">
+                    <div>
+                        <h5 class="modal-title fw-bold text-dark mb-0" id="modalKonfirmasiDockLabel">
+                            <i class="bi bi-clock-history me-2"></i> KONFIRMASI & ATUR WAKTU DOCK
+                        </h5>
+                        <small class="text-dark opacity-75 fw-semibold" id="kdModalSubtitle">— Customer —</small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="color:white;">
+                    @Html.AntiForgeryToken()
+                    <!-- Schedule Info Card -->
+                    <div class="p-3 mb-3" style="background:rgba(15,23,42,0.6);border:1px solid rgba(245,158,11,0.25);border-radius:10px;">
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <span class="text-white-50">Customer:</span>
+                                <div class="fw-bold text-warning" id="kdInfoCustomer">-</div>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-white-50">Cycle / Route / Area:</span>
+                                <div class="fw-bold text-info" id="kdInfoCycleRoute">-</div>
+                            </div>
+                            <div class="col-6 mt-2">
+                                <span class="text-white-50">Target Enter Dock (Rencana):</span>
+                                <div class="fw-bold fs-6 text-success" id="kdInfoTarget">-</div>
+                            </div>
+                            <div class="col-6 mt-2">
+                                <span class="text-white-50">Target Pickup (Delivery):</span>
+                                <div class="fw-bold fs-6 text-light" id="kdInfoPickup">-</div>
+                            </div>
+                            <div class="col-12 mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <span class="text-white-50">Status Waktu Dock Saat Ini:</span>
+                                <span class="badge ms-1" id="kdInfoCurrentStatus">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-warning mb-1">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> PILIHAN CEPAT (PRESET):
+                        </label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-success fw-bold flex-grow-1" id="kdBtnSetTarget" onclick="kdSetTargetTime()">
+                                <i class="bi bi-bullseye me-1"></i> Set On-Time (Sesuai Rencana)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="kdSetCurrentTime()">
+                                <i class="bi bi-clock me-1"></i> Jam Sekarang
+                            </button>
+                        </div>
+                        <div class="d-flex gap-1 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kdAdjustMinutes(-5)">-5 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kdAdjustMinutes(-10)">-10 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kdAdjustMinutes(-15)">-15 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kdAdjustMinutes(5)">+5 Menit</button>
+                        </div>
+                    </div>
+
+                    <!-- Input Datetime -->
+                    <div class="mb-3">
+                        <label for="kdInputDateTime" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event me-1"></i> WAKTU ENTER DOCK:
+                        </label>
+                        <input type="datetime-local" class="form-control form-control-lg fw-bold" id="kdInputDateTime" 
+                               style="background:#0f172a;border:2px solid #f59e0b;color:#fff;font-size:1.15rem;" required />
+                        <div class="form-text text-white-50" style="font-size:0.75rem;">
+                            <i class="bi bi-info-circle me-1"></i> Sesuaikan tanggal & jam masuk dock agar jadwal di dashboard menjadi on-time.
+                        </div>
+                    </div>
+
+                    <!-- Catatan Opsional -->
+                    <div class="mb-2">
+                        <label for="kdInputNotes" class="form-label small text-white-50">
+                            <i class="bi bi-chat-left-text me-1"></i> Catatan (Opsional):
+                        </label>
+                        <input type="text" class="form-control form-control-sm" id="kdInputNotes" 
+                               placeholder="Contoh: Sesuai jadwal target / revisi on-time" 
+                               style="background:#0f172a;border:1px solid rgba(255,255,255,0.2);color:#fff;" />
+                    </div>
+
+                    <div id="kdFeedback" class="mt-2" style="font-size:0.85rem;min-height:24px;"></div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid rgba(245,158,11,0.25);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i> Batal
+                    </button>
+                    <button type="button" class="btn btn-warning fw-bold px-4 text-dark" id="kdBtnSubmit" onclick="submitKonfirmasiDock()">
+                        <i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Dock
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL KONFIRMASI PICKUP (ATUR WAKTU KEBERANGKATAN TRUK)
+    ══════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalKonfirmasiPickup" tabindex="-1" aria-labelledby="modalKonfirmasiPickupLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" style="background:#1e293b;border:2px solid #10b981;border-radius:16px;">
+                <div class="modal-header d-flex justify-content-between align-items-center" style="background:#10b981;border-radius:14px 14px 0 0;">
+                    <div>
+                        <h5 class="modal-title fw-bold text-white mb-0" id="modalKonfirmasiPickupLabel">
+                            <i class="bi bi-truck me-2"></i> KONFIRMASI & ATUR WAKTU PICKUP
+                        </h5>
+                        <small class="text-white opacity-75 fw-semibold" id="kpModalSubtitle">— Customer —</small>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="color:white;">
+                    @Html.AntiForgeryToken()
+                    <!-- Schedule Info Card -->
+                    <div class="p-3 mb-3" style="background:rgba(15,23,42,0.6);border:1px solid rgba(16,185,129,0.25);border-radius:10px;">
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <span class="text-white-50">Customer:</span>
+                                <div class="fw-bold text-warning" id="kpInfoCustomer">-</div>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-white-50">Cycle / Route / Area:</span>
+                                <div class="fw-bold text-info" id="kpInfoCycleRoute">-</div>
+                            </div>
+                            <div class="col-6 mt-2">
+                                <span class="text-white-50">Target Pickup (Rencana):</span>
+                                <div class="fw-bold fs-6 text-success" id="kpInfoTargetPickup">-</div>
+                            </div>
+                            <div class="col-6 mt-2">
+                                <span class="text-white-50">Target ETD (Delivery):</span>
+                                <div class="fw-bold fs-6 text-light" id="kpInfoETD">-</div>
+                            </div>
+                            <div class="col-12 mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <span class="text-white-50">Status Kanban:</span>
+                                <span class="badge ms-1" id="kpInfoKanbanStatus">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-success mb-1">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> PILIHAN CEPAT (PRESET):
+                        </label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-success fw-bold flex-grow-1" id="kpBtnSetTarget" onclick="kpSetTargetTime()">
+                                <i class="bi bi-bullseye me-1"></i> Set On-Time (Sesuai Rencana)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="kpSetCurrentTime()">
+                                <i class="bi bi-clock me-1"></i> Jam Sekarang
+                            </button>
+                        </div>
+                        <div class="d-flex gap-1 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(-5)">-5 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(-10)">-10 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(-15)">-15 Menit</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="kpAdjustMinutes(5)">+5 Menit</button>
+                        </div>
+                    </div>
+
+                    <!-- Input Datetime -->
+                    <div class="mb-3">
+                        <label for="kpInputDateTime" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event me-1"></i> WAKTU PICKUP / KEBERANGKATAN TRUK:
+                        </label>
+                        <input type="datetime-local" class="form-control form-control-lg fw-bold" id="kpInputDateTime" 
+                               style="background:#0f172a;border:2px solid #10b981;color:#fff;font-size:1.15rem;" required />
+                        <div class="form-text text-white-50" style="font-size:0.75rem;">
+                            <i class="bi bi-info-circle me-1"></i> Sesuaikan tanggal & jam pickup agar jadwal di dashboard menjadi on-time.
+                        </div>
+                    </div>
+
+                    <!-- Catatan Opsional -->
+                    <div class="mb-2">
+                        <label for="kpInputNotes" class="form-label small text-white-50">
+                            <i class="bi bi-chat-left-text me-1"></i> Catatan (Opsional):
+                        </label>
+                        <input type="text" class="form-control form-control-sm" id="kpInputNotes" 
+                               placeholder="Contoh: Sesuai jadwal target / revisi on-time" 
+                               style="background:#0f172a;border:1px solid rgba(255,255,255,0.2);color:#fff;" />
+                    </div>
+
+                    <div id="kpFeedback" class="mt-2" style="font-size:0.85rem;min-height:24px;"></div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid rgba(16,185,129,0.25);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i> Batal
+                    </button>
+                    <button type="button" class="btn btn-success fw-bold px-4 text-white" id="kpBtnSubmit" onclick="submitKonfirmasiPickup()">
+                        <i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         MODAL LEADER VERIFICATION
+    ══════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalLeaderVerification" tabindex="-1" aria-labelledby="modalLeaderVerificationLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content" style="background:#1e293b;border:2px solid #7c3aed;border-radius:16px;">
+                <div class="modal-header d-flex justify-content-between align-items-center" style="background:#7c3aed;border-radius:14px 14px 0 0;">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <h5 class="modal-title fw-bold text-white mb-0" id="modalLeaderVerificationLabel">
+                                <i class="bi bi-shield-check me-2"></i> LEADER VERIFICATION
+                            </h5>
+                            <small class="text-white opacity-75" id="lvModalSubtitle">— Dock / Area —</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input bg-warning border-warning" type="checkbox" id="lvScannerMode" checked>
+                            <label class="form-check-label text-white small fw-bold" for="lvScannerMode">SCANNER (EXT)</label>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input bg-danger border-danger" type="checkbox" id="lvManualMode">
+                            <label class="form-check-label text-white small fw-bold" for="lvManualMode">MANUAL</label>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white ms-2" data-bs-dismiss="modal"></button>
+                    </div>
+                </div>
+                <div class="modal-body" style="color:white;">
+                    <!-- Progress Bar -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="small fw-bold" style="color:#a78bfa;">PROGRESS VERIFIKASI KANBAN</span>
+                            <span class="small fw-bold text-white" id="lvProgressText">0 / 0 Kanban</span>
+                        </div>
+                        <div class="progress" style="height:12px;background:rgba(255,255,255,0.08);border-radius:8px;">
+                            <div id="lvProgressBar" class="progress-bar" role="progressbar"
+                                 style="width:0%;background:#7c3aed;border-radius:8px;transition:width 0.4s ease;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                    </div>
+
+                    <!-- Daftar Manifest dengan Parts -->
+                    <div class="mb-4" style="border:1px solid rgba(124,58,237,0.3);border-radius:10px;overflow:hidden;">
+                        <div class="px-3 py-2" style="background:rgba(124,58,237,0.2);font-size:0.8rem;font-weight:700;letter-spacing:1px;color:#c4b5fd;">
+                            <i class="bi bi-list-check me-2"></i> DAFTAR MANIFEST & PARTS
+                        </div>
+                        <div id="lvManifestContainer" style="max-height:350px;overflow-y:auto;padding:8px;">
+                            <div class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-2"></i>Memuat data...</div>
+                        </div>
+                    </div>
+
+                    <!-- Form Scan -->
+                    <div id="lvScanSection">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold" style="color:#a78bfa;letter-spacing:1px;font-size:0.82rem;">
+                                <i class="bi bi-upc-scan me-2"></i> SCAN KANBAN
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background:#0f172a;border:2px solid #7c3aed;color:#a78bfa;">
+                                    <i class="bi bi-qr-code-scan fs-5"></i>
+                                </span>
+                                <input type="text" id="lvScanInput"
+                                       class="form-control fw-bold"
+                                       style="background:#0f172a;border:2px solid #7c3aed;color:white;font-size:1.1rem;letter-spacing:2px;"
+                                       placeholder="Scan Part Number dari kanban..."
+                                       autocomplete="off" readonly />
+                            </div>
+                            <div id="lvScanFeedback" class="mt-2" style="min-height:28px;font-size:0.85rem;"></div>
+                        </div>
+                        <div class="text-muted" style="font-size:0.75rem;">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Scan <code style="color:#a78bfa;">Part Number</code> dari kanban — setiap scan memverifikasi 1 kanban.
+                        </div>
+                    </div>
+
+                    <!-- Pesan Sukses Selesai -->
+                    <div id="lvCompleteMessage" class="text-center py-3" style="display:none;">
+                        <div class="mb-2" style="font-size:2.5rem;">✅</div>
+                        <div class="fw-bold text-success fs-5">Semua Manifest Terverifikasi!</div>
+                        @if (Context.Session.GetString("Role") == "Leader")
+                        {
+                            <div class="text-white-50 small mt-1">Menutup dalam <span id="lvCountdown">2</span> detik.</div>
+                            <div class="text-white-50 small mt-1" style="color:#a78bfa!important;">Tim Preparation dapat melanjutkan Enter Dock.</div>
+                        }
+                        else
+                        {
+                            <div class="text-white-50 small mt-1">Menutup dalam <span id="lvCountdown">2</span> detik... Silakan klik <strong>ENTER DOCK</strong>.</div>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top:1px solid rgba(124,58,237,0.3);">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i> Tutup
+                    </button>
+                    <div id="lvFooterInfo" class="text-muted small ms-auto">
+                        <i class="bi bi-shield-lock me-1"></i> Hanya Admin & Leader yang dapat verifikasi
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── STATE & FUNCTIONS KONFIRMASI DOCK ──────────────────────────────
+        let kdRepresentativeId = null;
+        let kdTargetFullTime   = '';
+        let kdTargetTimeStr    = '';
+        let kdReturnDate       = '@ViewData["SelectedDate"]';
+
+        function openKonfirmasiDockModal(repId, customerName, cycle, route, area, targetTimeStr, targetFullTime, actualTimeStr, actualFullTime, schedDateStr, pickupTimeStr) {
+            kdRepresentativeId = repId;
+            kdTargetFullTime   = targetFullTime;
+            kdTargetTimeStr    = targetTimeStr;
+
+            document.getElementById('kdModalSubtitle').textContent = `${customerName} — Cycle ${cycle} (${area})`;
+            document.getElementById('kdInfoCustomer').textContent   = customerName;
+            document.getElementById('kdInfoCycleRoute').textContent = `Cycle ${cycle} | ${route} | ${area}`;
+            document.getElementById('kdInfoTarget').textContent     = targetTimeStr ? targetTimeStr : 'Tidak ada target';
+            document.getElementById('kdInfoPickup').textContent     = pickupTimeStr ? pickupTimeStr : '-';
+
+            const statusBadge = document.getElementById('kdInfoCurrentStatus');
+            if (actualTimeStr) {
+                statusBadge.className = 'badge bg-info text-dark ms-1';
+                statusBadge.textContent = `Tercatat Jam ${actualTimeStr}`;
+            } else {
+                statusBadge.className = 'badge bg-secondary ms-1';
+                statusBadge.textContent = 'Belum Masuk Dock';
+            }
+
+            const btnTarget = document.getElementById('kdBtnSetTarget');
+            if (targetTimeStr) {
+                btnTarget.style.display = 'inline-block';
+                btnTarget.innerHTML = `<i class="bi bi-bullseye me-1"></i> Set On-Time (Target: ${targetTimeStr})`;
+            } else {
+                btnTarget.style.display = 'none';
+            }
+
+            // Inisialisasi input datetime:
+            // 1. Jika ada targetFullTime, prioritaskan target waktu rencana agar langsung on-time
+            // 2. Jika ada actualFullTime, gunakan actual
+            // 3. Fallback: jam sekarang
+            const inputEl = document.getElementById('kdInputDateTime');
+            if (targetFullTime) {
+                inputEl.value = targetFullTime;
+            } else if (actualFullTime) {
+                inputEl.value = actualFullTime;
+            } else {
+                kdSetCurrentTime();
+            }
+
+            document.getElementById('kdInputNotes').value = '';
+            document.getElementById('kdFeedback').innerHTML = '';
+            const btnSubmit = document.getElementById('kdBtnSubmit');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Dock';
+
+            const modal = new bootstrap.Modal(document.getElementById('modalKonfirmasiDock'));
+            modal.show();
+        }
+
+        function kdSetTargetTime() {
+            if (kdTargetFullTime) {
+                document.getElementById('kdInputDateTime').value = kdTargetFullTime;
+                showKdFeedback('<span class="text-success"><i class="bi bi-check2-circle me-1"></i> Waktu disetel sesuai target rencana (On-Time)</span>');
+            }
+        }
+
+        function kdSetCurrentTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('kdInputDateTime').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showKdFeedback('<span class="text-info"><i class="bi bi-clock me-1"></i> Waktu disetel ke jam sekarang</span>');
+        }
+
+        function kdAdjustMinutes(mins) {
+            const inputEl = document.getElementById('kdInputDateTime');
+            if (!inputEl.value) {
+                kdSetCurrentTime();
+                return;
+            }
+            const dt = new Date(inputEl.value);
+            if (isNaN(dt.getTime())) return;
+            dt.setMinutes(dt.getMinutes() + mins);
+            const year = dt.getFullYear();
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            const hours = String(dt.getHours()).padStart(2, '0');
+            const minutes = String(dt.getMinutes()).padStart(2, '0');
+            inputEl.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showKdFeedback(`<span class="text-warning"><i class="bi bi-arrow-left-right me-1"></i> Waktu disesuaikan ${mins > 0 ? '+' : ''}${mins} menit</span>`);
+        }
+
+        function showKdFeedback(html) {
+            const fb = document.getElementById('kdFeedback');
+            if (fb) fb.innerHTML = html;
+        }
+
+        function submitKonfirmasiDock() {
+            const inputEl = document.getElementById('kdInputDateTime');
+            const val = inputEl.value;
+            if (!val) {
+                showKdFeedback('<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Waktu masuk dock wajib diisi.</span>');
+                return;
+            }
+
+            const btnSubmit = document.getElementById('kdBtnSubmit');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+            showKdFeedback('<span class="text-info"><i class="bi bi-arrow-repeat spin me-1"></i> Mengonfirmasi dock...</span>');
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+            const formData = new FormData();
+            formData.append('id', kdRepresentativeId);
+            formData.append('enterDockTime', val);
+            formData.append('notes', document.getElementById('kdInputNotes').value);
+            formData.append('returnDate', kdReturnDate);
+            formData.append('__RequestVerificationToken', token);
+
+            fetch('/Preparation/ConfirmCustomEnterDock', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showKdFeedback(`<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> ${data.message}</span>`);
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('modalKonfirmasiDock');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                        window.location.reload();
+                    }, 700);
+                } else {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Dock';
+                    showKdFeedback(`<span class="text-danger"><i class="bi bi-x-circle me-1"></i> ${data.message || 'Gagal menyimpan'}</span>`);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Dock';
+                showKdFeedback('<span class="text-danger"><i class="bi bi-cloud-slash me-1"></i> Terjadi kesalahan jaringan.</span>');
+            });
+        }
+
+        // ─── STATE & FUNCTIONS KONFIRMASI PICKUP ──────────────────────────────
+        let kpRepresentativeId = null;
+        let kpTargetFullTime   = '';
+        let kpTargetTimeStr    = '';
+        let kpReturnDate       = '@ViewData["SelectedDate"]';
+
+        function openKonfirmasiPickupModal(repId, customerName, cycle, route, area, targetTimeStr, targetFullTime, actualTimeStr, etdStr, targetKbn, actualKbn) {
+            kpRepresentativeId = repId;
+            kpTargetFullTime   = targetFullTime;
+            kpTargetTimeStr    = targetTimeStr;
+
+            document.getElementById('kpModalSubtitle').textContent = `${customerName} — Cycle ${cycle} (${area})`;
+            document.getElementById('kpInfoCustomer').textContent   = customerName;
+            document.getElementById('kpInfoCycleRoute').textContent = `Cycle ${cycle} | ${route} | ${area}`;
+            document.getElementById('kpInfoTargetPickup').textContent = targetTimeStr ? targetTimeStr : 'Tidak ada target';
+            document.getElementById('kpInfoETD').textContent          = etdStr ? etdStr : '-';
+
+            const kanbanBadge = document.getElementById('kpInfoKanbanStatus');
+            if (actualKbn !== undefined && targetKbn !== undefined) {
+                if (actualKbn >= targetKbn && targetKbn > 0) {
+                    kanbanBadge.className = 'badge bg-success text-white ms-1';
+                    kanbanBadge.textContent = `Kanban Lengkap (${actualKbn}/${targetKbn}) → Closed Delivery`;
+                } else {
+                    kanbanBadge.className = 'badge bg-warning text-dark ms-1';
+                    kanbanBadge.textContent = `Kanban Belum Penuh (${actualKbn}/${targetKbn}) → Shortage Delivery`;
+                }
+            } else {
+                kanbanBadge.className = 'badge bg-secondary ms-1';
+                kanbanBadge.textContent = 'Progres Preparation';
+            }
+
+            const btnTarget = document.getElementById('kpBtnSetTarget');
+            if (targetTimeStr) {
+                btnTarget.style.display = 'inline-block';
+                btnTarget.innerHTML = `<i class="bi bi-bullseye me-1"></i> Set On-Time (Target: ${targetTimeStr})`;
+            } else {
+                btnTarget.style.display = 'none';
+            }
+
+            const inputEl = document.getElementById('kpInputDateTime');
+            if (targetFullTime) {
+                inputEl.value = targetFullTime;
+            } else {
+                kpSetCurrentTime();
+            }
+
+            document.getElementById('kpInputNotes').value = '';
+            document.getElementById('kpFeedback').innerHTML = '';
+            const btnSubmit = document.getElementById('kpBtnSubmit');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup';
+
+            const modal = new bootstrap.Modal(document.getElementById('modalKonfirmasiPickup'));
+            modal.show();
+        }
+
+        function kpSetTargetTime() {
+            if (kpTargetFullTime) {
+                document.getElementById('kpInputDateTime').value = kpTargetFullTime;
+                showKpFeedback('<span class="text-success"><i class="bi bi-check2-circle me-1"></i> Waktu disetel sesuai target rencana (On-Time)</span>');
+            }
+        }
+
+        function kpSetCurrentTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('kpInputDateTime').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showKpFeedback('<span class="text-info"><i class="bi bi-clock me-1"></i> Waktu disetel ke jam sekarang</span>');
+        }
+
+        function kpAdjustMinutes(mins) {
+            const inputEl = document.getElementById('kpInputDateTime');
+            if (!inputEl.value) {
+                kpSetCurrentTime();
+                return;
+            }
+            const dt = new Date(inputEl.value);
+            if (isNaN(dt.getTime())) return;
+            dt.setMinutes(dt.getMinutes() + mins);
+            const year = dt.getFullYear();
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            const hours = String(dt.getHours()).padStart(2, '0');
+            const minutes = String(dt.getMinutes()).padStart(2, '0');
+            inputEl.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            showKpFeedback(`<span class="text-warning"><i class="bi bi-arrow-left-right me-1"></i> Waktu disesuaikan ${mins > 0 ? '+' : ''}${mins} menit</span>`);
+        }
+
+        function showKpFeedback(html) {
+            const fb = document.getElementById('kpFeedback');
+            if (fb) fb.innerHTML = html;
+        }
+
+        function submitKonfirmasiPickup() {
+            const inputEl = document.getElementById('kpInputDateTime');
+            const val = inputEl.value;
+            if (!val) {
+                showKpFeedback('<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Waktu pickup wajib diisi.</span>');
+                return;
+            }
+
+            const btnSubmit = document.getElementById('kpBtnSubmit');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+            showKpFeedback('<span class="text-info"><i class="bi bi-arrow-repeat spin me-1"></i> Mengonfirmasi pickup...</span>');
+
+            const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+            const formData = new FormData();
+            formData.append('id', kpRepresentativeId);
+            formData.append('pickupTime', val);
+            formData.append('notes', document.getElementById('kpInputNotes').value);
+            formData.append('returnDate', kpReturnDate);
+            formData.append('__RequestVerificationToken', token);
+
+            fetch('/Preparation/ConfirmCustomPickup', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showKpFeedback(`<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> ${data.message}</span>`);
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('modalKonfirmasiPickup');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                        window.location.reload();
+                    }, 700);
+                } else {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup';
+                    showKpFeedback(`<span class="text-danger"><i class="bi bi-x-circle me-1"></i> ${data.message || 'Gagal menyimpan'}</span>`);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Pickup';
+                showKpFeedback('<span class="text-danger"><i class="bi bi-cloud-slash me-1"></i> Terjadi kesalahan jaringan.</span>');
+            });
+        }
+
+        // ─── STATE ──────────────────────────────────────────────────────────
+        let lvRepresentativeId = null;
+        let lvIsProcessing     = false;
+
+        // ─── GLOBAL SCANNER HANDLER (Teknologi Scan Prepare & Pulling) ──────
+        let lvScanBuffer = "";
+        let lvLastKeyTime = Date.now();
+        const LV_SCAN_INTERVAL = 200; // ms (Ditingkatkan untuk robusness pada scanner lambat)
+
+        window.addEventListener('keydown', function (e) {
+            const modalEl = document.getElementById('modalLeaderVerification');
+            if (!modalEl || !modalEl.classList.contains('show')) return;
+
+            // Jika Mode Manual aktif atau Mode Scanner OFF, biarkan input default (jangan intercept)
+            const isManual  = document.getElementById('lvManualMode')?.checked;
+            const isExtMode = document.getElementById('lvScannerMode')?.checked;
+            
+            if (isManual || !isExtMode) return;
+
+            // Abaikan tombol navigasi/form lain
+            if (e.target.tagName === "BUTTON") return;
+            if (e.target.tagName === "INPUT" && !e.target.readOnly && e.target.id !== "lvScanInput") return;
+
+            const currentTime = Date.now();
+            if (currentTime - lvLastKeyTime > LV_SCAN_INTERVAL) {
+                lvScanBuffer = "";
+            }
+            lvLastKeyTime = currentTime;
+
+            // Handle Terminator (Enter=13, Tab=9, LF=10)
+            if (e.keyCode === 13 || e.keyCode === 9 || e.keyCode === 10) {
+                if (lvScanBuffer.length > 0) {
+                    console.log("[SCANNER] Input Detected:", lvScanBuffer);
+                    processBufferedScan(lvScanBuffer);
+                    lvScanBuffer = "";
+                }
+                e.preventDefault();
+                return;
+            }
+
+            // Kumpulkan karakter printable
+            if (e.key.length === 1) {
+                lvScanBuffer += e.key;
+                const inputEl = document.getElementById('lvScanInput');
+                if (inputEl) {
+                    inputEl.value = lvScanBuffer;
+                    showScanFeedback('<i class="bi bi-keyboard me-1"></i> Data masuk...', 'loading');
+                }
+                e.preventDefault();
+            }
+        });
+
+        // Toggle Modes
+        document.getElementById('lvManualMode')?.addEventListener('change', function() {
+            const inputEl = document.getElementById('lvScanInput');
+            if (this.checked) {
+                inputEl.readOnly = false;
+                inputEl.placeholder = "Ketik Part Number...";
+                document.getElementById('lvScannerMode').checked = false;
+                inputEl.focus();
+                showScanFeedback('Mode Manual Aktif.', 'warning');
+            } else {
+                inputEl.readOnly = true;
+                inputEl.placeholder = "Scan Part Number dari kanban...";
+                document.getElementById('lvScannerMode').checked = true;
+                inputEl.focus();
+                showScanFeedback('Mode Scanner Aktif.', 'success');
+            }
+        });
+
+        // Handle Manual Enter
+        document.getElementById('lvScanInput')?.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !this.readOnly) {
+                e.preventDefault();
+                const val = this.value.trim();
+                if (val) submitScan(val);
+            }
+        });
+
+        function processBufferedScan(code) {
+            code = (code || "").trim();
+            const inputEl = document.getElementById('lvScanInput');
+            if (inputEl) inputEl.value = code;
+
+            if (!code || lvIsProcessing) return;
+            lvIsProcessing = true;
+            submitScan(code);
+        }
+
+        // ─── OPEN MODAL ─────────────────────────────────────────────────────
+        function openVerificationModal(repId, dockName, customerName) {
+            lvRepresentativeId = repId;
+            lvIsProcessing     = false;
+            lvScanBuffer       = "";
+
+            document.getElementById('lvModalSubtitle').textContent = `${customerName} — ${dockName}`;
+            document.getElementById('lvProgressText').textContent  = '0 / 0 Kanban';
+            document.getElementById('lvProgressBar').style.width   = '0%';
+            
+            const inputEl = document.getElementById('lvScanInput');
+            inputEl.value           = '';
+            inputEl.readOnly        = true;
+            document.getElementById('lvManualMode').checked = false;
+            document.getElementById('lvScannerMode').checked = true;
+
+            document.getElementById('lvScanFeedback').innerHTML    = '';
+            document.getElementById('lvScanSection').style.display = 'block';
+            document.getElementById('lvCompleteMessage').style.display = 'none';
+            document.getElementById('lvManifestContainer').innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-hourglass-split me-2"></i>Memuat data...</div>';
+
+            const modal = new bootstrap.Modal(document.getElementById('modalLeaderVerification'));
+            modal.show();
+
+            // Focus input agar scanner tertangkap (meskipun readonly)
+            document.getElementById('modalLeaderVerification').addEventListener('shown.bs.modal', function onShown() {
+                inputEl.focus();
+                this.removeEventListener('shown.bs.modal', onShown);
+            });
+
+            loadVerificationData(repId);
+        }
+
+        // ─── LOAD DATA ──────────────────────────────────────────────────────
+        function loadVerificationData(repId) {
+            fetch(`/Preparation/GetVerificationData?id=${repId}`)
+                .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
+                .then(data => {
+                    if (!data.success) throw new Error(data.message);
+                    renderManifestTable(data.manifests);
+                    updateProgress(data.scannedKanban || 0, data.totalKanban || 0, data.verifiedManifests || 0, data.totalManifests || 0);
+                    if (data.isComplete) triggerVerificationComplete();
+                })
+                .catch(err => {
+                    console.error('Error loading data:', err);
+                    document.getElementById('lvManifestContainer').innerHTML = `<div class="text-center py-4 text-danger"><i class="bi bi-cloud-slash me-2"></i>Gagal memuat data.</div>`;
+                });
+        }
+
+        // ─── RENDER MANIFEST CARDS ──────────────────────────────────────────
+        function renderManifestTable(manifests) {
+            const container = document.getElementById('lvManifestContainer');
+            if (!manifests || manifests.length === 0) {
+                container.innerHTML = '<div class="text-center py-4 text-muted">Tidak ada data.</div>';
+                return;
+            }
+            
+            container.innerHTML = manifests.map(m => {
+                const scanned = m.kanbanScanned || 0;
+                const target  = m.kanbanTarget  || 0;
+                const pct     = target > 0 ? Math.round(scanned / target * 100) : 0;
+                const isVerified = m.isVerified;
+                
+                const partsRows = (m.parts || []).map(p => `
+                    <tr>
+                        <td class="py-1 ps-2">${p.partNumber}</td>
+                        <td class="py-1 small text-white-50">${p.partName}</td>
+                        <td class="py-1 text-center">${p.quantity}</td>
+                        <td class="py-1 text-center fw-bold text-info">${p.kanbanCount}</td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" class="text-center text-muted">No parts</td></tr>';
+
+                return `
+                <div id="lv-card-${m.scheduleId}" class="mb-2" style="border:1px solid ${isVerified ? '#10b981' : 'rgba(124,58,237,0.3)'};border-radius:8px;overflow:hidden;background:rgba(15,23,42,0.4);">
+                    <div class="px-3 py-2 d-flex justify-content-between align-items-center" style="background:${isVerified ? 'rgba(16,185,129,0.1)' : 'rgba(124,58,237,0.1)'};">
+                        <div>
+                            <div class="fw-bold fw-sm">${m.manifestKey}</div>
+                            <div class="small text-white-50">${m.scheduleNumber}</div>
+                        </div>
+                        <div class="text-end">
+                            <div class="fw-bold ${isVerified ? 'text-success' : 'text-warning'}">${scanned} / ${target} KBN</div>
+                            <div class="progress" style="height:4px;width:60px;background:rgba(255,255,255,0.1);"><div class="progress-bar ${isVerified?'bg-success':'bg-warning'}" style="width:${pct}%"></div></div>
+                        </div>
+                    </div>
+                    <div class="table-responsive"><table class="table table-sm table-dark mb-0" style="font-size:0.75rem;"><tbody>${partsRows}</tbody></table></div>
+                </div>`;
+            }).join('');
+        }
+
+        // ─── UPDATE PROGRESS ────────────────────────────────────────────────
+        function updateProgress(scanned, total, verifiedMf, totalMf) {
+            const pct = total > 0 ? Math.round(scanned / total * 100) : 0;
+            document.getElementById('lvProgressText').textContent = `${scanned} / ${total} Kanban  (${verifiedMf}/${totalMf} Manifest)`;
+            const bar = document.getElementById('lvProgressBar');
+            bar.style.width      = `${pct}%`;
+            bar.className        = `progress-bar ${pct >= 100 ? 'bg-success' : 'bg-primary'}`;
+        }
+
+        // ─── SUBMIT SCAN ────────────────────────────────────────────────────
+        function submitScan(scanInput) {
+            showScanFeedback('<i class="bi bi-arrow-repeat me-1 spin"></i> Memproses...', 'loading');
+
+            const token = getAntiForgeryToken();
+            const formData = new FormData();
+            formData.append('representativeId', lvRepresentativeId);
+            formData.append('scanInput', scanInput);
+
+            fetch('/Preparation/ScanManifestVerification', {
+                method: 'POST',
+                headers: { 'RequestVerificationToken': token },
+                body:    formData
+            })
+            .then(r => r.ok ? r.json() : Promise.reject(`HTTP ${r.status}`))
+            .then(data => {
+                lvIsProcessing = false;
+                const inputEl = document.getElementById('lvScanInput');
+
+                if (data.success) {
+                    showScanFeedback(data.message, 'success');
+                    if (inputEl) inputEl.value = '';
+                    
+                    renderManifestTable(data.manifests);
+                    updateProgress(data.scannedKanban, data.totalKanban, data.verifiedManifests, data.totalManifests);
+
+                    if (data.isComplete) triggerVerificationComplete();
+                } else {
+                    showScanFeedback(data.message || 'Gagal.', 'error');
+                    if (data.isDuplicate && inputEl) inputEl.value = '';
+                }
+            })
+            .catch(err => {
+                lvIsProcessing = false;
+                showScanFeedback('Error: ' + err, 'error');
+                console.error('Scan Error:', err);
+            });
+        }
+
+        // ─── VERIFICATION COMPLETE ──────────────────────────────────────────
+        // Leader: setelah semua manifest verified → tutup modal saja (Leader tidak enter dock)
+        // Admin: reload halaman agar button Enter Dock muncul
+        function triggerVerificationComplete() {
+            document.getElementById('lvScanSection').style.display     = 'none';
+            document.getElementById('lvCompleteMessage').style.display = 'block';
+
+            // Sembunyikan countdown text untuk Leader (tidak perlu reload)
+            const isLeader = '@(Context.Session.GetString("Role"))' === 'Leader';
+
+            let countdown = 2;
+            const tick = setInterval(() => {
+                countdown--;
+                const el = document.getElementById('lvCountdown');
+                if (el) el.textContent = countdown;
+                if (countdown <= 0) {
+                    clearInterval(tick);
+                    // Tutup modal
+                    const modalEl = document.getElementById('modalLeaderVerification');
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) modalInstance.hide();
+
+                    if (!isLeader) {
+                        // Admin/Preparation: reload agar button Enter Dock muncul
+                        const selectedDate = document.querySelector('input[name="selectedDate"]')?.value || '';
+                        window.location.href = '/Preparation/Index' + (selectedDate ? '?selectedDate=' + selectedDate : '');
+                    }
+                    // Leader: tidak reload, karena Enter Dock bukan tanggung jawab Leader
+                }
+            }, 1000);
+        }
+
+        // ─── FEEDBACK ───────────────────────────────────────────────────────
+        let feedbackTimer = null;
+        function showScanFeedback(message, type) {
+            const el    = document.getElementById('lvScanFeedback');
+            const styles = {
+                success: 'color:#34d399;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);',
+                error:   'color:#f87171;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);',
+                warning: 'color:#fbbf24;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);',
+                loading: 'color:#a78bfa;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.3);'
+            };
+            el.innerHTML = `<div class="px-3 py-2 rounded" style="${styles[type] || styles.loading}">${message}</div>`;
+            // Clear previous timer
+            if (feedbackTimer) clearTimeout(feedbackTimer);
+            // Auto-clear: error/warning = 1.5s, success = 2s, loading = stays until replaced
+            if (type === 'error' || type === 'warning') {
+                feedbackTimer = setTimeout(() => { el.innerHTML = ''; }, 1500);
+            } else if (type === 'success') {
+                feedbackTimer = setTimeout(() => { el.innerHTML = ''; }, 2000);
+            }
+        }
+
+        // ─── ANTI FORGERY TOKEN ─────────────────────────────────────────────
+        function getAntiForgeryToken() {
+            return document.querySelector('input[name="__RequestVerificationToken"]')?.value
+                ?? document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                ?? '';
+        }
+
+        const spinStyle = document.createElement('style');
+        spinStyle.textContent = '.spin { display:inline-block; animation: spin 1s linear infinite; } @@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } .text-orange { color: #f97316; }';
+        document.head.appendChild(spinStyle);
+    </script>
+
+    <script>
+        // SignalR Connection
+        var connection = new signalR.HubConnectionBuilder().withUrl("/deliveryHub").build();
+
+        // Helper: reload halaman dengan noAutoDock dihapus dari URL agar triggerAutoDockForms() tetap jalan
+        function reloadClean() {
+            var params = new URLSearchParams(window.location.search);
+            params.delete('noAutoDock');
+            var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.location.href = newUrl;
+        }
+
+        connection.on("deliveryUpdated", function (data) {
+            console.log("Update received:", data);
+            
+            // Use camelCase for data properties
+            var action = data.action;
+            var scheduleNum = data.scheduleNumber;
+
+            if (action === "preparation" && scheduleNum) {
+                var selector = `.prep-card[data-schedule-number='${scheduleNum}']`;
+                var card = document.querySelector(selector);
+                
+                if (card) {
+                    // Update UI Elements directly
+                    var becamePrepared = updateCardUI(card, data);
+
+                    // Jika card baru jadi Prepared dan toggle auto-dock ON → auto submit
+                    if (becamePrepared && isAutoDockActive()) {
+                        // Utamakan form reguler (leader-verified), fallback ke bypass
+                        var autoDockForm = card.querySelector('form.auto-dock-form:not([data-is-bypass="true"])')
+                                       || card.querySelector('form.auto-dock-form[data-is-bypass="true"]');
+                        if (autoDockForm && !autoDockForm.dataset.submitting) {
+                            autoDockForm.dataset.submitting = '1';
+                            card.style.transition = 'border-color 0.3s, box-shadow 0.3s';
+                            card.style.borderColor = '#10b981';
+                            card.style.boxShadow = '0 0 18px rgba(16,185,129,0.6)';
+                            var hdr = card.querySelector('.prep-card-header');
+                            if (hdr) {
+                                hdr.classList.remove('header-preparing', 'header-scheduled', 'header-prepared');
+                                hdr.classList.add('header-completed');
+                                var bdg = hdr.querySelector('.badge-status');
+                                if (bdg) bdg.textContent = 'ENTER DOCK';
+                            }
+                            submitAutoDockAjax(autoDockForm);
+                            return; // jangan lanjut ke reload di bawah
+                        }
+                        // Form tidak ada di DOM (card masih "In Progress" saat load) → reload bersih
+                        reloadClean();
+                        return;
+                    }
+
+                    // 2. Move to Top
+                    var container = document.querySelector('.gallery-grid');
+                    if (container) container.prepend(card);
+                    
+                    // 3. Glow Effect
+                    card.classList.remove('glow-active');
+                    void card.offsetWidth;
+                    card.classList.add('glow-active');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    setTimeout(() => card.classList.remove('glow-active'), 10000);
+
+                } else {
+                    // Card not found (maybe new?), reload filtering might be needed but try not to disrupt
+                    // location.reload(); 
+                }
+            } else if (action === "readyToDock") {
+                // Bug fix: sebelumnya "readyToDock" && scheduleNum — jika scheduleNum null event diabaikan sama sekali.
+                // Sekarang selalu diproses; scheduleNum dipakai opsional untuk cari card.
+                // Scan terakhir selesai → group jadi Prepared.
+                // Jika toggle auto-dock ON: langsung submit form Enter Dock tanpa reload.
+                // Jika toggle OFF: reload biasa.
+                var card2 = scheduleNum
+                    ? document.querySelector(`.prep-card[data-schedule-number='${scheduleNum}']`)
+                    : null;
+                if (card2 && isAutoDockActive()) {
+                    // Visual feedback segera
+                    card2.style.transition = 'border-color 0.3s, box-shadow 0.3s';
+                    card2.style.borderColor = '#10b981';
+                    card2.style.boxShadow = '0 0 18px rgba(16,185,129,0.6)';
+                    var hdr2 = card2.querySelector('.prep-card-header');
+                    if (hdr2) {
+                        hdr2.classList.remove('header-preparing', 'header-scheduled', 'header-prepared');
+                        hdr2.classList.add('header-completed');
+                        var bdg2 = hdr2.querySelector('.badge-status');
+                        if (bdg2) bdg2.textContent = 'ENTER DOCK';
+                    }
+                    // Tampilkan bypass form jika ada di DOM
+                    var sec2 = card2.querySelector('.leader-verif-section');
+                    if (sec2) {
+                        sec2.querySelectorAll('.leader-verif-btn').forEach(function(el) { el.style.display = 'none'; });
+                        var bypassForm2 = sec2.querySelector('form.auto-dock-form');
+                        if (bypassForm2) bypassForm2.style.display = 'block';
+                    }
+                    // Cari form di DOM (ada jika card sudah "Prepared" saat halaman dimuat)
+                    var autoDockForm2 = card2.querySelector('form.auto-dock-form:not([data-is-bypass="true"])')
+                                    || card2.querySelector('form.auto-dock-form[data-is-bypass="true"]');
+                    if (autoDockForm2 && !autoDockForm2.dataset.submitting) {
+                        autoDockForm2.dataset.submitting = '1';
+                        submitAutoDockAjax(autoDockForm2);
+                    } else if (!autoDockForm2) {
+                        // Form tidak ada di DOM (card masih "In Progress" saat halaman dimuat)
+                        // Submit langsung pakai ID dari atribut card: id="card-{scheduleId}"
+                        var schedId = card2.id.replace('card-', '');
+                        if (schedId) {
+                            submitEnterDockDirectly(schedId, card2);
+                        } else {
+                            reloadClean();
+                        }
+                    }
+                    return;
+                }
+                // Toggle OFF, form tidak ada, atau card tidak ditemukan →
+                // Reload bersih (tanpa noAutoDock) agar triggerAutoDockForms() di DOMContentLoaded berjalan
+                reloadClean();
+            } else if (action === "enterDock" || action === "leaderVerificationComplete" || action === "update" || action === "arrival" || action === "departure") {
+                 // specific logic for enter dock / leader verification / update (full reload to refresh buttons/times)
+                 location.reload();
+            }
+        });
+
+        function updateCardUI(card, data) {
+            // Returns true if this update made the card become "Prepared" (for auto-dock trigger)
+            var header = card.querySelector('.prep-card-header');
+            var becamePrepared = false;
+            if (header) {
+                var status = data.status || data.Status;
+                var prepStatus = data.preparationStatus || data.PreparationStatus;
+                
+                var wasPrepared = header.classList.contains('header-prepared');
+                header.classList.remove('header-scheduled', 'header-preparing', 'header-prepared', 'header-leader-verification', 'header-completed');
+                card.classList.remove('border-warning', 'border-orange', 'border-info', 'border-leader', 'border-success');
+                
+                var badge = header.querySelector('.badge-status');
+
+                if (status === "Completed") {
+                    header.classList.add('header-completed');
+                    card.classList.add('border-success');
+                    if(badge) badge.innerText = "PREPARED";
+                } else if (prepStatus === "Prepared") {
+                    header.classList.add('header-prepared');
+                    card.classList.add('border-info');
+                    if(badge) badge.innerText = "PREPARED";
+                    if (!wasPrepared) becamePrepared = true; // transisi baru ke Prepared
+                } else if (status === "In Progress" || prepStatus === "In Progress" || status === "Preparing" || prepStatus === "Preparing") {
+                    header.classList.add('header-preparing');
+                    card.classList.add('border-orange');
+                    if(badge) badge.innerText = "IN PROGRESS";
+                } else {
+                    header.classList.add('header-scheduled');
+                    card.classList.add('border-warning');
+                    if(badge) badge.innerText = "SCHEDULED";
+                }
+            }
+            return becamePrepared;
+        }
+
+        connection.start().catch(function (err) {
+            return console.error(err.toString());
+        });
+
+        // Card Click Redirection
+        document.querySelectorAll('.prep-card').forEach(card => {
+            card.addEventListener('click', function(e) {
+                // Jangan redirect jika klik pada tombol atau elemen interaktif lain
+                if (e.target.closest('button, a, input, select')) return;
+                
+                const date = this.getAttribute('data-date');
+                const scheduleNum = this.getAttribute('data-schedule-number');
+                
+                if (date) {
+                    let url = `/PreparationWorkflow/Index?filterDate=${date.trim()}`;
+                    if (scheduleNum) {
+                        url += `&vin=${scheduleNum.trim()}`;
+                    }
+                    window.location.href = url;
+                }
+            });
+        });
+
+        // Remove auto-reload to keep state stable
+        // setTimeout(function() { location.reload(); }, 60000);
+    </script>
+
+    <script>
+        // ── MODE OTOMATIS ENTER DOCK & MODE SKIP VERIFIKASI LEADER ──────────────
+        // Setting disimpan global di server (database) sehingga berlaku di semua browser/device.
+        // SignalR digunakan untuk menyinkronkan perubahan ke semua browser secara real-time.
+
+        var _autoDockActive = @(autoDockActiveInitial ? "true" : "false");
+        var _skipLeaderVerifActive = @(skipLeaderVerifActiveInitial ? "true" : "false");
+
+        function isAutoDockActive() {
+            return _autoDockActive;
+        }
+
+        // Submit semua form auto-dock yang terlihat (kecuali yang sedang diproses)
+        function triggerAutoDockForms() {
+            if (!isAutoDockActive()) return;
+            var forms = document.querySelectorAll('form.auto-dock-form');
+            forms.forEach(function(form) {
+                if (form.dataset.submitting) return; // skip yang sudah disubmit
+                form.dataset.submitting = '1';
+                // Warnai card hijau sebelum submit
+                var card = form.closest('.prep-card');
+                if (card) {
+                    card.style.transition = 'border-color 0.3s, box-shadow 0.3s';
+                    card.style.borderColor = '#10b981';
+                    card.style.boxShadow = '0 0 18px rgba(16,185,129,0.6)';
+                    var header = card.querySelector('.prep-card-header');
+                    if (header) {
+                        header.classList.remove('header-preparing', 'header-scheduled', 'header-prepared');
+                        header.classList.add('header-completed');
+                        var badge = header.querySelector('.badge-status');
+                        if (badge) badge.textContent = 'ENTER DOCK';
+                    }
+                }
+                // AJAX fetch — tidak menyebabkan page navigation, semua card diproses sekaligus
+                submitAutoDockAjax(form);
+            });
+        }
+
+        function submitAutoDockAjax(form) {
+            var formData = new FormData(form);
+            var cardElem = form.closest('.prep-card');
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function(result) {
+                if (result.success) {
+                    if (cardElem) {
+                        var footer = cardElem.querySelector('.prep-card-footer');
+                        if (footer) {
+                            footer.innerHTML = '<div class="text-center py-2" style="color:#10b981;font-size:0.85rem;">'
+                                + '<i class="bi bi-check-circle-fill me-1"></i>'
+                                + '<strong>Dock In: ' + (result.time || '-') + '</strong>'
+                                + '</div>';
+                        }
+                    }
+                    console.log('Auto Enter Dock berhasil:', result.time);
+                } else {
+                    console.warn('Auto Enter Dock ditolak:', result.message);
+                    // Reset agar bisa retry
+                    form.dataset.submitting = '';
+                    if (cardElem) {
+                        cardElem.style.borderColor = '';
+                        cardElem.style.boxShadow = '';
+                    }
+                }
+            })
+            .catch(function(err) {
+                console.error('Auto Enter Dock error:', err);
+                // Reset agar bisa retry saat page direload
+                form.dataset.submitting = '';
+            });
+        }
+
+        // Submit Enter Dock langsung by schedule ID — tanpa perlu form di DOM
+        // Dipakai saat card masih "In Progress" (form belum ada di DOM) ketika readyToDock diterima
+        function submitEnterDockDirectly(scheduleId, cardElem) {
+            var token = document.querySelector('input[name="__RequestVerificationToken"]');
+            if (!token) { reloadClean(); return; } // fallback reload jika CSRF tidak tersedia
+            var formData = new FormData();
+            formData.append('id', scheduleId);
+            formData.append('bypassVerification', 'true');
+            formData.append('__RequestVerificationToken', token.value);
+            fetch('/Preparation/QuickEnterDock', {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function(result) {
+                if (result.success) {
+                    console.log('Direct Enter Dock berhasil:', result.time);
+                    if (cardElem) {
+                        var footer = cardElem.querySelector('.prep-card-footer');
+                        if (footer) {
+                            footer.innerHTML = '<div class="text-center py-2" style="color:#10b981;font-size:0.85rem;">'
+                                + '<i class="bi bi-check-circle-fill me-1"></i>'
+                                + '<strong>Dock In: ' + (result.time || '-') + '</strong>'
+                                + '</div>';
+                        }
+                    }
+                } else {
+                    console.warn('Direct Enter Dock ditolak:', result.message);
+                    setTimeout(reloadClean, 1500);
+                }
+            })
+            .catch(function(err) {
+                console.error('Direct Enter Dock error:', err);
+                setTimeout(reloadClean, 1500);
+            });
+        }
+
+        function updateCardUI() {
+            // Update kartu belum verified (Prepared)
+            document.querySelectorAll('.leader-verif-section').forEach(function(sec) {
+                var leaderBtns = sec.querySelectorAll('.leader-verif-btn');
+                var skipLeaderForm = sec.querySelector('.skip-leader-dock-form');
+                leaderBtns.forEach(function(el) { el.style.display = _skipLeaderVerifActive ? 'none' : ''; });
+                if (skipLeaderForm) skipLeaderForm.style.display = _skipLeaderVerifActive ? 'block' : 'none';
+            });
+
+            // Update kartu In Progress (partial scan)
+            document.querySelectorAll('.partial-dock-section').forEach(function(sec) {
+                // Tampil jika Auto Enter Dock NONAKTIF
+                sec.style.display = !_autoDockActive ? 'block' : 'none';
+                
+                var verifBtn = sec.querySelector('.partial-verif-btn');
+                var dockBtn = sec.querySelector('.partial-dock-btn');
+                var bypassBtn = sec.querySelector('.partial-bypass-btn');
+
+                if (_skipLeaderVerifActive) {
+                    if (verifBtn) verifBtn.style.display = 'none';
+                    if (dockBtn) dockBtn.style.display = 'none';
+                    if (bypassBtn) bypassBtn.style.display = 'block';
+                } else {
+                    if (bypassBtn) bypassBtn.style.display = 'none';
+                    if (verifBtn) verifBtn.style.display = '';
+                    if (dockBtn) dockBtn.style.display = '';
+                }
+            });
+        }
+
+        function applyAutoDockMode(isActive, skipTrigger) {
+            _autoDockActive = isActive;
+
+            // Update badge status
+            var statusBadge = document.getElementById('autoDockStatusBadge');
+            if (statusBadge) {
+                statusBadge.style.display = 'inline-block';
+                if (isActive) {
+                    statusBadge.textContent = 'AKTIF — Enter Dock otomatis saat Prepared';
+                    statusBadge.className = 'badge bg-warning text-dark';
+                } else {
+                    statusBadge.textContent = 'NONAKTIF — Enter Dock manual';
+                    statusBadge.className = 'badge bg-secondary';
+                }
+            }
+
+            // Sync toggle checkbox
+            var toggle = document.getElementById('autoEnterDockToggle');
+            if (toggle) toggle.checked = isActive;
+
+            updateCardUI();
+
+            // Jika baru diaktifkan: langsung proses semua card Prepared yang siap
+            if (isActive && !skipTrigger) {
+                triggerAutoDockForms();
+            }
+        }
+
+        function applySkipLeaderVerifMode(isActive) {
+            _skipLeaderVerifActive = isActive;
+
+            // Update badge status
+            var statusBadge = document.getElementById('skipLeaderVerifStatusBadge');
+            if (statusBadge) {
+                statusBadge.style.display = 'inline-block';
+                if (isActive) {
+                    statusBadge.textContent = 'AKTIF — Leader Verification di-Skip';
+                    statusBadge.className = 'badge text-white';
+                    statusBadge.style.background = '#7c3aed';
+                } else {
+                    statusBadge.textContent = 'NONAKTIF — Leader Verification wajib';
+                    statusBadge.className = 'badge bg-secondary';
+                    statusBadge.style.background = '';
+                }
+            }
+
+            // Sync toggle checkbox
+            var toggle = document.getElementById('skipLeaderVerifToggle');
+            if (toggle) toggle.checked = isActive;
+
+            updateCardUI();
+
+            // Jika auto dock aktif dan skip leader diaktifkan, proses auto dock yang sebelumnya menunggu
+            if (_autoDockActive) {
+                triggerAutoDockForms();
+            }
+        }
+
+        // Toggle dipanggil user Admin — kirim ke server, server broadcast ke semua client via SignalR
+        function toggleAutoEnterDock(isActive) {
+            fetch('/Preparation/SetAutoEnterDockMode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive: isActive })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+                if (!result.success) {
+                    console.warn('SetAutoEnterDockMode gagal:', result.message);
+                    var toggle = document.getElementById('autoEnterDockToggle');
+                    if (toggle) toggle.checked = !isActive;
+                }
+            })
+            .catch(function(err) {
+                console.error('SetAutoEnterDockMode error:', err);
+                var toggle = document.getElementById('autoEnterDockToggle');
+                if (toggle) toggle.checked = !isActive;
+            });
+        }
+
+        function toggleSkipLeaderVerif(isActive) {
+            fetch('/Preparation/SetSkipLeaderVerificationMode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isActive: isActive })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(result) {
+                if (!result.success) {
+                    console.warn('SetSkipLeaderVerificationMode gagal:', result.message);
+                    var toggle = document.getElementById('skipLeaderVerifToggle');
+                    if (toggle) toggle.checked = !isActive;
+                }
+            })
+            .catch(function(err) {
+                console.error('SetSkipLeaderVerificationMode error:', err);
+                var toggle = document.getElementById('skipLeaderVerifToggle');
+                if (toggle) toggle.checked = !isActive;
+            });
+        }
+
+        // Init saat halaman load — fetch status dari server agar sinkron dengan semua device
+        document.addEventListener('DOMContentLoaded', function() {
+            var urlParams = new URLSearchParams(window.location.search);
+            var noAutoDock = urlParams.get('noAutoDock') === '1';
+
+            if (noAutoDock) {
+                urlParams.delete('noAutoDock');
+                var cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                history.replaceState({}, '', cleanUrl);
+            }
+
+            // Ambil status Auto Enter Dock dari server
+            fetch('/Preparation/GetAutoEnterDockMode')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    applyAutoDockMode(data.isActive, noAutoDock);
+                })
+                .catch(function() {
+                    applyAutoDockMode(_autoDockActive, true);
+                });
+
+            // Ambil status Skip Leader Verification dari server
+            fetch('/Preparation/GetSkipLeaderVerificationMode')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    applySkipLeaderVerifMode(data.isActive);
+                })
+                .catch(function() {
+                    applySkipLeaderVerifMode(_skipLeaderVerifActive);
+                });
+
+            // SignalR: terima broadcast perubahan mode dari browser/device lain
+            if (typeof connection !== 'undefined' && connection) {
+                connection.on('autoEnterDockModeChanged', function(isActive) {
+                    console.log('[SignalR] Auto Enter Dock mode changed:', isActive);
+                    applyAutoDockMode(isActive, false);
+                });
+
+                connection.on('skipLeaderVerificationModeChanged', function(isActive) {
+                    console.log('[SignalR] Skip Leader Verification mode changed:', isActive);
+                    applySkipLeaderVerifMode(isActive);
+                });
+            }
+        });
+    </script>
+}

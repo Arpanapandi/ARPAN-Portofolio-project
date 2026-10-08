@@ -1,0 +1,821 @@
+@model DeliveryControl.Models.ViewModels.AutoPrintDNViewModel
+
+@{
+    ViewData["Title"] = "Auto Print DN";
+}
+
+<div class="container-fluid py-4">
+    <!-- Alert Area -->
+    <div id="alertArea" class="d-none mb-4"></div>
+
+    <!-- Step 1: Form Input SO SAP -->
+    <div id="step1Container">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h2 class="fw-bold mb-0">
+                    <i class="bi bi-cloud-arrow-down text-primary me-2"></i> Auto Print DN (Tarik SO dari SAP)
+                </h2>
+                <p class="text-muted">Masukkan detail nomor Sales Order (SO) dan konfigurasi SAP untuk menarik data.</p>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card cyber-card border-0 shadow-sm">
+                    <div class="card-header bg-transparent border-0 pt-4 pb-0 px-4">
+                        <h5 class="card-title fw-bold text-primary mb-0">Form Input SO SAP</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form asp-action="ProcessSO" method="post" id="sapIntegrationForm">
+                            <div class="row">
+                                <!-- Kolom 1 -->
+                                <div class="col-md-6 mb-3">
+                                    <label asp-for="SONumber" class="form-label fw-bold"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-hash text-muted"></i>
+                                        </span>
+                                        <input asp-for="SONumber" class="form-control border-start-0" placeholder="Contoh: SO12345678" />
+                                    </div>
+                                    <span asp-validation-for="SONumber" class="text-danger small"></span>
+                                </div>
+
+                                <!-- Kolom 2: Shipping Point -->
+                                <div class="col-md-6 mb-3">
+                                    <label asp-for="ShippingPoint" class="form-label fw-bold"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-geo-alt text-muted"></i>
+                                        </span>
+                                        <select asp-for="ShippingPoint" class="form-select border-start-0">
+                                            <option value="">-- Pilih Shipping Point --</option>
+                                            <option value="2501">2501</option>
+                                            <option value="2502">2502</option>
+                                            <option value="2503">2503</option>
+                                            <option value="2504">2504</option>
+                                        </select>
+                                    </div>
+                                    <span asp-validation-for="ShippingPoint" class="text-danger small"></span>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <!-- Kolom 3: SAP API URL -->
+                                <div class="col-md-4 mb-3">
+                                    <label asp-for="SapUrl" class="form-label fw-bold"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-link-45deg text-muted"></i>
+                                        </span>
+                                        <input asp-for="SapUrl" class="form-control border-start-0" placeholder="https://api.sap.example.com/so" value="https://dummy-sap.local/api/so" />
+                                    </div>
+                                    <span asp-validation-for="SapUrl" class="text-danger small"></span>
+                                </div>
+
+                                <!-- Kolom 4: Header Key -->
+                                <div class="col-md-4 mb-3">
+                                    <label asp-for="HeaderKey" class="form-label fw-bold"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-key text-muted"></i>
+                                        </span>
+                                        <input asp-for="HeaderKey" class="form-control border-start-0" placeholder="Authorization" value="X-Api-Key" />
+                                    </div>
+                                    <span asp-validation-for="HeaderKey" class="text-danger small"></span>
+                                </div>
+                                
+                                <!-- Kolom 5: Header Value -->
+                                <div class="col-md-4 mb-3">
+                                    <label asp-for="HeaderValue" class="form-label fw-bold"></label>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-light border-end-0">
+                                            <i class="bi bi-lock text-muted"></i>
+                                        </span>
+                                        <input asp-for="HeaderValue" class="form-control border-start-0" placeholder="Bearer token..." value="dummy-token-123" />
+                                    </div>
+                                    <span asp-validation-for="HeaderValue" class="text-danger small"></span>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="submit" class="btn btn-primary px-5" id="btnSubmit">
+                                    <i class="bi bi-cloud-download me-2"></i> Tarik Data
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Create Order Delivery -->
+    <div id="step2Container" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="fw-bold mb-0">
+                            <i class="bi bi-file-earmark-plus text-success me-2"></i> Create Order Delivery
+                        </h2>
+                        <p class="text-muted mb-0">Lengkapi data Header dan verifikasi daftar item sebelum menyimpan.</p>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary" id="btnBack">
+                        <i class="bi bi-arrow-left me-1"></i> Kembali ke Tarik Data
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <form id="createOdForm" action="/AutoPrintDN/CreateOD" method="post">
+            @Html.AntiForgeryToken()
+            <div class="row mb-4">
+                <!-- Header Section (Editable) -->
+                <div class="col-md-6 mb-3">
+                    <div class="card cyber-card border-0 shadow-sm h-100">
+                        <div class="card-header border-0 pt-3 pb-2 px-4">
+                            <h6 class="fw-bold text-white mb-0"><i class="bi bi-truck me-2"></i>Header</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Sold-to-party <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="SoldToParty" required placeholder="Contoh: CUST-01" />
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Ship-to-party <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" name="ShipToParty" required placeholder="Contoh: SHIP-01" />
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label fw-bold">Delivery Date <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" name="DeliveryDate" required value="@DateTime.Now.ToString("yyyy-MM-dd")" />
+                                </div>
+                                <div class="col-md-6 mb-3 d-flex align-items-center">
+                                    <div class="form-check pt-4">
+                                        <input class="form-check-input" type="checkbox" name="DockCode" id="dockCode" value="true">
+                                        <label class="form-check-label fw-bold" for="dockCode">
+                                            Dock Code
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Vehicle No</label>
+                                    <input type="text" class="form-control" name="VehicleNumber" placeholder="B 1234 CD" />
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Route No</label>
+                                    <input type="text" class="form-control" name="RouteNumber" placeholder="RT-01" />
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Delivery Text</label>
+                                    <input type="text" class="form-control" name="DeliveryText" placeholder="Catatan tambahan" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- General Section (Readonly) -->
+                <div class="col-md-6 mb-3">
+                    <div class="card cyber-card border-0 shadow-sm h-100">
+                        <div class="card-header border-0 pt-3 pb-2 px-4">
+                            <h6 class="fw-bold text-white mb-0"><i class="bi bi-info-circle me-2"></i>General</h6>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Sales Order</label>
+                                <input type="text" class="form-control" id="genSalesOrder" name="SalesOrder" readonly />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Purchase Order</label>
+                                <input type="text" class="form-control" id="genPurchaseOrder" name="PurchaseOrder" readonly />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Shipping Point</label>
+                                <input type="text" class="form-control" id="genShippingPoint" name="ShippingPoint" readonly />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table of Items -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card cyber-card border-0 shadow-sm">
+                        <div class="card-header bg-transparent border-0 pt-4 pb-0 px-4">
+                            <h5 class="card-title fw-bold text-primary mb-0"><i class="bi bi-list-check me-2"></i>Daftar Item</h5>
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Item</th>
+                                            <th>Part Number</th>
+                                            <th>Description</th>
+                                            <th>Cust. Material Info</th>
+                                            <th>Ship-to Material</th>
+                                            <th style="width: 150px;">Barcode <i class="bi bi-pencil ms-1 text-muted"></i></th>
+                                            <th style="width: 120px;">OD QTY <i class="bi bi-pencil ms-1 text-muted"></i></th>
+                                            <th style="width: 120px;">SLOC <i class="bi bi-pencil ms-1 text-muted"></i></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="itemsTableBody">
+                                        <!-- Data will be injected here via AJAX -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <div class="d-flex justify-content-end mt-4">
+                                <button type="submit" class="btn btn-success btn-lg px-5" id="btnCreateOD">
+                                    <i class="bi bi-save me-2"></i> Create OD
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+    <!-- Step 3: Overview (Modern Web UI - Exact SAP Features) -->
+    <div id="step3Container" style="display: none;">
+        <!-- Page Title & Actions -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <h2 class="fw-bold mb-0">
+                            <i class="bi bi-file-earmark-check text-primary me-2"></i> Factory Delivery <span id="ovScheduleNumberTitle" class="text-primary"></span> Change: Overview
+                        </h2>
+                        <p class="text-muted mb-0">Rangkuman Outbound Delivery yang telah berhasil dibuat dari SAP.</p>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-outline-primary" id="btnPostGoodsIssue">
+                            <i class="bi bi-box-seam me-1"></i> Post Goods Issue
+                        </button>
+                        <button type="button" class="btn btn-outline-info" id="btnDisplayJIT">
+                            <i class="bi bi-card-checklist me-1"></i> Display JIT Calls
+                        </button>
+                        <button type="button" class="btn btn-success" id="btnSelesai">
+                            <i class="bi bi-check2-circle me-1"></i> Selesai / Mulai Baru
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Header Info Card -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card cyber-card border-0 shadow-sm">
+                    <div class="card-header border-0 pt-3 pb-2 px-4">
+                        <h6 class="fw-bold text-white mb-0"><i class="bi bi-info-circle text-primary me-2"></i>Delivery Header Information</h6>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-muted small">Outbound Delv.</label>
+                                <div class="input-group">
+                                    <span class="input-group-text border-secondary border-opacity-25 text-muted"><i class="bi bi-receipt"></i></span>
+                                    <input type="text" class="form-control fw-bold text-primary font-monospace" id="ovScheduleNumber" readonly />
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-muted small">Document Date</label>
+                                <div class="input-group">
+                                    <span class="input-group-text border-secondary border-opacity-25 text-muted"><i class="bi bi-calendar3"></i></span>
+                                    <input type="text" class="form-control" id="ovDocumentDate" readonly />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted small">Ship-to Party</label>
+                                <div class="input-group">
+                                    <span class="input-group-text border-secondary border-opacity-25 fw-bold text-info" id="ovShipToParty">AHM15001</span>
+                                    <input type="text" class="form-control" id="ovShipToPartyName" readonly />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Card with Modern Tabs -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card cyber-card border-0 shadow-sm">
+                    <!-- Tabstrip Navigation -->
+                    <div class="card-header border-0 pt-3 pb-0 px-4">
+                        <ul class="nav nav-tabs card-header-tabs border-0" id="overviewTabs" role="tablist">
+                            <li class="nav-item">
+                                <a class="nav-link active fw-bold text-primary" id="tab-item-overview" data-bs-toggle="tab" href="#content-item-overview" role="tab">
+                                    <i class="bi bi-list-columns me-1"></i> Item Overview
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-muted" id="tab-picking" data-bs-toggle="tab" href="#content-picking" role="tab">Picking</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-muted" id="tab-loading" data-bs-toggle="tab" href="#content-loading" role="tab">Loading</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-muted" id="tab-shipment" data-bs-toggle="tab" href="#content-shipment" role="tab">Shipment</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-muted" id="tab-status" data-bs-toggle="tab" href="#content-status" role="tab">Status Overview</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link text-muted" id="tab-goods-movement" data-bs-toggle="tab" href="#content-goods-movement" role="tab">Goods Movement Data</a>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="card-body p-4">
+                        <div class="tab-content" id="overviewTabContent">
+                            <!-- Tab: Item Overview -->
+                            <div class="tab-pane fade show active" id="content-item-overview" role="tabpanel">
+                                
+                                <!-- Upper Form Grid -->
+                                <div class="form-section-box p-3 rounded-3 mb-4">
+                                    <div class="row g-3">
+                                        <!-- Planned GI -->
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold text-muted small">Planned GI</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="ovPlannedGI" readonly />
+                                                <span class="input-group-text border-secondary border-opacity-25" id="ovPlannedGITime">00:00</span>
+                                            </div>
+                                        </div>
+                                        <!-- Actual GI Date -->
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold text-muted small">Actual GI Date</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="ovActualGIDate" placeholder="dd.MM.yyyy" />
+                                                <span class="input-group-text border-secondary border-opacity-25" id="ovActualGITime">00:00</span>
+                                            </div>
+                                        </div>
+                                        <!-- Total Weight -->
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold text-muted small">Total Weight</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="ovTotalWeight" placeholder="0.00" />
+                                                <span class="input-group-text border-secondary border-opacity-25">KG</span>
+                                            </div>
+                                        </div>
+                                        <!-- No. of Packages -->
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold text-muted small">No. of Packages</label>
+                                            <input type="text" class="form-control" id="ovNoPackages" placeholder="0" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Table Title & Mini Toolbar -->
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="card-title fw-bold text-primary mb-0">
+                                        <i class="bi bi-table me-2"></i>All Items
+                                    </h5>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Select All"><i class="bi bi-check-all"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Deselect All"><i class="bi bi-dash-square"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Sort Ascending"><i class="bi bi-sort-numeric-down"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Sort Descending"><i class="bi bi-sort-numeric-up-alt"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Filter"><i class="bi bi-funnel"></i></button>
+                                    </div>
+                                </div>
+
+                                <!-- Modern Data Table with Cyber Blue Header -->
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-hover table-bordered align-middle mb-0" style="font-size: 0.88rem;">
+                                        <thead class="text-center">
+                                            <tr>
+                                                <th style="width: 50px;">Itm</th>
+                                                <th style="width: 170px;" class="text-start">Material</th>
+                                                <th style="width: 100px;" class="text-end">Deliv. Qty</th>
+                                                <th style="width: 60px;">Un</th>
+                                                <th class="text-start">Description</th>
+                                                <th style="width: 110px;">Req. Segment</th>
+                                                <th style="width: 110px;">Stock Segment</th>
+                                                <th style="width: 50px;">B..</th>
+                                                <th style="width: 90px;">ItCa</th>
+                                                <th style="width: 45px;">P</th>
+                                                <th style="width: 45px;">V</th>
+                                                <th style="width: 90px;">Batch</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="overviewItemsTableBody">
+                                            <!-- Data injected by JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Table Footer Buttons -->
+                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 pt-3 border-top border-secondary border-opacity-25">
+                                    <div class="text-muted small">
+                                        <i class="bi bi-check-circle-fill text-success me-1"></i> Delivery <span id="sapStatusOd" class="fw-bold font-monospace text-info">3660772684</span> has been saved
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-diagram-2 me-1"></i> Batch Split
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-funnel-fill me-1"></i> Main items
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-primary">
+                                            <i class="bi bi-filter-square-fill me-1"></i> All items
+                                        </button>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Placeholders for other tabs -->
+                            <div class="tab-pane fade p-5 text-center text-muted" id="content-picking" role="tabpanel">
+                                <i class="bi bi-box-arrow-up display-5 d-block mb-3 text-secondary"></i>
+                                <h6>Picking Details</h6>
+                                <p class="small text-muted mb-0">Informasi picking untuk delivery ini akan ditampilkan di sini.</p>
+                            </div>
+                            <div class="tab-pane fade p-5 text-center text-muted" id="content-loading" role="tabpanel">
+                                <i class="bi bi-truck display-5 d-block mb-3 text-secondary"></i>
+                                <h6>Loading Details</h6>
+                                <p class="small text-muted mb-0">Informasi loading barang untuk delivery ini akan ditampilkan di sini.</p>
+                            </div>
+                            <div class="tab-pane fade p-5 text-center text-muted" id="content-shipment" role="tabpanel">
+                                <i class="bi bi-geo-alt display-5 d-block mb-3 text-secondary"></i>
+                                <h6>Shipment Overview</h6>
+                                <p class="small text-muted mb-0">Informasi ekspedisi dan pengiriman akan ditampilkan di sini.</p>
+                            </div>
+                            <div class="tab-pane fade p-5 text-center text-muted" id="content-status" role="tabpanel">
+                                <i class="bi bi-activity display-5 d-block mb-3 text-secondary"></i>
+                                <h6>Status Overview</h6>
+                                <p class="small text-muted mb-0">Status alur delivery secara menyeluruh akan ditampilkan di sini.</p>
+                            </div>
+                            <div class="tab-pane fade p-5 text-center text-muted" id="content-goods-movement" role="tabpanel">
+                                <i class="bi bi-arrow-left-right display-5 d-block mb-3 text-secondary"></i>
+                                <h6>Goods Movement Data</h6>
+                                <p class="small text-muted mb-0">Log mutasi barang dari SAP akan ditampilkan di sini.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        $(document).ready(function () {
+            
+            // --- STEP 1: Tarik Data ---
+            $('#sapIntegrationForm').on('submit', function (e) {
+                e.preventDefault();
+
+                if ($(this).valid()) {
+                    let btn = $('#btnSubmit');
+                    let originalBtnText = btn.html();
+                    let form = $(this);
+                    let alertArea = $('#alertArea');
+                    
+                    btn.prop('disabled', true);
+                    btn.html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Menarik data...');
+                    alertArea.addClass('d-none').html('');
+
+                    $.ajax({
+                        url: form.attr('action'),
+                        type: form.attr('method'),
+                        data: form.serialize(),
+                        success: function (response) {
+                            if (response.success) {
+                                let data = response.data;
+                                
+                                // Auto-fill General Form
+                                $('#genSalesOrder').val(data.salesOrderNumber);
+                                $('#genPurchaseOrder').val(data.purchaseOrderNumber);
+                                $('#genShippingPoint').val(data.shippingPoint);
+
+                                // Populate Items Table
+                                let itemsHtml = '';
+                                if (data.items && data.items.length > 0) {
+                                    data.items.forEach(function(item, index) {
+                                        itemsHtml += `
+                                            <tr>
+                                                <td>
+                                                    ${item.itemCode}
+                                                    <input type="hidden" name="Items[${index}].ItemCode" value="${item.itemCode}" />
+                                                </td>
+                                                <td>
+                                                    ${item.partNumber}
+                                                    <input type="hidden" name="Items[${index}].PartNumber" value="${item.partNumber}" />
+                                                </td>
+                                                <td>
+                                                    ${item.description}
+                                                    <input type="hidden" name="Items[${index}].Description" value="${item.description}" />
+                                                </td>
+                                                <td>
+                                                    ${item.custMaterialInfo}
+                                                    <input type="hidden" name="Items[${index}].CustMaterialInfo" value="${item.custMaterialInfo}" />
+                                                </td>
+                                                <td>
+                                                    ${item.shipToMaterial}
+                                                    <input type="hidden" name="Items[${index}].ShipToMaterial" value="${item.shipToMaterial}" />
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control form-control-sm border-primary" name="Items[${index}].Barcode" value="${item.barcode}" required />
+                                                </td>
+                                                <td>
+                                                    <input type="number" class="form-control form-control-sm border-primary text-end" name="Items[${index}].OdQty" value="${item.odQty}" required min="0.01" step="0.01" />
+                                                </td>
+                                                <td>
+                                                    <input type="text" class="form-control form-control-sm border-primary" name="Items[${index}].Sloc" value="${item.sloc}" required />
+                                                </td>
+                                            </tr>
+                                        `;
+                                    });
+                                } else {
+                                    itemsHtml = `<tr><td colspan="8" class="text-center text-muted py-3">Tidak ada item ditarik</td></tr>`;
+                                }
+                                
+                                $('#itemsTableBody').html(itemsHtml);
+
+                                // Hide Step 1, Show Step 2
+                                $('#step1Container').slideUp(300, function() {
+                                    $('#step2Container').slideDown(300);
+                                });
+                                
+                            } else {
+                                alertArea.removeClass('d-none').html(`
+                                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                        <i class="bi bi-exclamation-triangle-fill me-2"></i> ${response.message}
+                                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                    </div>
+                                `);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            alertArea.removeClass('d-none').html(`
+                                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i> Terjadi kesalahan server saat menarik data: ${error}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            `);
+                        },
+                        complete: function () {
+                            btn.prop('disabled', false);
+                            btn.html(originalBtnText);
+                        }
+                    });
+                }
+            });
+
+            // --- Back Button ---
+            $('#btnBack').on('click', function() {
+                $('#step2Container').slideUp(300, function() {
+                    $('#step1Container').slideDown(300);
+                });
+            });
+
+            // --- STEP 2: Create OD ---
+            $('#createOdForm').on('submit', function (e) {
+                e.preventDefault();
+                
+                if (!$(this).valid()) {
+                    return;
+                }
+
+                let btn = $('#btnCreateOD');
+                let originalBtnText = btn.html();
+                let form = $(this);
+                let alertArea = $('#alertArea');
+                
+                // Set explicit values for unchecked checkboxes before serializing
+                let originalDockCode = $('#dockCode').prop('checked');
+                
+                btn.prop('disabled', true);
+                btn.html('<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Menyimpan...');
+                
+                let formData = form.serialize();
+                // append DockCode=false if unchecked, since HTML form omits it
+                if (!originalDockCode) {
+                    formData += "&DockCode=false";
+                }
+
+                $.ajax({
+                    url: form.attr('action'),
+                    type: form.attr('method'),
+                    data: formData,
+                    success: function (response) {
+                        if (response.success) {
+                            alertArea.removeClass('d-none').html(`
+                                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                    <i class="bi bi-check-circle-fill me-2"></i> ${response.message} <br/>
+                                    <strong>Schedule No:</strong> ${response.data.scheduleNumber}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            `);
+                            // Hide alert area for seamless transition
+                            alertArea.addClass('d-none');
+                            
+                            // Populate Step 3 Data
+                            let data = response.data;
+                            $('#ovScheduleNumberTitle').text(data.scheduleNumber);
+                            $('#ovScheduleNumber').val(data.scheduleNumber);
+                            $('#ovDocumentDate').val(data.documentDate);
+                            $('#ovShipToParty').val(data.shipToParty || 'AHM15001');
+                            $('#ovShipToPartyName').text(data.shipToPartyName || 'PT. ASTRA HONDA MOTOR / KAWASAN INDUSTRI INDOTAISEI / 00000 KARAWANG JAWA BARAT');
+                            $('#ovPlannedGI').val(data.scheduledDate);
+                            $('#ovPlannedGITime').val('00:00');
+                            $('#ovActualGIDate').val('');
+                            $('#ovActualGITime').val('00:00');
+                            $('#sapStatusOd').text(data.scheduleNumber);
+
+                            let overviewItemsHtml = '';
+                            if (data.items && data.items.length > 0) {
+                                data.items.forEach(function(item) {
+                                    let catBadgeClass = item.itemCategory === 'TAX' ? 'bg-info text-dark' : 'bg-primary text-white';
+                                    overviewItemsHtml += `
+                                        <tr>
+                                            <td class="text-center fw-bold text-white">${item.itm}</td>
+                                            <td class="fw-bold text-white font-monospace col-material" style="color: #ffffff !important;">${item.material}</td>
+                                            <td class="text-end fw-bold font-monospace text-white">${item.delivQty}</td>
+                                            <td class="text-center"><span class="badge bg-secondary text-white">${item.unit}</span></td>
+                                            <td class="text-white">${item.description}</td>
+                                            <td class="text-center text-light opacity-75">${item.reqSegment || '-'}</td>
+                                            <td class="text-center text-light opacity-75">${item.stockSegment || '-'}</td>
+                                            <td class="text-center"><span class="badge bg-warning text-dark"><i class="bi bi-circle-fill" style="font-size: 8px;"></i></span></td>
+                                            <td class="text-center"><span class="badge ${catBadgeClass}">${item.itemCategory || ''}</span></td>
+                                            <td class="text-center"><span class="badge bg-secondary text-white">${item.plant || 'C'}</span></td>
+                                            <td class="text-center text-light opacity-75">${item.volume || '-'}</td>
+                                            <td class="text-center text-light opacity-75">${item.batch || '-'}</td>
+                                        </tr>
+                                    `;
+                                });
+                            } else {
+                                overviewItemsHtml = `<tr><td colspan="12" class="text-center text-muted py-4">Tidak ada data item ditemukan</td></tr>`;
+                            }
+
+                            $('#overviewItemsTableBody').html(overviewItemsHtml);
+
+                            // Move to Step 3
+                            $('#step2Container').slideUp(300, function() {
+                                $('#step3Container').slideDown(300);
+                                window.scrollTo(0, 0);
+                            });
+                        } else {
+                            alertArea.removeClass('d-none').html(`
+                                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i> ${response.message}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                </div>
+                            `);
+                            window.scrollTo(0, 0);
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        alertArea.removeClass('d-none').html(`
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i> Terjadi kesalahan server saat menyimpan OD: ${error}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        `);
+                        window.scrollTo(0, 0);
+                    },
+                    complete: function () {
+                        btn.prop('disabled', false);
+                        btn.html(originalBtnText);
+                    }
+                });
+            });
+
+            // --- Navigation & Reset ---
+            function resetToStep1() {
+                $('#step3Container').slideUp(300, function() {
+                    $('#step1Container').slideDown(300);
+                    $('#createOdForm')[0].reset();
+                    $('#sapIntegrationForm')[0].reset();
+                    $('#itemsTableBody').html('');
+                    window.scrollTo(0, 0);
+                });
+            }
+
+            $('#btnSelesai').on('click', resetToStep1);
+
+            $('#btnPostGoodsIssue').on('click', function() {
+                alert('Post Goods Issue (PGI) berhasil disimulasikan untuk delivery ini.');
+            });
+
+            $('#btnDisplayJIT').on('click', function() {
+                alert('Menampilkan JIT Calls untuk delivery ini.');
+            });
+        });
+    </script>
+}
+
+<style>
+    /* ==========================================================================
+       Dark Cyber Theme Styling - Scoped untuk Step 3 (Overview)
+       ========================================================================== */
+    #step3Container .card-header {
+        background: rgba(59, 130, 246, 0.12) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+
+    #step3Container .card-header h6,
+    #step3Container h5.card-title {
+        color: #ffc107 !important; /* Kuning */
+    }
+
+    #step3Container .form-label,
+    #step3Container label {
+        color: #ffc107 !important; /* Kuning untuk semua label form */
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+
+    #step3Container .nav-tabs {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    #step3Container .nav-tabs .nav-link {
+        color: #94a3b8;
+        border: none;
+        border-bottom: 3px solid transparent;
+        background: transparent;
+        padding: 0.65rem 1.25rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    #step3Container .nav-tabs .nav-link:hover {
+        color: #e2e8f0;
+        border-bottom-color: rgba(59, 130, 246, 0.4);
+    }
+
+    #step3Container .nav-tabs .nav-link.active {
+        color: #ffc107 !important; /* Kuning untuk tab aktif */
+        background: rgba(255, 193, 7, 0.1) !important;
+        border-bottom: 3px solid #ffc107 !important;
+        font-weight: 700;
+        border-top-left-radius: 6px;
+        border-top-right-radius: 6px;
+    }
+
+    #step3Container .form-section-box {
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    #step3Container .form-control,
+    #step3Container .input-group-text {
+        background-color: rgba(30, 41, 59, 0.7) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+        color: #f1f5f9 !important;
+    }
+
+    #step3Container .form-control:focus {
+        border-color: #ffc107 !important;
+        box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25) !important;
+    }
+
+    /* HEADER KOLOM TABEL DENGAN FONT WARNA KUNING */
+    #step3Container .table thead th {
+        background: #132238 !important;
+        color: #ffc107 !important; /* FONT WARNA KUNING TERANG */
+        border-color: rgba(255, 255, 255, 0.12) !important;
+        text-transform: uppercase;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    #step3Container .table tbody tr {
+        background: rgba(30, 41, 59, 0.35);
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #e2e8f0;
+    }
+
+    #step3Container .table tbody tr:hover {
+        background: rgba(59, 130, 246, 0.15) !important;
+    }
+
+    #step3Container .table td {
+        border-color: rgba(255, 255, 255, 0.08) !important;
+        color: #e2e8f0;
+    }
+
+    /* DATA KOLOM MATERIAL DENGAN FONT WARNA PUTIH */
+    #step3Container .table tbody td.col-material,
+    #step3Container .table tbody td:nth-child(2) {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+</style>
+

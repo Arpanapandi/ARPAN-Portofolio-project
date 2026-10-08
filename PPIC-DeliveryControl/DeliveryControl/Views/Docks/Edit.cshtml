@@ -1,0 +1,72 @@
+@model DeliveryControl.Models.Dock
+
+@{
+    ViewData["Title"] = "Edit Dock";
+}
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="bi bi-pencil"></i> Edit Dock</h4>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input type="hidden" asp-for="DockId" />
+                    <input type="hidden" asp-for="DockCode" />
+                    <input type="hidden" asp-for="CreatedDate" />
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Kode Dock</label>
+                        <input type="text" class="form-control" value="@Model.DockCode" disabled />
+                        <small class="form-text text-muted">Kode dock tidak dapat diubah</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="CustomerId" class="form-label">Customer</label>
+                        <select asp-for="CustomerId" class="form-select" asp-items="ViewBag.CustomerId"></select>
+                        <span asp-validation-for="CustomerId" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="DockName" class="form-label">Nama Dock</label>
+                        <input asp-for="DockName" class="form-control" />
+                        <span asp-validation-for="DockName" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Location" class="form-label">Lokasi</label>
+                        <input asp-for="Location" class="form-control" />
+                        <span asp-validation-for="Location" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label">Deskripsi</label>
+                        <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                        <span asp-validation-for="Description" class="text-danger"></span>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input asp-for="IsActive" class="form-check-input" />
+                        <label asp-for="IsActive" class="form-check-label">Aktif</label>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Kembali
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Update
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}
+

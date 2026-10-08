@@ -1,0 +1,59 @@
+@model Product
+@{
+    ViewData["Title"] = "Delete Product";
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fa-solid fa-trash me-2"></i>Delete Product</h2>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h4 class="text-warning">Are you sure you want to delete this product?</h4>
+        <hr />
+        <dl class="row">
+            <dt class="col-sm-3">ID:</dt>
+            <dd class="col-sm-9">@Model.Id</dd>
+            
+            <dt class="col-sm-3">Name:</dt>
+            <dd class="col-sm-9">@Model.Name</dd>
+            
+            <dt class="col-sm-3">Material Code:</dt>
+            <dd class="col-sm-9">@Model.MaterialCode</dd>
+            
+            <dt class="col-sm-3">UoM:</dt>
+            <dd class="col-sm-9">@Model.UoM</dd>
+            
+            <dt class="col-sm-3">SLOC:</dt>
+            <dd class="col-sm-9">@Model.SLOC</dd>
+            
+            <dt class="col-sm-3">PLANT:</dt>
+            <dd class="col-sm-9">@Model.Plant?.Code</dd>
+            
+            <dt class="col-sm-3">Image:</dt>
+            <dd class="col-sm-9">
+                @if (!string.IsNullOrEmpty(Model.ImageUrl))
+                {
+                    <img src="@Model.ImageUrl" alt="@Model.Name" style="max-width: 100px; max-height: 100px;" />
+                }
+                else
+                {
+                    <span class="text-secondary">No image</span>
+                }
+            </dd>
+        </dl>
+
+        <form asp-action="DeleteProduct" method="post">
+            <input type="hidden" asp-for="Id" />
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-danger">
+                    <i class="fa-solid fa-trash me-2"></i>Delete
+                </button>
+                <a asp-action="Products" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+

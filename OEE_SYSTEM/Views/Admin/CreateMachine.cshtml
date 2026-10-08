@@ -1,0 +1,106 @@
+@model Machine
+@{
+    ViewData["Title"] = "Create Machine";
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fa-solid fa-plus me-2"></i>Create Machine</h2>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="CreateMachine" method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            
+            <div class="mb-3">
+                <label asp-for="Id" class="form-label">Machine ID <span class="text-danger">*</span></label>
+                <input asp-for="Id" class="form-control" maxlength="4" placeholder="Contoh: M001" required />
+                <span asp-validation-for="Id" class="text-danger"></span>
+                <small class="form-text text-muted">Masukkan ID mesin (maksimal 4 karakter, contoh: M001, M002)</small>
+            </div>
+            
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">Machine Name</label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="LineId" class="form-label">Line ID</label>
+                <input asp-for="LineId" class="form-control" />
+                <span asp-validation-for="LineId" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="PlantId" class="form-label">PLANT</label>
+                <select asp-for="PlantId" class="form-select" asp-items="ViewBag.PlantId">
+                    <option value="">-- Pilih Plant --</option>
+                </select>
+                <span asp-validation-for="PlantId" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Status" class="form-label">Status <span class="text-danger">*</span></label>
+                <select asp-for="Status" class="form-select" required>
+                    <option value="">-- Pilih Status --</option>
+                    <option value="@MachineStatus.Aktif">Aktif</option>
+                    <option value="@MachineStatus.TidakAktif">Tidak Aktif</option>
+                </select>
+                <span asp-validation-for="Status" class="text-danger"></span>
+                <small class="form-text text-muted">Pilih status mesin (Aktif atau Tidak Aktif)</small>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Machine Photo (optional)</label>
+                <input type="file" name="imageFile" class="form-control" accept="image/*" />
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="ManufacturingYear" class="form-label">Tahun Mesin</label>
+                <input asp-for="ManufacturingYear" type="date" class="form-control" />
+                <span asp-validation-for="ManufacturingYear" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="InstallationYear" class="form-label">Tahun Instalasi</label>
+                <input asp-for="InstallationYear" type="date" class="form-control" />
+                <span asp-validation-for="InstallationYear" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Keterangan</label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-save me-2"></i>Create
+                </button>
+                <a asp-action="Machines" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        // Set placeholder sebagai selected secara default ketika form pertama kali di-load
+        document.addEventListener('DOMContentLoaded', function() {
+            var statusSelect = document.getElementById('Status');
+            if (statusSelect) {
+                // Cek apakah ada option yang sudah terpilih (karena default value dari model)
+                var selectedOption = statusSelect.options[statusSelect.selectedIndex];
+                // Jika option yang terpilih bukan placeholder (value kosong), set placeholder sebagai selected
+                if (selectedOption && selectedOption.value !== '') {
+                    // Set placeholder sebagai selected
+                    statusSelect.selectedIndex = 0; // Index 0 adalah placeholder
+                }
+            }
+        });
+    </script>
+}
+

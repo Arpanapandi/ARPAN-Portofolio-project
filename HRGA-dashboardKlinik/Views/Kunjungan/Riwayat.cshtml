@@ -1,0 +1,94 @@
+@model IEnumerable<dashboardKlinik.Models.KunjunganKlinik>
+@{
+    ViewData["Title"] = "Riwayat Kunjungan";
+    var pasien = ViewData["Pasien"] as dashboardKlinik.Models.Pasien;
+}
+
+<div style="margin-bottom: 24px;">
+    <a href="@Url.Action("Index")" class="btn-action btn-outline-custom">
+        <i class="bi bi-arrow-left"></i> Kembali
+    </a>
+</div>
+
+@if (pasien != null)
+{
+    <!-- Patient Header -->
+    <div class="card-custom fade-in" style="margin-bottom: 24px;" id="patient-header">
+        <div class="card-body-custom">
+            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #6366f1); display: flex; align-items: center; justify-content: center; color: white; font-size: 28px; flex-shrink: 0;">
+                    <i class="bi @(pasien.JenisKelamin == "L" ? "bi-gender-male" : "bi-gender-female")"></i>
+                </div>
+                <div style="flex: 1;">
+                    <h4 style="font-weight: 800; margin: 0;">@pasien.NamaPasien</h4>
+                    <p style="color: var(--text-secondary); margin: 4px 0 0; font-size: 14px;">
+                        NPK: <strong>@pasien.NPK</strong> | @pasien.Plant - @pasien.Departemen
+                    </p>
+                </div>
+                <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                    <div style="text-align: center; padding: 12px 20px; background: var(--primary-bg); border-radius: var(--border-radius-sm);">
+                        <div style="font-size: 24px; font-weight: 800; color: var(--primary);">@Model.Count()</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Total Kunjungan</div>
+                    </div>
+                    <div style="text-align: center; padding: 12px 20px; background: var(--success-bg); border-radius: var(--border-radius-sm);">
+                        <div style="font-size: 24px; font-weight: 800; color: var(--success);">@Model.Count(k => k.Status == "Rawat Jalan")</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Rawat Jalan</div>
+                    </div>
+                    <div style="text-align: center; padding: 12px 20px; background: var(--warning-bg); border-radius: var(--border-radius-sm);">
+                        <div style="font-size: 24px; font-weight: 800; color: var(--warning);">@Model.Count(k => k.Status == "Perawatan")</div>
+                        <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 600;">Perawatan</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Timeline -->
+<div class="card-custom fade-in" id="riwayat-timeline">
+    <div class="card-header-custom">
+        <h6><i class="bi bi-clock-history" style="color: var(--primary)"></i> Riwayat Kunjungan</h6>
+    </div>
+    <div class="card-body-custom">
+        @if (Model.Any())
+        {
+            <div class="timeline">
+                @foreach (var item in Model)
+                {
+                    <div class="timeline-item">
+                        <div class="timeline-date">
+                            <i class="bi bi-calendar3"></i> @item.TanggalKunjungan.ToString("dd MMMM yyyy") | @item.Timestamp.ToString("HH:mm")
+                        </div>
+                        <div class="timeline-content">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+                                <div>
+                                    <h6>@item.Keluhan</h6>
+                                    <p><strong>Diagnosa:</strong> @item.Diagnosa</p>
+                                    <p><strong>Dokter:</strong> @item.Dokter</p>
+                                </div>
+                                @{
+                                    var badgeClass = item.Status switch
+                                    {
+                                        "Rawat Jalan" => "rawat-jalan",
+                                        "Perawatan" => "perawatan",
+                                        "Dirujuk" => "dirujuk",
+                                        _ => "rawat-jalan"
+                                    };
+                                }
+                                <span class="badge-status @badgeClass">@item.Status</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">
+                <i class="bi bi-clipboard"></i>
+                <h5>Belum ada riwayat kunjungan</h5>
+                <p>Pasien ini belum pernah berkunjung ke klinik</p>
+            </div>
+        }
+    </div>
+</div>

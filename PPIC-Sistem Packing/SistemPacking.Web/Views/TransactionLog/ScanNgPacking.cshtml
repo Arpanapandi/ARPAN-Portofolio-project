@@ -1,0 +1,153 @@
+@{
+    ViewData["Title"] = "Log Scan NG Packing";
+    var user = ViewBag.User as UserSessionDto;
+}
+
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2 class="mb-0">Log Scan NG (Packing)</h2>
+            <p class="text-muted">Daftar transaksi scan yang gagal atau tidak valid pada tahap Packing Export dan Spare Part.</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Export -->
+        <div class="col-md-6 mb-4">
+            <div class="card bg-dark text-white shadow-sm border-0 h-100">
+                <div class="card-header bg-danger border-0 d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 text-white"><i class="bi bi-x-circle me-2"></i>Scan NG Export</h5>
+                    <button class="btn btn-sm btn-light" onclick="tableExport.ajax.reload()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table id="tableExport" class="table table-dark table-hover table-striped mb-0 align-middle w-100">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" width="5%">No</th>
+                                    <th>Waktu Scan</th>
+                                    <th>Kanban</th>
+                                    <th>Label</th>
+                                    <th>Alasan</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spare Part -->
+        <div class="col-md-6 mb-4">
+            <div class="card bg-dark text-white shadow-sm border-0 h-100">
+                <div class="card-header bg-warning border-0 d-flex justify-content-between align-items-center py-3">
+                    <h5 class="mb-0 text-dark"><i class="bi bi-exclamation-triangle me-2"></i>Scan NG Service Part</h5>
+                    <button class="btn btn-sm btn-dark" onclick="tableSparePart.ajax.reload()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table id="tableSparePart" class="table table-dark table-hover table-striped mb-0 align-middle w-100">
+                            <thead>
+                                <tr>
+                                    <th class="text-center" width="5%">No</th>
+                                    <th>Waktu Scan</th>
+                                    <th>Kanban</th>
+                                    <th>Label</th>
+                                    <th>Alasan</th>
+                                    <th>User</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        var tableExport, tableSparePart;
+        $(document).ready(function () {
+            // Inisialisasi DataTable untuk Export
+            tableExport = $('#tableExport').DataTable({
+                processing: true,
+                serverSide: false,
+                ajax: {
+                    url: '@Url.Action("GetScanNgLogs", "TransactionLog")',
+                    type: 'GET',
+                    data: { category: 'Export' }
+                },
+                columns: [
+                    { 
+                        data: null,
+                        className: "text-center",
+                        render: function (data, type, row, meta) {
+                            return meta.row + 1;
+                        }
+                    },
+                    { data: 'waktu' },
+                    { data: 'kanban' },
+                    { data: 'label' },
+                    { 
+                        data: 'alasan',
+                        render: function(data) {
+                            return `<span class="text-danger">${data}</span>`;
+                        }
+                    },
+                    { data: 'operatorName' }
+                ],
+                order: [[1, 'desc']],
+                pageLength: 25,
+                language: {
+                    url: '/js/id.json'
+                },
+                dom: '<"row p-3"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row p-3"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+            });
+
+            // Inisialisasi DataTable untuk Spare Part
+            tableSparePart = $('#tableSparePart').DataTable({
+                processing: true,
+                serverSide: false,
+                ajax: {
+                    url: '@Url.Action("GetScanNgLogs", "TransactionLog")',
+                    type: 'GET',
+                    data: { category: 'SparePart' }
+                },
+                columns: [
+                    { 
+                        data: null,
+                        className: "text-center",
+                        render: function (data, type, row, meta) {
+                            return meta.row + 1;
+                        }
+                    },
+                    { data: 'waktu' },
+                    { data: 'kanban' },
+                    { data: 'label' },
+                    { 
+                        data: 'alasan',
+                        render: function(data) {
+                            return `<span class="text-warning">${data}</span>`;
+                        }
+                    },
+                    { data: 'operatorName' }
+                ],
+                order: [[1, 'desc']],
+                pageLength: 25,
+                language: {
+                    url: '/js/id.json'
+                },
+                dom: '<"row p-3"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row p-3"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+            });
+            
+            setInterval(function() {
+                tableExport.ajax.reload(null, false);
+                tableSparePart.ajax.reload(null, false);
+            }, 30000);
+        });
+    </script>
+}

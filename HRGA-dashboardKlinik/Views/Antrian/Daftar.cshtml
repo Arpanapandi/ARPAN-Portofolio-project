@@ -1,0 +1,662 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Pendaftaran Antrian Klinik";
+}
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Pendaftaran Antrian - Klinik PT. Velasto Indonesia</title>
+    <link rel="icon" type="image/png" href="~/favicon.png" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="~/css/site.css" />
+
+    <style>
+        body.antrian-page-body {
+            min-height: 100vh;
+            background: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            color: #1e293b;
+            padding: 16px 12px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .patient-portal-container {
+            width: 100%;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        .portal-header-card {
+            background: linear-gradient(135deg, #1a73e8 0%, #3b82f6 100%);
+            border-radius: 20px;
+            padding: 24px 20px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(26, 115, 232, 0.25);
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .portal-header-card::after {
+            content: '';
+            position: absolute;
+            top: -40px;
+            right: -40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+        }
+
+        .portal-logo-badge {
+            width: 52px;
+            height: 52px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .portal-logo-badge img {
+            height: 32px;
+            width: auto;
+        }
+
+        .portal-header-card h1 {
+            font-size: 20px;
+            font-weight: 800;
+            margin: 0 0 4px;
+            letter-spacing: -0.3px;
+        }
+
+        .portal-header-card p {
+            font-size: 13px;
+            margin: 0;
+            opacity: 0.9;
+        }
+
+        /* TAB NAVIGATION */
+        .tab-switcher {
+            display: flex;
+            background: #e2e8f0;
+            padding: 4px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            gap: 4px;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 12px 8px;
+            border: none;
+            background: none;
+            border-radius: 10px;
+            font-size: 13.5px;
+            font-weight: 700;
+            font-family: inherit;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .tab-button.active {
+            background: #ffffff;
+            color: #1a73e8;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        /* FORM CARD */
+        .antrian-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 24px 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+            border: 1px solid #e2e8f0;
+        }
+
+        .form-field-group {
+            margin-bottom: 18px;
+        }
+
+        .form-field-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 6px;
+        }
+
+        .custom-input {
+            width: 100%;
+            height: 48px;
+            padding: 10px 14px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #1e293b;
+            transition: all 0.2s;
+        }
+
+        .custom-input:focus {
+            outline: none;
+            border-color: #1a73e8;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
+        }
+
+        .custom-textarea {
+            width: 100%;
+            padding: 12px 14px;
+            background: #f8fafc;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            color: #1e293b;
+            resize: none;
+            transition: all 0.2s;
+        }
+
+        .custom-textarea:focus {
+            outline: none;
+            border-color: #1a73e8;
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(26, 115, 232, 0.1);
+        }
+
+        /* AUTO-LOOKUP SUCCESS CARD */
+        .patient-preview-card {
+            background: #f0fdf4;
+            border: 1.5px solid #bbf7d0;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 18px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .preview-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: #22c55e;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .preview-info h6 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #15803d;
+        }
+
+        .preview-info small {
+            color: #4b5563;
+            font-size: 12px;
+        }
+
+        .preview-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+            padding-top: 8px;
+            border-top: 1px dashed #86efac;
+        }
+
+        .preview-meta-item strong {
+            color: #166534;
+        }
+
+        .btn-submit-antrian {
+            width: 100%;
+            height: 52px;
+            background: linear-gradient(135deg, #1a73e8 0%, #1557b0 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 6px 20px rgba(26, 115, 232, 0.3);
+            transition: all 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-submit-antrian:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(26, 115, 232, 0.45);
+        }
+
+        .btn-submit-antrian:disabled {
+            background: #cbd5e1;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .lookup-status-msg {
+            font-size: 12px;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .footer-note {
+            text-align: center;
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body class="antrian-page-body">
+    <div class="patient-portal-container">
+        <!-- HEADER -->
+        <div class="portal-header-card">
+            <div class="portal-logo-badge">
+                <img src="~/favicon.png" alt="Klinik Logo" />
+            </div>
+            <h1>Pendaftaran Antrian Klinik</h1>
+            <p>Silakan isi data untuk mendapatkan nomor antrian berobat</p>
+        </div>
+
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert-toast error" style="position: static; margin-bottom: 16px; animation: none;">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                @TempData["ErrorMessage"]
+            </div>
+        }
+
+        <!-- TAB SWITCHER -->
+        <div class="tab-switcher">
+            <button type="button" class="tab-button active" id="tabBtnLama" onclick="switchTab('lama')">
+                <i class="bi bi-person-check-fill"></i> Pasien Lama
+            </button>
+            <button type="button" class="tab-button" id="tabBtnBaru" onclick="switchTab('baru')">
+                <i class="bi bi-person-plus-fill"></i> Pasien Baru
+            </button>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 1: FORM PASIEN LAMA (SUDAH PERNAH DATANG) -->
+        <!-- ============================================== -->
+        <div class="antrian-card" id="formSectionLama">
+            <form asp-action="AmbilAntrian" method="post" id="formPasienLama">
+                @Html.AntiForgeryToken()
+
+                <!-- Hidden inputs to submit retrieved patient data -->
+                <input type="hidden" name="NamaPasien" id="lamaHiddenNama" />
+                <input type="hidden" name="Plant" id="lamaHiddenPlant" />
+                <input type="hidden" name="Departemen" id="lamaHiddenDept" />
+                <input type="hidden" name="JenisKelamin" id="lamaHiddenGender" />
+
+                <!-- Input NPK -->
+                <div class="form-field-group">
+                    <label for="lamaInputNpk">NPK Karyawan (4 Digit Angka) *</label>
+                    <div style="position: relative;">
+                        <input type="text" name="NPK" id="lamaInputNpk" class="custom-input"
+                               placeholder="Masukkan 4 digit NPK (contoh: 1001)"
+                               maxlength="4"
+                               inputmode="numeric"
+                               pattern="[0-9]{4}"
+                               required autofocus />
+                        <div id="lamaLookupSpinner" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: none;">
+                            <i class="bi bi-arrow-repeat spin-animation" style="color: #1a73e8; font-size: 18px;"></i>
+                        </div>
+                    </div>
+                    <div id="lamaLookupMsg" class="lookup-status-msg" style="display: none;"></div>
+                </div>
+
+                <!-- PREVIEW DATA PASIEN OTOMATIS -->
+                <div class="patient-preview-card" id="lamaPreviewCard">
+                    <div class="preview-header">
+                        <div class="preview-avatar">
+                            <i class="bi bi-person-fill"></i>
+                        </div>
+                        <div class="preview-info">
+                            <h6 id="previewNamaPasien">-</h6>
+                            <small>NPK: <strong id="previewNpk">-</strong></small>
+                        </div>
+                    </div>
+                    <div class="preview-meta-grid">
+                        <div class="preview-meta-item">
+                            Plant: <strong id="previewPlant">-</strong>
+                        </div>
+                        <div class="preview-meta-item">
+                            Dept: <strong id="previewDept">-</strong>
+                        </div>
+                        <div class="preview-meta-item">
+                            Gender: <strong id="previewGender">-</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Keluhan -->
+                <div class="form-field-group">
+                    <label for="lamaInputKeluhan">Keluhan Sakit Saat Ini *</label>
+                    <textarea name="Keluhan" id="lamaInputKeluhan" class="custom-textarea" rows="3"
+                              placeholder="Tuliskan keluhan yang dirasakan (misal: Pusing, Demam, Batuk)..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit-antrian" id="btnSubmitLama">
+                    <i class="bi bi-ticket-perforated-fill"></i>
+                    <span>Ambil Nomor Antrian</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- ============================================== -->
+        <!-- TAB 2: FORM PASIEN BARU (BELUM PERNAH DATANG) -->
+        <!-- ============================================== -->
+        <div class="antrian-card" id="formSectionBaru" style="display: none;">
+            <form asp-action="AmbilAntrian" method="post" id="formPasienBaru">
+                @Html.AntiForgeryToken()
+
+                <!-- Nama Lengkap -->
+                <div class="form-field-group">
+                    <label for="baruInputNama">Nama Lengkap Pasien *</label>
+                    <input type="text" name="NamaPasien" id="baruInputNama" class="custom-input"
+                           placeholder="Nama lengkap sesuai data karyawan" required />
+                </div>
+
+                <!-- NPK -->
+                <div class="form-field-group">
+                    <label for="baruInputNpk">NPK (4 Digit) *</label>
+                    <div style="position: relative;">
+                        <input type="text" name="NPK" id="baruInputNpk" class="custom-input"
+                               placeholder="Contoh: 1001"
+                               maxlength="4"
+                               inputmode="numeric"
+                               pattern="[0-9]{4}"
+                               required />
+                        <div id="baruLookupSpinner" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); display: none;">
+                            <i class="bi bi-arrow-repeat spin-animation" style="color: #1a73e8; font-size: 18px;"></i>
+                        </div>
+                    </div>
+                    <div id="baruNpkMsg" class="lookup-status-msg" style="display: none; margin-top: 6px;"></div>
+                </div>
+
+                <!-- Jenis Kelamin -->
+                <div class="form-field-group">
+                    <label for="baruSelectGender">Jenis Kelamin *</label>
+                    <select name="JenisKelamin" id="baruSelectGender" class="custom-input" required>
+                        <option value="L">Laki-laki</option>
+                        <option value="P">Perempuan</option>
+                    </select>
+                </div>
+
+                <!-- Plant -->
+                <div class="form-field-group">
+                    <label for="baruSelectPlant">Plant *</label>
+                    <select name="Plant" id="baruSelectPlant" class="custom-input" required>
+                        <option value="RVI">RVI</option>
+                        <option value="MIXING">MIXING</option>
+                        <option value="BTR">BTR</option>
+                        <option value="MOLDED">MOLDED</option>
+                        <option value="HOSE">HOSE</option>
+                    </select>
+                </div>
+
+                <!-- Departemen -->
+                <div class="form-field-group">
+                    <label for="baruSelectDept">Departemen *</label>
+                    <select name="Departemen" id="baruSelectDept" class="custom-input" required>
+                        <option value="PRODUKSI">PRODUKSI</option>
+                        <option value="MAINTENANCE">MAINTENANCE</option>
+                        <option value="QC">QC</option>
+                        <option value="HRD">HRD</option>
+                        <option value="GENERAL">GENERAL</option>
+                        <option value="DIGITALISASI">DIGITALISASI</option>
+                        <option value="FINANCE">FINANCE</option>
+                        <option value="MARKETING">MARKETING</option>
+                        <option value="IT">IT</option>
+                        <option value="R&D">R&D</option>
+                        <option value="OTHER">OTHER</option>
+                    </select>
+                </div>
+
+                <!-- Keluhan -->
+                <div class="form-field-group">
+                    <label for="baruInputKeluhan">Keluhan Sakit *</label>
+                    <textarea name="Keluhan" id="baruInputKeluhan" class="custom-textarea" rows="3"
+                              placeholder="Tuliskan keluhan yang dirasakan..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit-antrian" id="btnSubmitBaru">
+                    <i class="bi bi-person-check-fill"></i>
+                    <span>Daftar & Ambil Antrian</span>
+                </button>
+            </form>
+        </div>
+
+        <div class="footer-note">
+            <i class="bi bi-shield-lock"></i> Sistem Pendaftaran Mandiri Klinik PT. Velasto Indonesia
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tab) {
+            const btnLama = document.getElementById('tabBtnLama');
+            const btnBaru = document.getElementById('tabBtnBaru');
+            const formLama = document.getElementById('formSectionLama');
+            const formBaru = document.getElementById('formSectionBaru');
+
+            if (tab === 'lama') {
+                btnLama.classList.add('active');
+                btnBaru.classList.remove('active');
+                formLama.style.display = 'block';
+                formBaru.style.display = 'none';
+                document.getElementById('lamaInputNpk').focus();
+            } else {
+                btnBaru.classList.add('active');
+                btnLama.classList.remove('active');
+                formBaru.style.display = 'block';
+                formLama.style.display = 'none';
+                document.getElementById('baruInputNama').focus();
+            }
+        }
+
+        // AUTO-LOOKUP NPK PASIEN LAMA
+        let lookupTimer = null;
+        const npkInput = document.getElementById('lamaInputNpk');
+
+        npkInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
+            const npk = this.value.trim();
+
+            clearTimeout(lookupTimer);
+            resetPreviewCard();
+
+            if (npk.length === 4) {
+                document.getElementById('lamaLookupSpinner').style.display = 'block';
+                lookupTimer = setTimeout(() => {
+                    doLookupPatient(npk);
+                }, 300);
+            }
+        });
+
+        async function doLookupPatient(npk) {
+            const spinner = document.getElementById('lamaLookupSpinner');
+            const msgEl = document.getElementById('lamaLookupMsg');
+            const previewCard = document.getElementById('lamaPreviewCard');
+
+            try {
+                const res = await fetch('@Url.Action("CariPasien", "Antrian")?npk=' + encodeURIComponent(npk));
+                const data = await res.json();
+                spinner.style.display = 'none';
+
+                if (data.found) {
+                    // Populate hidden fields
+                    document.getElementById('lamaHiddenNama').value = data.namaPasien;
+                    document.getElementById('lamaHiddenPlant').value = data.plant;
+                    document.getElementById('lamaHiddenDept').value = data.departemen;
+                    document.getElementById('lamaHiddenGender').value = data.jenisKelamin;
+
+                    // Update preview card
+                    document.getElementById('previewNamaPasien').textContent = data.namaPasien;
+                    document.getElementById('previewNpk').textContent = data.npk;
+                    document.getElementById('previewPlant').textContent = data.plant;
+                    document.getElementById('previewDept').textContent = data.departemen;
+                    document.getElementById('previewGender').textContent = data.jenisKelamin === 'L' ? 'Laki-laki' : 'Perempuan';
+
+                    previewCard.style.display = 'block';
+                    msgEl.style.display = 'none';
+                } else {
+                    resetPreviewCard();
+                    msgEl.style.display = 'flex';
+                    msgEl.style.color = '#e11d48';
+                    msgEl.innerHTML = '<i class="bi bi-info-circle"></i> ' + data.message;
+                }
+            } catch (err) {
+                spinner.style.display = 'none';
+                console.error(err);
+            }
+        }
+
+        function resetPreviewCard() {
+            document.getElementById('lamaPreviewCard').style.display = 'none';
+            document.getElementById('lamaHiddenNama').value = '';
+            document.getElementById('lamaHiddenPlant').value = '';
+            document.getElementById('lamaHiddenDept').value = '';
+            document.getElementById('lamaHiddenGender').value = '';
+            document.getElementById('lamaLookupMsg').style.display = 'none';
+        }
+
+        // Validate Pasien Lama form submission
+        document.getElementById('formPasienLama').addEventListener('submit', function(e) {
+            const nama = document.getElementById('lamaHiddenNama').value;
+            const npk = document.getElementById('lamaInputNpk').value;
+            if (!nama) {
+                e.preventDefault();
+                alert('Silakan masukkan 4 digit NPK yang terdaftar atau gunakan tab "Pasien Baru" jika baru pertama kali.');
+                document.getElementById('lamaInputNpk').focus();
+            }
+        });
+
+        // REAL-TIME UNIQUE NPK VALIDATION UNTUK PASIEN BARU
+        let baruNpkTimer = null;
+        let isBaruNpkValid = false;
+        const baruNpkInput = document.getElementById('baruInputNpk');
+        const baruSubmitBtn = document.getElementById('btnSubmitBaru');
+        const baruMsgEl = document.getElementById('baruNpkMsg');
+        const baruSpinner = document.getElementById('baruLookupSpinner');
+
+        baruNpkInput.addEventListener('input', function() {
+            this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
+            const npk = this.value.trim();
+
+            clearTimeout(baruNpkTimer);
+            baruMsgEl.style.display = 'none';
+            baruNpkInput.style.borderColor = '#e2e8f0';
+            baruNpkInput.style.backgroundColor = '#f8fafc';
+            isBaruNpkValid = false;
+
+            if (npk.length === 4) {
+                baruSpinner.style.display = 'block';
+                baruNpkTimer = setTimeout(() => {
+                    checkUniqueNpk(npk);
+                }, 300);
+            } else {
+                baruSpinner.style.display = 'none';
+                if (npk.length > 0 && npk.length < 4) {
+                    baruMsgEl.style.display = 'flex';
+                    baruMsgEl.style.color = '#dc2626';
+                    baruMsgEl.innerHTML = '<i class="bi bi-info-circle"></i> NPK harus 4 digit angka.';
+                }
+            }
+        });
+
+        async function checkUniqueNpk(npk) {
+            try {
+                const res = await fetch('@Url.Action("CariPasien", "Antrian")?npk=' + encodeURIComponent(npk));
+                const data = await res.json();
+                baruSpinner.style.display = 'none';
+
+                if (data.found) {
+                    // NPK SUDAH TERDAFTAR (TIDAK UNIK)
+                    isBaruNpkValid = false;
+                    baruNpkInput.style.borderColor = '#dc2626';
+                    baruNpkInput.style.backgroundColor = '#fef2f2';
+                    baruMsgEl.style.display = 'flex';
+                    baruMsgEl.style.color = '#dc2626';
+                    baruMsgEl.style.fontWeight = '600';
+                    baruMsgEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> NPK <strong>' + npk + '</strong> sudah terdaftar atas nama <strong>' + data.namaPasien + '</strong>. NPK tidak boleh sama! Silakan gunakan tab <strong>Pasien Lama</strong>.';
+                    baruSubmitBtn.disabled = true;
+                } else {
+                    // NPK UNIK (BELUM TERDAFTAR)
+                    isBaruNpkValid = true;
+                    baruNpkInput.style.borderColor = '#16a34a';
+                    baruNpkInput.style.backgroundColor = '#f0fdf4';
+                    baruMsgEl.style.display = 'flex';
+                    baruMsgEl.style.color = '#16a34a';
+                    baruMsgEl.style.fontWeight = '600';
+                    baruMsgEl.innerHTML = '<i class="bi bi-check-circle-fill"></i> NPK <strong>' + npk + '</strong> unik & belum pernah terdaftar.';
+                    baruSubmitBtn.disabled = false;
+                }
+            } catch (err) {
+                baruSpinner.style.display = 'none';
+                console.error(err);
+            }
+        }
+
+        // Validate Pasien Baru form submission
+        document.getElementById('formPasienBaru').addEventListener('submit', function(e) {
+            const npk = baruNpkInput.value.trim();
+            if (npk.length !== 4) {
+                e.preventDefault();
+                alert('NPK harus berupa 4 digit angka.');
+                baruNpkInput.focus();
+                return;
+            }
+            if (!isBaruNpkValid) {
+                e.preventDefault();
+                alert('NPK ' + npk + ' sudah terdaftar di sistem! Silakan gunakan tab "Pasien Lama".');
+                baruNpkInput.focus();
+            }
+        });
+    </script>
+</body>
+</html>

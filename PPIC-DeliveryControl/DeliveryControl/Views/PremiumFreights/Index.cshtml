@@ -1,0 +1,262 @@
+@model IEnumerable<DeliveryControl.Models.PremiumFreight>
+
+@{
+    ViewData["Title"] = "Daftar Aktivitas Premium Freight";
+}
+
+<!-- Custom Styles for Index Table View -->
+<style>
+    .index-filter-card {
+        border-radius: 16px;
+        background: #1e293b !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+    }
+    .index-filter-card .form-label {
+        color: #cbd5e1 !important;
+    }
+    .index-filter-card .form-control,
+    .index-filter-card .form-select {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        border-radius: 8px;
+    }
+    .index-filter-card .form-control:focus,
+    .index-filter-card .form-select:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25) !important;
+    }
+    .index-filter-card select option {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+    }
+    .table-custom-dark {
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+    }
+    .table-custom-dark thead th {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #cbd5e1 !important;
+        background-color: #0f172a !important;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1) !important;
+    }
+    .table-custom-dark tbody td {
+        color: #ffffff !important;
+        background-color: #1e293b !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+    .table-hover tbody tr:hover td {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+    }
+    .text-secondary {
+        color: #94a3b8 !important;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-1 fw-bold text-white"><i class="bi bi-table me-2 text-primary"></i>Daftar Aktivitas Premium Freight</h3>
+        <p class="text-secondary mb-0">Tabel riwayat pengajuan lengkap dengan fitur pencarian dan filter tanggal input</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a asp-action="Dashboard" class="btn btn-outline-primary d-flex align-items-center gap-2">
+            <i class="bi bi-speedometer2"></i> Dashboard Premium Freight
+        </a>
+        <a asp-action="Create" class="btn btn-primary d-flex align-items-center gap-2 shadow-sm">
+            <i class="bi bi-plus-circle-fill"></i> Buat Baru
+        </a>
+    </div>
+</div>
+
+<!-- Search & Filter Bar -->
+<div class="card index-filter-card shadow-sm mb-4">
+    <div class="card-body p-3">
+        <form method="get" asp-action="Index" class="row g-3 align-items-end">
+            <!-- Search Keyword -->
+            <div class="col-md-3">
+                <label class="form-label small fw-bold mb-1">Cari (Driver, Truck, Schedule, Armada)</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input type="text" name="search" value="@ViewBag.Search" placeholder="Kata kunci..." class="form-control shadow-none text-white">
+                </div>
+            </div>
+
+            <!-- Dari Tanggal Input -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Dari Tanggal Input</label>
+                <input type="date" name="startDate" value="@ViewBag.StartDate" class="form-control shadow-none text-white">
+            </div>
+
+            <!-- Sampai Tanggal Input -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Sampai Tanggal Input</label>
+                <input type="date" name="endDate" value="@ViewBag.EndDate" class="form-control shadow-none text-white">
+            </div>
+
+            <!-- Filter Kategori -->
+            <div class="col-md-2">
+                <label class="form-label small fw-bold mb-1">Kategori Pengiriman</label>
+                <select name="kategori" class="form-select shadow-none text-white">
+                    <option value="">-- Semua Kategori --</option>
+                    <option value="Shortage Delivery" selected="@(ViewBag.Kategori == "Shortage Delivery")">Shortage Delivery</option>
+                    <option value="Pickup Material" selected="@(ViewBag.Kategori == "Pickup Material")">Pickup Material</option>
+                    <option value="Pickup Subcon" selected="@(ViewBag.Kategori == "Pickup Subcon")">Pickup Subcon</option>
+                </select>
+            </div>
+
+            <!-- Filter Armada -->
+            <div class="col-md-1">
+                <label class="form-label small fw-bold mb-1">Jenis Armada</label>
+                <select name="armada" class="form-select shadow-none text-white">
+                    <option value="">-- Semua --</option>
+                    <option value="Reguler truck" selected="@(ViewBag.Armada == "Reguler truck")">Reguler truck</option>
+                    <option value="Ritase truck" selected="@(ViewBag.Armada == "Ritase truck")">Ritase truck</option>
+                </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-semibold">
+                    <i class="bi bi-filter me-1"></i> Filter
+                </button>
+                <a asp-action="Index" class="btn btn-outline-light border text-white" title="Reset Filter">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Table Card (Font Warna Putih & Subtitle Warna Abu) -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background: #1e293b;">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-custom-dark align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="px-4 py-3">No. Referensi</th>
+                        <th class="py-3">Shipping Schedule (Cust & Route)</th>
+                        <th class="py-3">No. Truck & Driver</th>
+                        <th class="py-3">Kategori Pengiriman</th>
+                        <th class="py-3">Jenis Armada</th>
+                        <th class="py-3">Status</th>
+                        <th class="py-3">Tanggal Input</th>
+                        <th class="py-3">Keterangan</th>
+                        <th class="py-3">Dibuat Oleh</th>
+                        <th class="px-4 py-3 text-end">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="border-top-0">
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center py-5 text-secondary">
+                                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                Belum ada data Premium Freight yang sesuai dengan kriteria pencarian/filter.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var item in Model)
+                        {
+                            var customerName = item.CustomerName ?? item.DeliverySchedule?.Customer?.CustomerName;
+                            var route = item.Route ?? item.DeliverySchedule?.Route;
+                            var cycle = item.Cycle ?? item.DeliverySchedule?.Cycle;
+                            var vehicle = item.VehicleNumber ?? item.DeliverySchedule?.VehicleNumber;
+                            var driver = item.DriverName ?? item.DeliverySchedule?.DriverName;
+
+                            <tr>
+                                <!-- No. Referensi (Warna Putih) -->
+                                <td class="px-4 py-3 fw-bold text-white">
+                                    @(string.IsNullOrEmpty(item.FreightNumber) ? "-" : item.FreightNumber)
+                                </td>
+
+                                <!-- Shipping Schedule (Cust & Route - Cust Putih, Sub-info Abu) -->
+                                <td class="py-3">
+                                    @if (string.IsNullOrEmpty(customerName) && string.IsNullOrEmpty(route))
+                                    {
+                                        <span class="text-secondary">-</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="fw-bold text-white">@(string.IsNullOrEmpty(customerName) ? "-" : customerName)</div>
+                                        <div class="small text-secondary">
+                                            Route: @(string.IsNullOrEmpty(route) ? "-" : route)
+                                            @if (!string.IsNullOrEmpty(cycle))
+                                            {
+                                                <span> | Cycle @cycle</span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+
+                                <!-- No. Truck & Driver (Truck Putih, Driver Abu) -->
+                                <td class="py-3">
+                                    @if (string.IsNullOrEmpty(vehicle) && string.IsNullOrEmpty(driver))
+                                    {
+                                        <span class="text-secondary">-</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="fw-bold text-white">@(string.IsNullOrEmpty(vehicle) ? "-" : vehicle)</div>
+                                        <div class="small text-secondary">Driver: @(string.IsNullOrEmpty(driver) ? "-" : driver)</div>
+                                    }
+                                </td>
+
+                                <!-- Kategori Pengiriman (Warna Putih) -->
+                                <td class="py-3 text-white fw-bold">
+                                    @(string.IsNullOrEmpty(item.KategoriPengiriman) ? "-" : item.KategoriPengiriman)
+                                </td>
+
+                                <!-- Jenis Armada (Warna Putih) -->
+                                <td class="py-3 text-white fw-bold">
+                                    @(string.IsNullOrEmpty(item.JenisArmada) ? "-" : item.JenisArmada)
+                                </td>
+
+                                <!-- Status (Warna Putih) -->
+                                <td class="py-3 text-white fw-bold">
+                                    @(string.IsNullOrEmpty(item.Status) ? "-" : item.Status)
+                                </td>
+
+                                <!-- Tanggal Input (Tanggal Utama Putih, Sched Subtitle Abu) -->
+                                <td class="py-3 text-white small">
+                                    <div class="fw-bold text-white">@item.CreatedDate.ToString("dd MMM yyyy HH:mm")</div>
+                                    @if (item.ScheduledDate.HasValue)
+                                    {
+                                        <div class="small text-secondary">Sched: @item.ScheduledDate.Value.ToString("dd MMM yyyy")</div>
+                                    }
+                                </td>
+
+                                <!-- Keterangan (Warna Putih) -->
+                                <td class="py-3 text-white fw-bold small" style="max-width: 200px;">
+                                    @(string.IsNullOrEmpty(item.Keterangan) ? "-" : item.Keterangan)
+                                </td>
+
+                                <!-- Dibuat Oleh (Warna Putih) -->
+                                <td class="py-3 text-white fw-bold small">
+                                    @(string.IsNullOrEmpty(item.CreatedBy) ? "-" : item.CreatedBy)
+                                </td>
+
+                                <!-- Aksi -->
+                                <td class="px-4 py-3 text-end">
+                                    <form asp-action="Delete" asp-route-id="@item.Id" method="post" style="display:inline;" onsubmit="return confirm('Apakah Anda yakin ingin menghapus data Premium Freight ini?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-danger btn-sm border-0" title="Hapus Data">
+                                            <i class="bi bi-trash"></i> Hapus
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

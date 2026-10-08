@@ -1,0 +1,67 @@
+@using System.Collections
+@{
+    ViewData["Title"] = "Edit Product ⇄ Machine Mapping";
+    var product = (Product)ViewBag.Product;
+    var machines = (IEnumerable<Machine>)ViewBag.Machines;
+    var selectedMachineIds = (ICollection<string>)ViewBag.SelectedMachineIds;
+}
+
+<div class="row mb-3">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <div>
+            <h2 class="mb-0"><i class="fa-solid fa-link me-2"></i>Edit Mapping Product ⇄ Machine</h2>
+            <div class="text-secondary small">Pilih mesin mana yang diizinkan untuk produk ini</div>
+        </div>
+        <a asp-action="ProductMachineMappings" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <h5 class="mb-2">@product.Name</h5>
+                <div class="text-secondary small">
+                    <div><strong>Material Code:</strong> @product.MaterialCode</div>
+                    <div><strong>UoM:</strong> @product.UoM</div>
+                    <div><strong>PLANT:</strong> @(product.Plant?.Code ?? "")</div>
+                    <div><strong>SLOC:</strong> @product.SLOC</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditProductMachines" method="post">
+            <input type="hidden" name="id" value="@product.Id" />
+
+            <div class="row">
+                @foreach (var m in machines)
+                {
+                    var isChecked = selectedMachineIds.Contains(m.Id);
+                    <div class="col-md-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="machineIds" value="@m.Id" @(isChecked ? "checked" : "") id="machine_@m.Id" />
+                            <label class="form-check-label" for="machine_@m.Id">
+                                <strong>@m.Name</strong> <span class="text-secondary">(@m.LineId)</span>
+                            </label>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="mt-3 d-flex gap-2">
+                <button type="submit" class="btn btn-info">
+                    <i class="fa-solid fa-save me-1"></i>Simpan Mapping
+                </button>
+                <a asp-action="ProductMachineMappings" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+

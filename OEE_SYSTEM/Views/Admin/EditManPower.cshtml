@@ -1,0 +1,50 @@
+@model ManPower
+@{
+    ViewData["Title"] = "Edit Man Power";
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fa-solid fa-edit me-2"></i>Edit Man Power</h2>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form asp-action="EditManPower" method="post">
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            
+            <div class="mb-3">
+                <label asp-for="Name" class="form-label">Name <span class="text-danger">*</span></label>
+                <input asp-for="Name" class="form-control" />
+                <span asp-validation-for="Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Value" class="form-label">Value <span class="text-danger">*</span></label>
+                <input asp-for="Value" class="form-control" type="number" min="1" max="10" />
+                <span asp-validation-for="Value" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <div class="form-check">
+                    <input asp-for="IsActive" class="form-check-input" type="checkbox" />
+                    <label asp-for="IsActive" class="form-check-label">Active</label>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fa-solid fa-save me-2"></i>Update
+                </button>
+                <a asp-action="ManPowers" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}
+

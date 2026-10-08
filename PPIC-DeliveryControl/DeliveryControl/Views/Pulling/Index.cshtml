@@ -1,0 +1,1718 @@
+@{
+    ViewData["Title"] = "Pulling Process";
+    bool isUserRolePulling = ViewData["IsUser"] is bool u && u;
+}
+
+<div class="row mb-4">
+    <div class="col-12 text-center">
+        <h2 class="mb-1"><i class="bi bi-arrow-down-square text-primary"></i> Pulling Finish Good</h2>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <!-- Single Full-Width Card -->
+    <div class="col-12">
+        @if (isUserRolePulling)
+        {
+            <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+                <i class="bi bi-eye me-2 fs-5"></i>
+                <span>Anda login sebagai <strong>User</strong> — halaman ini hanya dapat dilihat, tidak dapat melakukan input pulling.</span>
+            </div>
+        }
+        <div class="cyber-card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4 border-bottom border-secondary pb-2">
+                <h5 class="mb-0 fw-bold"><i class="bi bi-pencil-square me-2"></i> Form Input Pulling</h5>
+                <div class="d-flex align-items-center gap-3">
+                    @if (ViewData["IsSuperAdmin"] is bool isSuperAdminPulling && isSuperAdminPulling)
+                    {
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="skipLabelValidationMode" @(ViewData["SkipLabelValidation"] is bool isSkip && isSkip ? "checked" : "") style="background-color:#f59e0b;border-color:#f59e0b;cursor:pointer;">
+                            <label class="form-check-label small fw-bold" style="color:#f59e0b;cursor:pointer;" for="skipLabelValidationMode"><i class="bi bi-shield-slash me-1"></i>SKIP VALIDASI LABEL</label>
+                        </div>
+                    }
+                    else
+                    {
+                        <div id="skipLabelStatusBadge" class="align-items-center px-2 py-1 rounded" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);display:@(ViewData["SkipLabelValidation"] is bool isSkipOther && isSkipOther ? "inline-flex" : "none");">
+                            <i class="bi bi-shield-slash me-1" style="color:#f59e0b;"></i>
+                            <span class="small fw-bold" style="color:#f59e0b;">SKIP VALIDASI LABEL (AKTIF)</span>
+                        </div>
+                    }
+
+                    @if (ViewData["IsAdmin"] is bool isAdminPulling && isAdminPulling)
+                    {
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="manualInputMode" style="background-color:#ef4444;border-color:#ef4444;">
+                            <label class="form-check-label small fw-bold" style="color:#ef4444;" for="manualInputMode"><i class="bi bi-keyboard me-1"></i>MODE KETIK MANUAL</label>
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            <div class="mx-auto">
+                <!-- Skip Label Mode Indicator (Global) -->
+                <div id="skipLabelModeIndicator" style="display:@(ViewData["SkipLabelValidation"] is bool isSkipInd && isSkipInd ? "block" : "none");" class="mb-3">
+                    <span style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.5);border-radius:8px;padding:8px 16px;display:inline-flex;align-items:center;gap:8px;">
+                        <i class="bi bi-shield-slash-fill" style="color:#f59e0b;font-size:1.1rem;"></i>
+                        <span style="color:#f59e0b;font-weight:700;font-size:0.85rem;">MODE SKIP VALIDASI LABEL AKTIF (GLOBAL)</span>
+                        <span style="color:#94a3b8;font-size:0.8rem;">&#8212; Duplikasi label tidak di-lock (tetap wajib sesuai VIN/Rak)</span>
+                    </span>
+                </div>
+
+                <!-- Manual Mode Indicator (Admin Only) -->
+                @if (ViewData["IsAdmin"] is bool isAdminIndicatorP && isAdminIndicatorP)
+                {
+                <div id="manualModeIndicator" style="display:none;" class="mb-3">
+                    <span style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.5);border-radius:8px;padding:8px 16px;display:inline-flex;align-items:center;gap:8px;">
+                        <i class="bi bi-keyboard" style="color:#ef4444;font-size:1.1rem;"></i>
+                        <span style="color:#ef4444;font-weight:700;font-size:0.85rem;">MODE KETIK MANUAL AKTIF</span>
+                        <span style="color:#94a3b8;font-size:0.8rem;">&#8212; Input ketik manual aktif (tetap wajib sesuai VIN/Rak) (Admin Only)</span>
+                    </span>
+                </div>
+                }
+
+                <!-- ===== MULTI-RACK SELECTION PANEL ===== -->
+                <div id="rackSelectionPanel" style="display:none;" class="mb-4">
+                    <div style="background:rgba(245,158,11,0.08);border:1.5px solid rgba(245,158,11,0.45);border-radius:12px;padding:16px 20px;">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <i class="bi bi-grid-3x3-gap-fill me-2" style="color:#f59e0b;font-size:1.1rem;"></i>
+                                <span style="color:#f59e0b;font-weight:700;font-size:0.9rem;text-transform:uppercase;letter-spacing:1px;">Pilih Lokasi Rak</span>
+                                <span style="color:#94a3b8;font-size:0.78rem;margin-left:8px;">— Item ini memiliki beberapa lokasi rak</span>
+                            </div>
+                            <button type="button" id="btnSelesaiPulling" class="btn btn-sm" 
+                                style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.5);color:#ef4444;font-weight:700;border-radius:8px;padding:5px 14px;">
+                                <i class="bi bi-check2-square me-1"></i>SELESAI
+                            </button>
+                        </div>
+                        <div id="rackLocationGrid" class="d-flex flex-wrap gap-2">
+                            <!-- Rack location buttons rendered by JS -->
+                        </div>
+                        <div class="mt-2" id="selectedRackInfo" style="display:none;">
+                            <span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);border-radius:6px;padding:4px 12px;color:#10b981;font-size:0.82rem;font-weight:600;">
+                                <i class="bi bi-check-circle-fill me-1"></i>
+                                <span id="selectedRackText">-</span>
+                            </span>
+                            <span style="color:#94a3b8;font-size:0.78rem;margin-left:8px;">Silakan scan label produk</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1. Identifikasi Produk (Tag & Label) -->
+                <div class="mb-4">
+                    <!-- Tag Input Group -->
+                    <div class="mb-4">
+                    <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">Scan Barcode Rak <span class="text-danger">*</span></label>
+                        <div class="custom-cyber-input-group" id="tagGroup">
+                            <div class="input-icon-left">
+                                <i class="bi bi-tag-fill"></i>
+                            </div>
+                            <input type="text" class="form-control cyber-field" id="tagInput" placeholder="Scan Barcode Rak..." readonly>
+                            <button type="button" class="btn-scan-trigger" data-target="tagInput" title="Start Scanning">
+                                <i class="bi bi-qr-code-scan"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    @* 
+                    <!-- Part Detail Card (Hidden by default) -->
+                    <div id="partDetailContainer" style="display: none;" class="mb-4">
+                        <div class="card bg-dark bg-opacity-50 border-primary border-opacity-25 rounded-3">
+                            <div class="card-body p-3">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h6 class="text-primary fw-bold mb-0"><i class="bi bi-info-circle-fill me-2"></i> PART DETAIL</h6>
+                                    <span id="badgeStatus" class="badge rounded-pill">Status: -</span>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="detail-item">
+                                            <span class="label">Lokasi Rack</span>
+                                            <span class="value" id="valLocation">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="label">Prod. Plant</span>
+                                            <span class="value" id="valPlant">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="label">Rak / No Rak</span>
+                                            <span class="value" id="valRackInfo">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="label">Customer</span>
+                                            <span class="value" id="valCustomer">-</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="detail-item">
+                                            <span class="label">Prod (Category)</span>
+                                            <span class="value" id="valCategory">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="label">VIN / QPC (Lot)</span>
+                                            <span class="value" id="valVinQpc">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="label">Stock Limits (MIN/ROP/MAX)</span>
+                                            <span class="value" id="valLimits">-</span>
+                                        </div>
+                                        <div class="detail-item">
+                                            <span class="label">Current Stock</span>
+                                            <span class="value fw-bold text-info" id="valCurrentStock">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    *@
+
+                    <!-- Label Input Group -->
+                    <div class="mb-4">
+                        <label class="form-label mb-2 text-white-50 small fw-bold text-uppercase">Scan Barcode Label <span class="text-danger">*</span></label>
+                        <div class="custom-cyber-input-group" id="labelGroup">
+                            <div class="input-icon-left">
+                                <i class="bi bi-upc-scan"></i>
+                            </div>
+                            <input type="text" class="form-control cyber-field" id="labelInput" placeholder="Scan Barcode Label..." disabled readonly>
+                            <button type="button" class="btn-scan-trigger" data-target="labelInput" title="Start Scanning" disabled>
+                                <i class="bi bi-qr-code-scan"></i>
+                            </button>
+                        </div>
+                        <small class="text-warning mt-1 d-block" id="labelHint" style="display: none;"><i class="bi bi-check2-circle"></i> Tag valid! Silakan scan Label.</small>
+                    </div>
+
+                </div>
+
+                <div class="mt-5" style="display:none;">
+                    <button type="button" class="btn btn-neon-success w-100 py-2 shadow-lg fs-5" id="btnSavePulling">
+                        <i class="bi bi-cloud-arrow-up-fill me-2"></i> SIMPAN DATA PULLING
+                    </button>
+                    <div id="autoSaveIndicator" class="text-center text-info mt-2">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Menyimpan Data Otomatis...
+                    </div>
+                </div>
+
+                <!-- Toast Notification Helper -->
+                <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+                    <div id="scannerToast" class="toast hide align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body" id="scannerToastBody">
+                                Message here
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Modals {
+    <!-- Scanner Modal -->
+    <div class="modal fade" id="scannerModal" tabindex="-1" aria-labelledby="scannerModalLabel" aria-hidden="false" data-bs-backdrop="static" style="z-index: 2000;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content bg-darker-card border-primary border-opacity-50 shadow-lg">
+                <div class="modal-header border-bottom border-primary border-opacity-25 bg-dark">
+                    <h6 class="modal-title text-white" id="scannerModalLabel">
+                        <i class="bi bi-camera-fill me-2 text-primary"></i>
+                        <span id="currentScanningField">Scanning...</span>
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="btnStopScanner"></button>
+                </div>
+                <div class="modal-body p-0 position-relative overflow-hidden" style="height: 400px; background: #000;">
+                    <div id="reader" style="width: 100%; height: 100%;"></div>
+                    <div class="scanner-overlay">
+                        <div class="bounding-box">
+                            <div class="scan-line"></div>
+                            <div class="corner-tl"></div>
+                            <div class="corner-tr"></div>
+                            <div class="corner-bl"></div>
+                            <div class="corner-br"></div>
+                        </div>
+                        <div class="scanner-tip" id="scanner-status">Mencari Barcode / QR... (v7)</div>
+                        <button type="button" class="btn btn-sm btn-primary mt-3 px-3 py-1 rounded-pill" id="btnRestartCamera" style="pointer-events: auto; position: relative; z-index: 30;">
+                            <i class="bi bi-arrow-clockwise me-1"></i> RESTART KAMERA
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-primary border-opacity-25 bg-dark justify-content-center py-2">
+                    <button type="button" class="btn btn-outline-light btn-sm px-4" data-bs-dismiss="modal">BATAL</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+@section Scripts {
+    <script src="~/lib/html5-qrcode/html5-qrcode.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            const isReadOnly = @(isUserRolePulling ? "true" : "false"); // Role User: view only
+            let manualMode = false; // Admin-only: bypass scan validations
+
+            // Jika read-only (role User): sembunyikan form input, hanya tampilkan tabel riwayat
+            if (isReadOnly) {
+                $('#tagInput, #labelInput').prop('disabled', true).prop('readonly', true);
+                $('.btn-scan-trigger').prop('disabled', true);
+                $('#btnSavePulling').prop('disabled', true).hide();
+            }
+
+            // Error Modal (untuk danger) — MANUAL CLOSE ONLY (tidak auto-close)
+            const $errModal = $('<div class="modal fade" id="scanErrorModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index:2100"><div class="modal-dialog modal-dialog-centered"><div class="modal-content" style="background:#1e293b;border:2px solid #ef4444;border-radius:12px;"><div class="modal-body text-center py-4 px-4"><div style="font-size:3rem;color:#ef4444;" class="mb-3"><i class="bi bi-x-circle-fill"></i></div><h5 class="fw-bold text-white mb-3">SCAN TIDAK VALID</h5><p class="text-white-50 mb-3" id="scanErrorMsg"></p><button type="button" class="btn btn-danger px-5 py-2 fw-bold" id="btnCloseScanError"><i class="bi bi-check-lg me-2"></i>Tutup</button></div></div></div></div>');
+            $('body').append($errModal);
+            const scanErrorModal = new bootstrap.Modal(document.getElementById('scanErrorModal'));
+            $('#btnCloseScanError').on('click', function() {
+                $(this).blur(); // cegah aria-hidden warning
+                scanErrorModal.hide();
+                
+                // [FIX] Fokus kembali ke input yang benar
+                setTimeout(() => {
+                    if (isItemValid) {
+                        $('#labelInput').focus();
+                    } else {
+                        $('#tagInput').focus();
+                    }
+                }, 300);
+            });
+
+            // Rack Pick Modal — notifikasi pilih lokasi rak (muncul saat scan VIN multiRack pertama kali)
+            const $rackPickModal = $(`
+                <div class="modal fade" id="rackPickModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" style="z-index:2100">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content" style="background:#1a2035;border:2px solid #f59e0b;border-radius:14px;box-shadow:0 0 40px rgba(245,158,11,0.3);">
+                            <div class="modal-body text-center py-4 px-4">
+                                <div style="font-size:2.5rem;color:#f59e0b;" class="mb-2">
+                                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                                </div>
+                                <h5 class="fw-bold text-white mb-1" style="letter-spacing:1px;text-transform:uppercase;">Pilih Lokasi Rak</h5>
+                                <p class="mb-1" style="color:#94a3b8;font-size:0.82rem;" id="rackPickVinLabel"></p>
+                                <p class="mb-3" style="color:#f59e0b;font-size:0.78rem;">Item ini memiliki beberapa lokasi rak — pilih salah satu</p>
+                                <div id="rackPickBtns" class="d-flex flex-wrap gap-2 justify-content-center"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`);
+            $('body').append($rackPickModal);
+            const rackPickModal = new bootstrap.Modal(document.getElementById('rackPickModal'));
+
+            // ================================================================
+            // SCAN QUEUE SYSTEM FOR PULLING
+            // Rapid scan support — semua scan masuk antrian, diproses berurutan
+            // ================================================================
+            const PullQueue = (() => {
+                const _q = [];
+                let _running = false;
+                let _badgeEl = null;
+
+                function push(payload) {
+                    _q.push(payload);
+                    _refreshBadge();
+                    if (!_running) _next();
+                }
+
+                async function _next() {
+                    if (_q.length === 0) {
+                        _running = false;
+                        _refreshBadge();
+                        return;
+                    }
+                    _running = true;
+                    const item = _q.shift();
+                    _refreshBadge();
+
+                    try {
+                        await _execute(item);
+                    } catch (e) {
+                        logNGScan('Pulling', item.Tag || '', item.Label || '', '', "Koneksi Error (Queue): " + e.message);
+                        showScannerToast('🔌 Koneksi error: ' + e.message, 'danger');
+                    }
+
+                    await _sleep(80);
+                    _next();
+                }
+
+                async function _execute(payload) {
+                    const maxAttempts = 3;
+                    let attempt = 0;
+                    while (attempt < maxAttempts) {
+                        attempt++;
+                        try {
+                            const res = await fetch('/Pulling/Save', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            const data = await res.json();
+
+                            if (data.success) {
+                                showScannerToast('✅ ' + data.message, 'success');
+                                return; // berhasil — keluar dari retry loop
+                            }
+                            // Server menolak — retry jika retryable (misal DB busy)
+                            if (data.retryable && attempt < maxAttempts) {
+                                await _sleep(150 * attempt);
+                                continue;
+                            }
+                            showScannerToast('❌ ' + data.message, 'danger');
+                            logNGScan('Pulling', payload.Tag || '', payload.Label || '', '', data.message || 'Scan gagal');
+                            
+                            // [FIX] Restore state agar user bisa langsung scan ulang label tanpa scan VIN lagi
+                            if (payload.Tag) {
+                                isItemValid = true;
+                                lockedVin = payload.Tag;
+                                $('#tagInput').val(payload.Tag);
+                                enableLabelInput();
+                                $('#labelInput').val('');
+                            }
+                            return;
+                        } catch (fetchErr) {
+                            if (attempt < maxAttempts) {
+                                await _sleep(200 * attempt); // backoff sebelum retry jaringan
+                            } else {
+                                throw fetchErr; // biarkan outer catch handle
+                            }
+                        }
+                    }
+                }
+
+                function _refreshBadge() {
+                    if (!_badgeEl) {
+                        _badgeEl = document.createElement('div');
+                        _badgeEl.id = '_pqBadge';
+                        _badgeEl.style.cssText = [
+                            'position:fixed', 'bottom:80px', 'right:20px', 'z-index:9999',
+                            'background:#f59e0b', 'color:#1a1a2e', 'font-weight:700',
+                            'font-size:13px', 'border-radius:20px', 'padding:7px 16px',
+                            'box-shadow:0 4px 12px rgba(0,0,0,.5)', 'display:none',
+                            'pointer-events:none'
+                        ].join(';');
+                        document.body.appendChild(_badgeEl);
+                    }
+                    if (_q.length > 0 || _running) {
+                        _badgeEl.textContent = _running
+                            ? '⚡ Menyimpan... (' + _q.length + ' antrian)'
+                            : '⏳ Antrian: ' + _q.length + ' scan';
+                        _badgeEl.style.display = 'block';
+                    } else {
+                        _badgeEl.style.display = 'none';
+                    }
+                }
+
+                function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+                return { push, get busy() { return _running; }, get size() { return _q.length; } };
+            })();
+
+            // Reset label only (untuk error label — tag tetap agar tidak perlu scan ulang)
+            function resetLabelOnly() {
+                $('#labelInput').val('').removeClass('active-scan');
+                if (!manualMode) {
+                    $('#labelInput').prop('readonly', true);
+                }
+                $('#labelInput').focus();
+            }
+
+            // Reset tag + label, tapi rack panel + pilihan rak TETAP STAY
+            // Dipakai setelah save sukses: scan item berikutnya di rak yang sama
+            // Klik SELESAI untuk ganti ke lokasi rak berbeda
+            function resetForNextScan() {
+                $('#tagInput').val('').removeClass('active-scan');
+                $('#labelInput').val('').removeClass('active-scan');
+                isItemValid = false;
+                pendingLabelCode = null; // Batalkan pending label — cegah late-fire timeout
+                isLookupPending = false;  // Reset flag lookup
+                lockedVin = ''; // Izinkan scan item baru berikutnya (rak tetap terpilih)
+                // isMultiRack, isRackSelected, selectedRack, selectedNoRack, selectedItemId — TETAP
+                if (!manualMode) {
+                    // Tag: tetap readonly — scanner (USB/kamera) isi via val(), tidak butuh writable
+                    $('#tagInput').prop('readonly', true);
+                    // Label: disable dulu sampai lookup sukses lagi
+                    $('#labelInput').prop('readonly', true).prop('disabled', true);
+                    $('.btn-scan-trigger[data-target="labelInput"]').prop('disabled', true);
+                    $('#labelHint').fadeOut();
+                }
+                $('#tagInput').focus();
+            }
+
+            // Reset semua field (setelah save sukses — siap scan item rak berikutnya)
+            function resetAll() {
+                $('#tagInput, #labelInput').val('').removeClass('active-scan');
+                isItemValid = false;
+                isMultiRack = false;
+                isRackSelected = false;
+                lockedVin = '';
+                selectedRack = '';
+                selectedNoRack = 0;
+                selectedItemId = 0;
+                isLookupPending = false;
+                pendingLabelCode = null;
+                vinLookupCache.clear();
+                $('#rackSelectionPanel').hide();
+                $('#selectedRackInfo').hide();
+                $('.rack-loc-btn').removeClass('rack-loc-active');
+                if (!manualMode) {
+                    $('#tagInput').prop('readonly', true);
+                    $('#labelInput').prop('readonly', true).prop('disabled', true);
+                    $('.btn-scan-trigger[data-target="labelInput"]').prop('disabled', true);
+                    $('#labelHint').fadeOut();
+                }
+                $('#tagInput').focus();
+            }
+
+            // Notification Helper
+            function showScannerToast(message, type = 'primary') {
+                if (type === 'danger') {
+                    // Tampilkan error modal — scan otomatis diblokir selama modal open
+                    $('#scanErrorMsg').text(message);
+                    scanErrorModal.show();
+                    return;
+                }
+                const $toast = $('#scannerToast');
+                if (!$toast.length) return;
+                $toast.removeClass('bg-primary bg-success bg-danger bg-warning');
+                $toast.addClass('bg-' + type);
+                $('#scannerToastBody').text(message);
+                const toast = new bootstrap.Toast($toast[0], { delay: 3000, autohide: true });
+                toast.show();
+            }
+
+            function logNGScan(module, tag, label, kanban, reason) {
+                fetch('@Url.Action("LogNG", "Pulling")', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        Module: module, 
+                        Tag: tag, 
+                        Label: label, 
+                        Kanban: kanban, 
+                        Reason: reason 
+                    })
+                }).catch(() => {}); // silent — jangan block UI
+            }
+
+            // Warning toast — untuk mismatch yang TETAP dikirim ke server (tidak block)
+            function showScannerToastWarning(message) {
+                const $toast = $('#scannerToast');
+                if (!$toast.length) return;
+                $toast.removeClass('bg-primary bg-success bg-danger bg-warning');
+                $toast.addClass('bg-warning');
+                $('#scannerToastBody').html('<span style="color:#1a1a2e;font-weight:600;">' + message + '</span>');
+                const toast = new bootstrap.Toast($toast[0], { delay: 5000, autohide: true });
+                toast.show();
+            }
+
+            function normalizeVin(vin) {
+                if (!vin) return "";
+                let normalized = vin.trim().toUpperCase();
+                if (normalized.endsWith("X")) normalized = normalized.slice(0, -1);
+                if (normalized.endsWith("LB")) normalized = normalized.slice(0, -2);
+                if (normalized.startsWith("LB")) normalized = normalized.slice(2);
+                return normalized;
+            }
+
+            function isLabelContainsVin(label, vin) {
+                if (!label || !vin) return false;
+                const labelUpper = label.trim().toUpperCase();
+                const vinUpper = vin.trim().toUpperCase();
+
+                // Check 1: Label mengandung VIN asli (raw) langsung
+                if (labelUpper.includes(vinUpper)) return true;
+
+                // Check 2: Label mengandung VIN yang di-normalize (tanpa suffix LBX / LB / X)
+                const normalizedVin = normalizeVin(vin);
+                if (normalizedVin && labelUpper.includes(normalizedVin)) return true;
+
+                // Check 3: Label mengandung VIN tanpa suffix 'X' saja
+                const vinNoX = vinUpper.endsWith("X") ? vinUpper.slice(0, -1) : vinUpper;
+                if (vinNoX && labelUpper.includes(vinNoX)) return true;
+
+                // Check 4: Label mengandung VIN tanpa suffix 'LB'
+                const vinNoLb = vinUpper.endsWith("LB") ? vinUpper.slice(0, -2) : vinUpper;
+                if (vinNoLb && labelUpper.includes(vinNoLb)) return true;
+
+                // Check 5: Relaxed matching untuk seri MS (contoh MS0020 cocok dgn MS002 di label)
+                if (normalizedVin.startsWith("MS") && normalizedVin.length >= 5) {
+                    const shortVin = normalizedVin.slice(0, 5);
+                    if (labelUpper.includes(shortVin)) return true;
+                }
+
+                return false;
+            }
+
+            let activeInputId = null;
+
+            // Modal handling
+            const scannerModalElement = document.getElementById('scannerModal');
+            const scannerModal = new bootstrap.Modal(scannerModalElement);
+            
+            // Scanner implementation using Html5Qrcode
+            let html5QrCode = null;
+
+            $(scannerModalElement).on('shown.bs.modal', function () {
+                initScanner();
+            });
+
+            $(scannerModalElement).on('hidden.bs.modal', function () {
+                stopScanner();
+            });
+
+            $('.btn-scan-trigger').click(function() {
+                activeInputId = $(this).data('target');
+                const fieldName = (activeInputId || "").replace('Input', '').toUpperCase();
+                $('#currentScanningField').text("Scanning " + fieldName);
+                scannerModal.show();
+            });
+
+            $('#btnRestartCamera').click(function(e) {
+                e.preventDefault();
+                stopScanner().then(() => initScanner());
+            });
+
+            function initScanner() {
+                if (!window.isSecureContext) {
+                    $('#scanner-status').html('<span class="text-danger">Error: HTTPS diperlukan</span>');
+                    return;
+                }
+
+                const config = { 
+                    fps: 25, 
+                    aspectRatio: 1.0,
+                    qrbox: { width: 250, height: 250 }, // Square for better target match
+                    showTorchButtonIfSupported: true,
+                    videoConstraints: {
+                        facingMode: "environment",
+                        focusMode: "continuous", // Try to force autofocus
+                        width: { min: 640, ideal: 1280, max: 1920 },
+                        height: { min: 480, ideal: 720, max: 1080 }
+                    }
+                };
+
+                if (!html5QrCode) {
+                    html5QrCode = new Html5Qrcode("reader");
+                }
+
+                $('#scanner-status').text("Mengakses Kamera...");
+                
+                html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    config,
+                    (decodedText) => onDetected(decodedText),
+                    (errorMessage) => {}
+                ).then(() => {
+                    $('#scanner-status').text("Scanner Aktif");
+                }).catch(err => {
+                    $('#scanner-status').text("Gagal: " + err);
+                });
+            }
+
+            function onDetected(code) {
+                if (activeInputId) {
+                    const currentId = activeInputId;
+                    const trimmedCode = code.trim();
+
+                    if (currentId === 'tagInput') {
+                        // Validation for tagInput (VIN) must have 'X' suffix — dilewati di manual mode
+                        if (!manualMode && !trimmedCode.toUpperCase().endsWith('X')) {
+                            // Lookup masih in-flight — queue label ini, jangan tampilkan error
+                            if (isLookupPending) {
+                                pendingLabelCode = trimmedCode;
+                                scannerModal.hide();
+                                showScannerToast("⏳ Menunggu data item...", "primary");
+                                return;
+                            }
+                            logNGScan('Pulling', trimmedCode, '', '', 'KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)');
+                            showScannerToast("KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)", "danger");
+                            $(`#${currentId}`).val('');
+                            scannerModal.hide();
+                            return;
+                        }
+                        $(`#${currentId}`).val(trimmedCode).addClass('active-scan');
+                        setTimeout(() => $(`#${currentId}`).removeClass('active-scan'), 500);
+                        scannerModal.hide();
+                        lookupItem(trimmedCode);
+                    } else if (currentId === 'labelInput') {
+                        // Kode rak (X suffix) yang masuk ke labelInput → redirect ke tag lookup
+                        if (!manualMode && trimmedCode.toUpperCase().endsWith('X')) {
+                            $('#tagInput').val(trimmedCode).addClass('active-scan');
+                            setTimeout(() => $('#tagInput').removeClass('active-scan'), 500);
+                            scannerModal.hide();
+                            lookupItem(trimmedCode);
+                            return;
+                        }
+                        // Multi-rack: block if rack not selected
+                        if (isMultiRack && !isRackSelected) {
+                            showScannerToast("⚠️ Pilih Lokasi Rak terlebih dahulu sebelum scan label!", "danger");
+                            scannerModal.hide();
+                            return;
+                        }
+                        // 1. Must NOT have 'X' suffix — berlaku selalu
+                        if (trimmedCode.toUpperCase().endsWith('X')) {
+                            logNGScan('Pulling', $('#tagInput').val().trim(), trimmedCode, '', 'KODE TIDAK VALID: Label tidak boleh mengandung suffix X');
+                            showScannerToast("KODE TIDAK VALID: Label tidak boleh mengandung suffix X", "danger");
+                            $(`#${currentId}`).val('');
+                            scannerModal.hide();
+                            return;
+                        }
+
+                        // 2. Cross-check: Label harus mengandung unsur VIN/Tag Rak
+                        const currentTag = $('#tagInput').val().trim();
+                        if (currentTag && !isLabelContainsVin(trimmedCode, currentTag)) {
+                            logNGScan('Pulling', currentTag, trimmedCode, '', `KODE TIDAK COCOK: Barcode Label (${trimmedCode}) tidak mengandung kode Rak/VIN (${currentTag})`);
+                            showScannerToast(`KODE TIDAK COCOK: Label (${trimmedCode}) tidak sesuai dengan Tag/VIN (${currentTag})!`, "danger");
+                            $(`#${currentId}`).val('');
+                            scannerModal.hide();
+                            return;
+                        }
+
+                        $(`#${currentId}`).val(trimmedCode).addClass('active-scan');
+                        setTimeout(() => $(`#${currentId}`).removeClass('active-scan'), 500);
+                        scannerModal.hide();
+                        setTimeout(() => { triggerAutoSave(); }, 300);
+                    }
+                }
+            }
+
+            async function stopScanner() {
+                if (html5QrCode && html5QrCode.isScanning) {
+                    try {
+                        await html5QrCode.stop();
+                    } catch (err) {
+                        console.warn("Stop Error:", err);
+                    }
+                }
+            }
+
+            // --- GLOBAL SCANNER HANDLER (ANTI-MANUAL & READONLY SUPPORT) ---
+            let scanBuffer = "";
+            let lastKeyTime = Date.now();
+            const SCAN_INTERVAL = 120; // ms — dinaikkan dari 50ms agar seluruh karakter barcode terbaca sebelum buffer di-reset
+
+            window.addEventListener('keydown', function (e) {
+                const currentTime = Date.now();
+
+                // In manual mode, let the individual input fields handle their own events
+                if (manualMode) return;
+                
+                // If focus is on a normal interactive element (like a modal or another input), don't intercept
+                if (e.target.tagName === "INPUT" && !$(e.target).hasClass('cyber-field')) return;
+                if (e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+                if ($('.modal.show').length > 0) return;
+
+                // Check speed: If too slow, it's likely a human typing. Reset buffer.
+                if (currentTime - lastKeyTime > SCAN_INTERVAL) {
+                    scanBuffer = "";
+                }
+                lastKeyTime = currentTime;
+
+                // If Enter key is hit (End of Scan)
+                if (e.keyCode === 13) {
+                    if (scanBuffer.length > 0) {
+                        processScanResult(scanBuffer);
+                        scanBuffer = "";
+                    }
+                    e.preventDefault();
+                    return;
+                }
+
+                // Collect only visible characters (avoid Shift/Ctrl/etc)
+                if (e.key.length === 1) {
+                    scanBuffer += e.key;
+                }
+            });
+
+            function processScanResult(code) {
+                code = code.trim();
+                const codeUpper = code.toUpperCase();
+
+                // Determine target: gunakan isItemValid sebagai state routing
+                // isItemValid=false → perlu scan VIN (wajib berakhiran X)
+                // isItemValid=true  → VIN sudah valid, perlu scan label
+                // Lebih akurat dari cek tagInput.val() karena USB scanner menulis karakter
+                // langsung ke tagInput sebelum processScanResult dipanggil.
+                if (!isItemValid) {
+                    // --- VIN VALIDATION (Must have X) ---
+                    if (!manualMode && !codeUpper.endsWith('X')) {
+                        // Lookup masih in-flight — queue label ini, jangan tampilkan error
+                        if (isLookupPending) {
+                            pendingLabelCode = code;
+                            showScannerToast("⏳ Menunggu data item...", "primary");
+                            return;
+                        }
+                        logNGScan('Pulling', code, '', '', 'KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)');
+                        showScannerToast("KODE TIDAK VALID: Wajib scan dari Label asli (Missing X)", "danger");
+                        return;
+                    }
+                    $('#tagInput').val(code).addClass('active-scan');
+                    setTimeout(() => $('#tagInput').removeClass('active-scan'), 500);
+                    lookupItem(code);
+                } else {
+                    // ── Kode rak (VIN + X) ikut ke riset meski isItemValid=true ──
+                    // Jika scan berikutnya adalah VIN barcode (ends with X), perlakukan sebagai
+                    // tag scan baru — reset state, update tagInput & lookup item.
+                    // Rack panel tetap stay jika rack sudah dipilih (isRackSelected).
+                    if (!manualMode && codeUpper.endsWith('X')) {
+                        isItemValid = false; // reset state sementara lookup baru berjalan
+                        disableLabelInput();
+                        $('#tagInput').val(code).addClass('active-scan');
+                        setTimeout(() => $('#tagInput').removeClass('active-scan'), 500);
+                        lookupItem(code);
+                        return;
+                    }
+
+                    // Multi-rack: block label scan if rack not selected yet
+                    if (isMultiRack && !isRackSelected) {
+                        showScannerToast("⚠️ Pilih Lokasi Rak terlebih dahulu sebelum scan label!", "danger");
+                        return;
+                    }
+
+                    // --- LABEL VALIDATION ---
+                    
+                    // 1. Must NOT have X — berlaku selalu
+                    if (codeUpper.endsWith('X')) {
+                        logNGScan('Pulling', $('#tagInput').val().trim(), code, '', 'KODE TIDAK VALID: Label tidak boleh mengandung suffix X');
+                        showScannerToast("KODE TIDAK VALID: Label tidak boleh mengandung suffix X", "danger");
+                        return;
+                    }
+
+                    // 2. Cross-check: Label harus mengandung unsur VIN/Tag Rak
+                    const currentTagVal = $('#tagInput').val().trim();
+                    if (currentTagVal && !isLabelContainsVin(code, currentTagVal)) {
+                        logNGScan('Pulling', currentTagVal, code, '', `KODE TIDAK COCOK: Barcode Label (${code}) tidak mengandung kode Rak/VIN (${currentTagVal})`);
+                        showScannerToast(`KODE TIDAK COCOK: Label (${code}) tidak sesuai dengan Tag/VIN (${currentTagVal})!`, "danger");
+                        $('#labelInput').val('').focus();
+                        return;
+                    }
+
+                    $('#labelInput').val(code).addClass('active-scan');
+                    setTimeout(() => $('#labelInput').removeClass('active-scan'), 500);
+                    triggerAutoSave();
+                }
+            }
+
+            // --- ITEM LOOKUP LOGIC ---
+            let isItemValid = false;
+            let selectedRack = '';       // Selected rack letter (e.g. "K")
+            let selectedNoRack = 0;     // Selected rack number (e.g. 3)
+            let selectedItemId = 0;     // The item's ItemId
+            let isMultiRack = false;    // Whether current item has multiple rack locations
+            let isRackSelected = false; // Whether user has selected a rack in multi-rack mode
+            let lockedVin = '';         // Normalized VIN of the item currently being pulled (locked after rack pick)
+            let isLookupPending = false;  // true saat GetItemInfo AJAX sedang in-flight
+            let pendingLabelCode = null;  // label barcode yang di-queue saat lookup masih pending
+            const vinLookupCache = new Map(); // key=normalizedVin, value={data, ts} — cache 30 detik
+            const VIN_CACHE_TTL = 30000;
+
+            function lookupItem(tag) {
+                if (!tag) return;
+
+                // ── Handler bersama untuk cache-hit dan AJAX-success ──
+                function _handleResponse(response) {
+                    isLookupPending = false;
+                    if (response.success) {
+                        // Simpan ke cache lokal
+                        vinLookupCache.set(normalizeVin(tag), { data: response, ts: Date.now() });
+                        isItemValid = true;
+                        isMultiRack = response.multiRack === true;
+                        selectedItemId = response.itemId;
+
+                        if (isMultiRack) {
+                            if (isRackSelected) {
+                                // Rak sudah dipilih — cek apakah item baru ada di rak yang sama
+                                const match = (response.rackLocations || []).find(l =>
+                                    l.rack === selectedRack && l.noRack === selectedNoRack);
+                                if (match) {
+                                    // Cocok → skip modal, langsung aktifkan label
+                                    selectedItemId = match.itemId || selectedItemId;
+                                    lockedVin = normalizeVin(tag);
+                                    enableLabelInput();
+                                    setTimeout(() => { $('#labelInput').focus(); }, 200);
+                                } else {
+                                    // Beda rak → auto switch ke rak baru
+                                    isRackSelected = false;
+                                    selectedRack = '';
+                                    selectedNoRack = 0;
+                                    lockedVin = '';
+                                    $('.rack-loc-btn').removeClass('rack-loc-active').css({ background: '', borderColor: '', color: '', boxShadow: '' });
+                                    $('#selectedRackInfo').hide();
+                                    renderRackLocationGrid(response.rackLocations);
+                                    showRackPickModal(response.rackLocations, tag);
+                                }
+                            } else {
+                                // Fresh selection — render card (tersembunyi) lalu tampilkan notifikasi modal
+                                isRackSelected = false;
+                                selectedRack = '';
+                                selectedNoRack = 0;
+                                renderRackLocationGrid(response.rackLocations);
+                                $('#rackSelectionPanel').hide();
+                                $('#selectedRackInfo').hide();
+                                disableLabelInput();
+                                showRackPickModal(response.rackLocations, tag);
+                            }
+                        } else {
+                            // Single rack
+                            const singleLoc = (response.rackLocations && response.rackLocations.length > 0)
+                                ? response.rackLocations[0]
+                                : { rack: response.rack || '', noRack: response.noRack || 0, plant: response.plant || '-' };
+                            if (isRackSelected) {
+                                // Rak sudah dipilih — cek apakah item baru ada di rak yang sama
+                                if (singleLoc.rack === selectedRack && singleLoc.noRack === selectedNoRack) {
+                                    // Cocok → skip modal, langsung aktifkan label
+                                    selectedItemId = singleLoc.itemId || selectedItemId;
+                                    lockedVin = normalizeVin(tag);
+                                    enableLabelInput();
+                                    setTimeout(() => { $('#labelInput').focus(); }, 200);
+                                } else {
+                                    // Beda rak → auto switch langsung ke rak baru
+                                    $('.rack-loc-btn').removeClass('rack-loc-active').css({ background: '', borderColor: '', color: '', boxShadow: '' });
+                                    selectedItemId = singleLoc.itemId || selectedItemId;
+                                    selectedRack   = singleLoc.rack;
+                                    selectedNoRack = singleLoc.noRack;
+                                    isRackSelected = true;
+                                    lockedVin      = normalizeVin(tag);
+                                    renderRackLocationGrid([singleLoc]);
+                                    setTimeout(function() {
+                                        $('.rack-loc-btn').addClass('rack-loc-active').css({
+                                            background: 'rgba(59,130,246,0.25)',
+                                            borderColor: '#3b82f6',
+                                            color: '#fff',
+                                            boxShadow: '0 0 10px rgba(59,130,246,0.4)'
+                                        });
+                                    }, 50);
+                                    $('#selectedRackText').text('Rak ' + singleLoc.rack + '.' + singleLoc.noRack + ' (' + singleLoc.plant + ')');
+                                    $('#selectedRackInfo').show();
+                                    $('#rackSelectionPanel').slideDown(250);
+                                    enableLabelInput();
+                                    setTimeout(() => { $('#labelInput').focus(); }, 300);
+                                }
+                            } else {
+                                // Single rack — auto select langsung tanpa popup modal
+                                selectedItemId = singleLoc.itemId || selectedItemId;
+                                selectedRack   = singleLoc.rack;
+                                selectedNoRack = singleLoc.noRack;
+                                isRackSelected = true;
+                                lockedVin      = normalizeVin(tag);
+                                renderRackLocationGrid([singleLoc]);
+                                setTimeout(function() {
+                                    $('.rack-loc-btn').addClass('rack-loc-active').css({
+                                        background: 'rgba(59,130,246,0.25)',
+                                        borderColor: '#3b82f6',
+                                        color: '#fff',
+                                        boxShadow: '0 0 10px rgba(59,130,246,0.4)'
+                                    });
+                                }, 50);
+                                $('#selectedRackText').text('Rak ' + singleLoc.rack + '.' + singleLoc.noRack + ' (' + singleLoc.plant + ')');
+                                $('#selectedRackInfo').show();
+                                $('#rackSelectionPanel').slideDown(250);
+                                enableLabelInput();
+                                setTimeout(() => { $('#labelInput').focus(); }, 300);
+                            }
+                        }
+                    } else {
+                        pendingLabelCode = null;
+                        isItemValid = false;
+                        isRackSelected = false;
+                        selectedRack = '';
+                        selectedNoRack = 0;
+                        isMultiRack = false;
+                        $('#rackSelectionPanel').slideUp(200);
+                        disableLabelInput();
+                        logNGScan('Pulling', tag, '', '', response.message || "Item tidak ditemukan.");
+                        showScannerToast("ERROR: " + (response.message || "Item tidak ditemukan."), "danger");
+                        $('#tagInput').val(''); // --- AUTO RESET ---
+                    }
+                }
+
+                // Cek cache lokal — skip AJAX jika data masih fresh (< 30 detik)
+                const cacheKey = normalizeVin(tag);
+                const cached = vinLookupCache.get(cacheKey);
+                if (cached && (Date.now() - cached.ts) < VIN_CACHE_TTL) {
+                    _handleResponse(cached.data);
+                    return;
+                }
+
+                // Cache miss — set pending flag lalu panggil server
+                isLookupPending = true;
+                pendingLabelCode = null;
+
+                $.ajax({
+                    url: '/Pulling/GetItemInfo',
+                    type: 'GET',
+                    data: { tag: tag },
+                    success: function(response) {
+                        _handleResponse(response);
+                    },
+                    error: function() {
+                        isLookupPending = false;
+                        pendingLabelCode = null;
+                        logNGScan('Pulling', tag, '', '', "Gagal menghubungi server untuk lookup item (Koneksi Error)");
+                        showScannerToast("Gagal menghubungi server untuk lookup item.", "danger");
+                        $('#tagInput').val(''); // --- AUTO RESET ---
+                    }
+                });
+            }
+
+            // --- RACK LOCATION GRID ---
+            function renderRackLocationGrid(locations) {
+                const $grid = $('#rackLocationGrid');
+                $grid.empty();
+                locations.forEach(function(loc) {
+                    const $btn = $('<button type="button" class="rack-loc-btn"></button>')
+                        .text(`${loc.rack}.${loc.noRack}`)
+                        .attr('title', `${loc.plant} — Rak ${loc.rack} No.${loc.noRack}`)
+                        .css({
+                            background: 'rgba(30,41,59,0.7)',
+                            border: '1.5px solid rgba(59,130,246,0.35)',
+                            borderRadius: '8px',
+                            color: '#93c5fd',
+                            fontWeight: '700',
+                            fontSize: '0.9rem',
+                            padding: '8px 18px',
+                            cursor: 'pointer',
+                            transition: 'all 0.18s'
+                        });
+
+                    $btn.on('mouseenter', function() {
+                        if (!$(this).hasClass('rack-loc-active')) {
+                            $(this).css({ background: 'rgba(59,130,246,0.15)', borderColor: 'rgba(59,130,246,0.8)', color: '#fff' });
+                        }
+                    }).on('mouseleave', function() {
+                        if (!$(this).hasClass('rack-loc-active')) {
+                            $(this).css({ background: 'rgba(30,41,59,0.7)', borderColor: 'rgba(59,130,246,0.35)', color: '#93c5fd' });
+                        }
+                    });
+
+                    $btn.on('click', function() {
+                        // Deselect all
+                        $('.rack-loc-btn').removeClass('rack-loc-active').css({
+                            background: 'rgba(30,41,59,0.7)',
+                            borderColor: 'rgba(59,130,246,0.35)',
+                            color: '#93c5fd',
+                            boxShadow: 'none'
+                        });
+                        // Select this
+                        $(this).addClass('rack-loc-active').css({
+                            background: 'rgba(59,130,246,0.25)',
+                            borderColor: '#3b82f6',
+                            color: '#fff',
+                            boxShadow: '0 0 10px rgba(59,130,246,0.4)'
+                        });
+
+                        // Store selected rack+noRack for payload
+                        selectedRack   = loc.rack;
+                        selectedNoRack = loc.noRack;
+                        selectedItemId = loc.itemId || selectedItemId; // use rack-specific itemId
+                        isRackSelected = true;
+
+                        // Show selected rack info
+                        $('#selectedRackText').text(`Rak ${loc.rack}.${loc.noRack} (${loc.plant})`);
+                        $('#selectedRackInfo').fadeIn(200);
+
+                        // Jangan langsung aktifkan label — reset tag & label dulu
+                        // User harus scan kode rak terlebih dahulu untuk konfirmasi lokasi baru
+                        $('#tagInput').val('').removeClass('active-scan');
+                        $('#labelInput').val('').removeClass('active-scan');
+                        isItemValid = false;
+                        disableLabelInput();
+                        if (!manualMode) {
+                            $('#tagInput').prop('readonly', false);
+                        }
+                        $('#tagInput').focus();
+                    });
+
+                    $grid.append($btn);
+                });
+            }
+
+            // --- SELESAI BUTTON (Multi-Rack: reset everything) ---
+            $('#btnSelesaiPulling').on('click', function() {
+                resetAll();
+                $('#rackSelectionPanel').slideUp(200);
+            });
+
+            // --- RACK PICK MODAL (notifikasi pilih lokasi sebelum card muncul) ---
+            function showRackPickModal(locations, vinTag) {
+                // Tampilkan VIN di modal header
+                const normVin = vinTag ? vinTag.replace(/X$/i, '').replace(/LB$/i, '').replace(/^LB/i, '') : '';
+                $('#rackPickVinLabel').text('VIN: ' + normVin);
+
+                // Render tombol-tombol pilihan rak
+                const $btns = $('#rackPickBtns');
+                $btns.empty();
+                locations.forEach(function(loc) {
+                    const $btn = $('<button type="button"></button>')
+                        .text(loc.rack + '.' + loc.noRack)
+                        .attr('title', loc.plant + ' — Rak ' + loc.rack + ' No.' + loc.noRack)
+                        .css({
+                            background: 'rgba(245,158,11,0.1)',
+                            border: '2px solid rgba(245,158,11,0.5)',
+                            borderRadius: '10px',
+                            color: '#fbbf24',
+                            fontWeight: '800',
+                            fontSize: '1.1rem',
+                            padding: '12px 28px',
+                            cursor: 'pointer',
+                            minWidth: '90px',
+                            transition: 'all 0.15s'
+                        })
+                        .on('mouseenter', function() {
+                            $(this).css({ background: 'rgba(245,158,11,0.3)', borderColor: '#f59e0b', color: '#fff' });
+                        })
+                        .on('mouseleave', function() {
+                            $(this).css({ background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.5)', color: '#fbbf24' });
+                        })
+                        .on('click', function() {
+                            // Set pilihan rak
+                            selectedRack   = loc.rack;
+                            selectedNoRack = loc.noRack;
+                            selectedItemId = loc.itemId || selectedItemId;
+                            isRackSelected = true;
+                            // Kunci VIN sesi ini — scan VIN berbeda harus klik SELESAI dulu
+                            lockedVin = normalizeVin($('#tagInput').val());
+
+                            // Tutup modal — blur dulu agar tidak ada aria-hidden warning
+                            $(document.activeElement).blur();
+
+                            // Update tampilan card dengan pilihan ini
+                            $('.rack-loc-btn').removeClass('rack-loc-active').css({
+                                background: 'rgba(30,41,59,0.7)',
+                                borderColor: 'rgba(59,130,246,0.35)',
+                                color: '#93c5fd',
+                                boxShadow: 'none'
+                            });
+                            $('.rack-loc-btn').filter(function() {
+                                return $(this).text() === loc.rack + '.' + loc.noRack;
+                            }).addClass('rack-loc-active').css({
+                                background: 'rgba(59,130,246,0.25)',
+                                borderColor: '#3b82f6',
+                                color: '#fff',
+                                boxShadow: '0 0 10px rgba(59,130,246,0.4)'
+                            });
+                            $('#selectedRackText').text('Rak ' + loc.rack + '.' + loc.noRack + ' (' + loc.plant + ')');
+                            $('#selectedRackInfo').show();
+
+                            // Tutup modal → tampilkan card
+                            rackPickModal.hide();
+                            $('#rackPickModal').one('hidden.bs.modal', function() {
+                                $('#rackSelectionPanel').slideDown(250);
+                                enableLabelInput();
+                                setTimeout(() => { $('#labelInput').focus(); }, 300);
+                            });
+                        });
+                    $btns.append($btn);
+                });
+
+                rackPickModal.show();
+            }
+
+            function showPartDetails(data) {
+                $('#valLocation').text(data.rack + "." + data.noRack); // Lokasi Rack derived from Rack.NoRack
+                $('#valPlant').text(data.plant);
+                $('#valRackInfo').text(data.rack);
+                $('#valCustomer').text(data.customer);
+                $('#valCategory').text(data.category);
+                $('#valVinQpc').text(data.vin + " / " + data.qtyLot);
+                $('#valLimits').text(data.rackMin + " / " + data.rop + " / " + data.rackMax);
+                $('#valCurrentStock').text(data.currentStock + " BOX");
+
+                // Badge Status
+                const $badge = $('#badgeStatus');
+                $badge.removeClass('bg-success bg-warning bg-danger').text('Status: ' + data.status.toUpperCase());
+                if (data.status === 'Normal') $badge.addClass('bg-success');
+                else if (data.status === 'Shortage') $badge.addClass('bg-danger');
+                else $badge.addClass('bg-warning text-dark');
+
+                $('#partDetailContainer').slideDown();
+            }
+
+            function hidePartDetails() {
+                $('#partDetailContainer').slideUp();
+            }
+
+            function enableLabelInput() {
+                $('#labelInput, .btn-scan-trigger[data-target="labelInput"]').prop('disabled', false);
+                $('#labelHint').fadeIn();
+                $('#labelInput').focus();
+                // Auto-process label yang di-queue saat lookup masih pending
+                if (pendingLabelCode) {
+                    const queued = pendingLabelCode;
+                    pendingLabelCode = null;
+                    setTimeout(() => {
+                        // Guard: hanya proses jika item masih valid (belum di-reset)
+                        if (isItemValid) {
+                            processScanResult(queued);
+                        }
+                    }, 100);
+                }
+            }
+
+            function disableLabelInput() {
+                $('#labelInput, .btn-scan-trigger[data-target="labelInput"]').prop('disabled', true);
+                $('#labelHint').fadeOut();
+                $('#labelInput').val('');
+            }
+
+            // Removed: $('#tagInput').on('input', function() { ... }); // Global handler takes over
+            // Removed: $('#labelInput').on('change keypress', function(e) { ... }); // Global handler takes over
+
+            function triggerAutoSave() {
+                const tag = $('#tagInput').val().trim();
+                const label = $('#labelInput').val().trim();
+
+                if (!tag || !label) return;
+
+                // VALIDASI SEBELUM MASUK QUEUE
+                const codeUpper = label.toUpperCase();
+                
+                // 1. Label must NOT have X — berlaku selalu
+                if (codeUpper.endsWith('X')) {
+                    logNGScan('Pulling', tag, label, '', 'KODE TIDAK VALID: Label tidak boleh mengandung suffix X');
+                    showScannerToast("KODE TIDAK VALID: Label tidak boleh mengandung suffix X", "danger");
+                    $('#labelInput').val('').focus();
+                    return;
+                }
+
+                // 2. Cross-check: Label harus mengandung unsur VIN/Tag Rak
+                if (tag && !isLabelContainsVin(label, tag)) {
+                    logNGScan('Pulling', tag, label, '', `KODE TIDAK COCOK: Barcode Label (${label}) tidak mengandung kode Rak/VIN (${tag})`);
+                    showScannerToast(`KODE TIDAK COCOK: Label (${label}) tidak sesuai dengan Tag/VIN (${tag})!`, "danger");
+                    $('#labelInput').val('').focus();
+                    return;
+                }
+
+                // Push ke queue — server proses di background
+                PullQueue.push({
+                    Tag: tag,
+                    Label: label,
+                    Quantity: 1,
+                    Rack: selectedRack || '',      // Send selected Rack for multi-rack
+                    Column: selectedNoRack || 0,   // Send selected NoRack
+                    ItemId: selectedItemId || 0,   // Send ItemId for reference
+                    _multiRack: isMultiRack        // Internal flag for post-save behavior
+                });
+
+                // Optimistic reset — langsung siap scan item berikutnya tanpa menunggu server
+                // Queue tetap memproses save di background; error akan muncul sebagai toast
+                resetForNextScan();
+            }
+
+            // Save Data (AJAX)
+            $('#btnSavePulling').click(function () {
+                const tag = $('#tagInput').val();
+                const label = $('#labelInput').val();
+
+                if (!tag || !label) {
+                    // alert('Lengkapi data Tag dan Label!'); // Suppress silent errors during typing
+                    if (!tag) $('#tagInput').focus();
+                    else if (!label) $('#labelInput').focus();
+                    return;
+                }
+
+                if (!isLabelContainsVin(label, tag)) {
+                    logNGScan('Pulling', tag, label, '', `KODE TIDAK COCOK: Barcode Label (${label}) tidak mengandung kode Rak/VIN (${tag})`);
+                    showScannerToast(`KODE TIDAK COCOK: Label (${label}) tidak sesuai dengan Tag/VIN (${tag})!`, "danger");
+                    $('#labelInput').val('').focus();
+                    return;
+                }
+
+                const data = {
+                    Tag: tag.trim(),
+                    Label: label.trim(),
+                    Quantity: 1
+                };
+
+                const $btn = $(this);
+                const $indicator = $('#autoSaveIndicator');
+                
+                $btn.prop('disabled', true);
+                $indicator.show(); // Show visual feedback
+
+                $.ajax({
+                    url: '/Pulling/Save',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(data),
+                    success: function (response) {
+                        if (response.success) {
+                            showScannerToast('SUKSES: ' + response.message, 'success');
+                            $('#tagInput, #labelInput').val('');
+                            hidePartDetails();
+                            disableLabelInput();
+                            $('#tagInput').focus(); // Ready for next scan
+                        } else {
+                            logNGScan('Pulling', data.Tag, data.Label, '', response.message || 'Server error (Manual Mode)');
+                            showScannerToast('GAGAL: ' + response.message, 'danger');
+                            $('#labelInput').val('').focus();
+                        }
+                    },
+                    error: function () {
+                        logNGScan('Pulling', data.Tag, data.Label, '', "Connection Error (Manual Save)");
+                        showScannerToast('Terjadi kesalahan koneksi.', 'danger');
+                    },
+                    complete: function() {
+                        $btn.prop('disabled', false);
+                         $indicator.hide();
+                    }
+                });
+            });
+
+            // Hardware Scanner Support (Legacy - keeping for safety but global is primary)
+            $('#tagInput, #labelInput').on('keypress', function(e) {
+                if (e.which == 13) e.preventDefault();
+            });
+
+            // Auto-focus Tag on load
+            $('#tagInput').focus();
+
+            // Removed: Global click to refocus for external scanners
+
+            // Visual feedback for focus
+            $('input').on('focus', function() {
+                $(this).closest('.custom-cyber-input-group').addClass('selected-glow');
+            }).on('blur', function() {
+                $(this).closest('.custom-cyber-input-group').removeClass('selected-glow');
+            });
+
+            // --- MANUAL INPUT MODE (Admin Only) ---
+            // Handle Enter key on individual fields when in manual mode
+            $('#tagInput').on('keypress', function(e) {
+                if (!manualMode) return;
+                if (e.which !== 13) return;
+                e.preventDefault();
+                const tag = $(this).val().trim();
+                if (tag) lookupItem(tag);
+            });
+
+            $('#labelInput').on('keypress', function(e) {
+                if (!manualMode) return;
+                if (e.which !== 13) return;
+                e.preventDefault();
+                const label = $(this).val().trim();
+                if (label) triggerAutoSave();
+            });
+
+            $('#manualInputMode').change(function() {
+                manualMode = $(this).is(':checked');
+                if (manualMode) {
+                    $('#manualModeIndicator').slideDown();
+                    // Buka semua field agar bisa diketik
+                    $('#tagInput, #labelInput').prop('readonly', false).prop('disabled', false);
+                    $('.btn-scan-trigger').prop('disabled', false);
+                    $('#labelHint').fadeOut();
+                    $('#tagInput').attr('placeholder', 'Ketik Barcode Rak...');
+                    $('#labelInput').attr('placeholder', 'Ketik Barcode Label...');
+                    $('#tagInput').focus();
+                } else {
+                    $('#manualModeIndicator').slideUp();
+                    // Kembalikan ke mode scan: tag editable via scanner, label disabled sampai tag valid
+                    $('#tagInput').prop('readonly', true).attr('placeholder', 'Scan Barcode Rak...');
+                    $('#labelInput').prop('readonly', true).prop('disabled', true).attr('placeholder', 'Scan Barcode Label...');
+                    $('.btn-scan-trigger[data-target="labelInput"]').prop('disabled', true);
+                    $('#tagInput, #labelInput').val('');
+                    $('#labelHint').fadeOut();
+                    $('#tagInput').focus();
+                }
+            });
+
+            // --- SKIP LABEL VALIDATION MODE (Super Admin Toggle & Global Real-time Sync) ---
+            let isSkipLabelValidation = @(ViewData["SkipLabelValidation"] is bool isSkipInit && isSkipInit ? "true" : "false");
+
+            function applySkipLabelMode(active, notify = false) {
+                isSkipLabelValidation = active;
+                if ($('#skipLabelValidationMode').length) {
+                    $('#skipLabelValidationMode').prop('checked', active);
+                }
+                if ($('#skipLabelStatusBadge').length) {
+                    if (active) {
+                        $('#skipLabelStatusBadge').css('display', 'inline-flex');
+                    } else {
+                        $('#skipLabelStatusBadge').hide();
+                    }
+                }
+                if (active) {
+                    $('#skipLabelModeIndicator').slideDown();
+                    if (notify) {
+                        showScannerToast('⚡ Mode Skip Validasi Label DIAKTIFKAN oleh Super Admin', 'warning');
+                    }
+                } else {
+                    $('#skipLabelModeIndicator').slideUp();
+                    if (notify) {
+                        showScannerToast('🔒 Mode Skip Validasi Label DINONAKTIFKAN oleh Super Admin', 'primary');
+                    }
+                }
+            }
+
+            $('#skipLabelValidationMode').change(function() {
+                const active = $(this).is(':checked');
+                applySkipLabelMode(active, false);
+
+                $.ajax({
+                    url: '@Url.Action("SetSkipLabelMode", "Pulling")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ active: active }),
+                    success: function(res) {
+                        if (res.success) {
+                            showScannerToast(active ? '⚡ Mode Skip Validasi Label berhasil diaktifkan secara global!' : '🔒 Mode Skip Validasi Label berhasil dinonaktifkan.', active ? 'warning' : 'primary');
+                        } else {
+                            showScannerToast('Gagal mengubah mode: ' + (res.message || 'Error'), 'danger');
+                            applySkipLabelMode(!active, false);
+                        }
+                    },
+                    error: function() {
+                        showScannerToast('Terjadi kesalahan koneksi saat mengubah mode.', 'danger');
+                        applySkipLabelMode(!active, false);
+                    }
+                });
+            });
+
+            // SignalR: Listen to stockHub for real-time toggle update across all clients
+            try {
+                const stockHubConn = new signalR.HubConnectionBuilder()
+                    .withUrl("/stockHub")
+                    .withAutomaticReconnect()
+                    .build();
+
+                stockHubConn.on("pullingSkipLabelToggled", function(active) {
+                    applySkipLabelMode(active, true);
+                });
+
+                stockHubConn.start().catch(err => {
+                    console.warn("SignalR stockHub connection error on Pulling page:", err);
+                });
+            } catch (e) {
+                console.warn("SignalR not initialized on Pulling page:", e);
+            }
+        });
+</script>
+}
+
+<style>
+    .rack-segmented-bar {
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+        width: 100%;
+    }
+
+    .detail-item {
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .detail-item:last-child {
+        border-bottom: none;
+    }
+
+    .detail-item .label {
+        display: block;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: rgba(255, 255, 255, 0.4);
+        margin-bottom: 2px;
+        font-weight: 700;
+    }
+
+    .detail-item .value {
+        display: block;
+        font-size: 0.95rem;
+        color: #f1f5f9;
+        font-weight: 600;
+    }
+
+    .rack-segment {
+        flex: 1;
+        text-align: center;
+        padding: 15px 0;
+        cursor: pointer;
+        font-weight: 800;
+        color: rgba(255, 255, 255, 0.7);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.2s ease;
+        font-size: 1.1rem;
+    }
+
+    .rack-segment:last-child {
+        border-right: none;
+    }
+
+    .rack-segment:hover {
+        background: rgba(59, 130, 246, 0.1);
+        color: white;
+    }
+
+    .rack-segment.active {
+        background: var(--primary-blue);
+        color: white;
+        box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .visual-col-box {
+        width: 25px;
+        height: 25px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: bold;
+        border-radius: 4px;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* CUSTOM INPUT GROUP DESIGN (MATCHING IMAGE) */
+    .custom-cyber-input-group {
+        display: flex;
+        align-items: stretch;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .custom-cyber-input-group:focus-within {
+        border-color: var(--primary-blue);
+        box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+        background: rgba(30, 41, 59, 0.6);
+    }
+
+    .input-icon-left {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 15px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 1.2rem;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .cyber-field {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        color: white !important;
+        padding: 14px 18px !important;
+        font-size: 1rem;
+        flex-grow: 1;
+        width: 1px; /* Let flex-grow handle width */
+        min-width: 0;
+        z-index: 1; /* Lower than button */
+    }
+
+    .cyber-field::placeholder {
+        color: rgba(255, 255, 255, 0.4);
+    }
+
+    .btn-scan-trigger {
+        background: transparent;
+        border: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.7);
+        padding: 0 18px;
+        font-size: 1.4rem;
+        transition: all 0.2s;
+        cursor: pointer;
+        z-index: 10; /* Higher than input */
+    }
+
+    .btn-scan-trigger:hover {
+        background: rgba(59, 130, 246, 0.1);
+        color: var(--primary-blue);
+    }
+
+    .btn-scan-trigger.active-scanning {
+        background: var(--primary-blue);
+        color: white;
+        animation: pulse-scanner 1.5s infinite;
+    }
+
+    @@keyframes pulse-scanner {
+        0% { opacity: 1; }
+        50% { opacity: 0.6; }
+        100% { opacity: 1; }
+    }
+
+    .btn-neon-success {
+        background: #10b981;
+        color: white;
+        font-weight: 700;
+        border: none;
+        box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-neon-success:hover {
+        background: #059669;
+        transform: translateY(-2px);
+        box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
+        color: white;
+    }
+
+    .selected-glow {
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+        animation: pulse-primary 1.5s infinite;
+    }
+
+    @@keyframes pulse-primary {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+
+    .scanner-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 20;
+    }
+    
+    .scanner-tip {
+        color: white;
+        font-size: 0.8rem;
+        margin-top: 15px;
+        background: rgba(0,0,0,0.5);
+        padding: 5px 15px;
+        border-radius: 20px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .bounding-box {
+        width: 250px;
+        height: 250px;
+        position: relative;
+        box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.4);
+        border: 2px solid var(--cyber-yellow);
+        border-radius: 4px;
+    }
+    
+    /* Corner indicators */
+    .corner-tl, .corner-tr, .corner-bl, .corner-br {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        border: 4px solid var(--primary-blue);
+    }
+    .corner-tl { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+    .corner-tr { top: -2px; right: -2px; border-left: 0; border-bottom: 0; }
+    .corner-bl { bottom: -2px; left: -2px; border-right: 0; border-top: 0; }
+    .corner-br { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+
+    .scan-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: #ef4444;
+        box-shadow: 0 0 10px #ef4444;
+        animation: scan-line 2.5s ease-in-out infinite;
+        -webkit-animation: scan-line 2.5s ease-in-out infinite;
+    }
+
+    @@keyframes scan-line {
+        0% { top: 0; opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { top: 100%; opacity: 0; }
+    }
+
+    @@-webkit-keyframes scan-line {
+        0% { top: 0; opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { top: 100%; opacity: 0; }
+    }
+
+    #reader video {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: contain !important; /* Fix alignment issue */
+    }
+    
+    #reader canvas {
+        display: none !important;
+    }
+
+    .active-scan {
+        background: rgba(16, 185, 129, 0.2) !important;
+        border-color: #10b981 !important;
+    }
+
+    .selected-glow {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 15px rgba(59, 130, 246, 0.5) !important;
+        background: rgba(30, 41, 59, 0.9) !important;
+    }
+
+    #scannerToast {
+        backdrop-filter: blur(8px);
+        background: rgba(15, 23, 42, 0.9);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    /* Responsive mobile styles */
+    @@media (max-width: 576px) {
+        .container-fluid {
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        .custom-cyber-input-group {
+            border-radius: 8px;
+        }
+        .cyber-field {
+            padding: 12px 14px !important;
+            font-size: 0.95rem;
+        }
+        .input-icon-left {
+            padding: 0 12px;
+            font-size: 1rem;
+        }
+        .btn-scan-trigger {
+            padding: 0 14px;
+            font-size: 1.2rem;
+        }
+        .detail-item {
+            padding: 10px 12px;
+        }
+        .detail-item .detail-label {
+            font-size: 0.7rem;
+        }
+        .detail-item .detail-value {
+            font-size: 0.85rem;
+        }
+        .rack-segmented-bar {
+            height: 8px;
+        }
+        .badge {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+        }
+        h5.text-white {
+            font-size: 1.1rem;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .card-body {
+            padding: 15px;
+        }
+        .detail-card {
+            margin-bottom: 15px;
+        }
+        .scanning-animation {
+            width: 200px;
+            height: 200px;
+        }
+        #reader {
+            max-width: 100% !important;
+        }
+    }
+</style>

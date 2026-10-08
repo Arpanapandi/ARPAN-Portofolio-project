@@ -1,0 +1,930 @@
+@model IEnumerable<DeliveryControl.Models.ViewModels.DriverTripViewModel>
+
+@{
+    ViewData["Title"] = "Portal Driver - Konfirmasi Delivery";
+    var selectedDate = ViewData["SelectedDate"]?.ToString() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var dayName = ViewData["DayName"]?.ToString() ?? "";
+    var selectedStatus = ViewData["SelectedStatus"]?.ToString() ?? "";
+}
+
+@* Hidden form for anti-forgery token *@
+<form id="hiddenTokenForm" style="display:none;">
+</form>
+
+<style>
+    :root {
+        --cyber-yellow: #facc15;
+        --cyber-bg: #0f172a;
+        --cyber-card-bg: #1e293b;
+        --cyber-border: #334155;
+        --cyber-text-muted: #94a3b8;
+    }
+    body { background-color: var(--cyber-bg); color: white; }
+
+    .driver-gallery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 1.5rem;
+        padding: 1rem 0;
+    }
+    @@media (max-width: 576px) {
+        .driver-gallery-grid { grid-template-columns: 1fr; gap: 1rem; }
+    }
+
+    /* ── Driver card (same design language as prep-card) ── */
+    .driver-card {
+        background: var(--cyber-card-bg);
+        border: 2px solid var(--cyber-border);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+    }
+    .driver-card:hover { transform: translateY(-4px); box-shadow: 0 0 20px rgba(250,204,21,0.15); }
+    .driver-card.border-warning  { border-color: var(--cyber-yellow) !important; }
+    .driver-card.border-info     { border-color: #3b82f6 !important; }
+    .driver-card.border-success  { border-color: #10b981 !important; }
+
+    .driver-card-header {
+        padding: 12px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 800;
+        font-size: 1rem;
+    }
+    .dh-scheduled  { background: var(--cyber-yellow); color: #000; }
+    .dh-inprogress { background: #3b82f6; color: white; }
+    .dh-prepared   { background: var(--cyber-yellow); color: #000; }
+    .dh-completed  { background: #10b981; color: white; }
+
+    .driver-card-body {
+        padding: 20px 24px;
+        flex-grow: 1;
+        color: white;
+    }
+    .driver-card-footer {
+        padding: 16px 20px;
+        background: rgba(0,0,0,0.25);
+        border-top: 1px solid var(--cyber-border);
+    }
+
+    .driver-badge-status {
+        background: rgba(255,255,255,0.15);
+        color: white;
+        padding: 3px 10px;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+    }
+    .driver-customer-name {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .driver-delivery-banner {
+        background: rgba(59,130,246,0.1);
+        border: 1px solid rgba(59,130,246,0.3);
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin-bottom: 16px;
+    }
+    .driver-detail-label { color: var(--cyber-text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .driver-detail-value { font-weight: 600; font-size: 1rem; }
+    .driver-divider { border-color: rgba(255,255,255,0.08); margin: 12px 0; }
+
+    .driver-time-row {
+        display: flex;
+        gap: 0;
+        text-align: center;
+        margin-bottom: 12px;
+    }
+    .driver-time-cell {
+        flex: 1;
+        padding: 8px 4px;
+    }
+    .driver-time-cell:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.1); }
+    .driver-time-label { font-size: 0.7rem; color: var(--cyber-text-muted); margin-bottom: 2px; }
+    .driver-time-val   { font-size: 1.1rem; font-weight: 700; }
+
+    .driver-actual-row {
+        background: rgba(16,185,129,0.1);
+        border: 1px solid rgba(16,185,129,0.3);
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        font-size: 0.88rem;
+    }
+
+    /* filter bar */
+    .driver-filter-bar {
+        background: var(--cyber-card-bg);
+        border: 1px solid var(--cyber-border);
+        border-radius: 12px;
+        padding: 1.2rem 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .driver-cyber-input {
+        background: rgba(15,23,42,0.7) !important;
+        border: 1px solid var(--cyber-border) !important;
+        color: white !important;
+    }
+    .driver-cyber-input option { background: #1e293b; }
+</style>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-white fw-bold mb-1"><i class="bi bi-truck me-2 text-warning"></i> Portal Driver</h2>
+        </div>
+        <div class="text-end">
+            <h5 class="text-warning mb-0">@dayName</h5>
+            <small class="text-white-50" id="driverClock">@DateTime.Now.ToString("HH:mm")</small>
+        </div>
+    </div>
+
+<!-- Filter -->
+    <div class="driver-filter-bar">
+        <form id="filterForm" asp-controller="Driver" asp-action="Index" method="get" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label text-white-50 small fw-bold">PILIH TANGGAL</label>
+                <input type="date" class="form-control driver-cyber-input" name="selectedDate" id="selectedDate" value="@selectedDate" onchange="this.form.submit()" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label text-white-50 small fw-bold">CUSTOMER</label>
+                <select class="form-select driver-cyber-input" name="customerId" id="customerId" onchange="this.form.submit()">
+                    <option value="">Semua Customer</option>
+                    @if (ViewBag.Customers != null)
+                    {
+                        @foreach (var customer in ViewBag.Customers)
+                        {
+                            var isSelected = ViewData["SelectedCustomerId"]?.ToString() == customer.CustomerId.ToString();
+                            @if (isSelected) { <option value="@customer.CustomerId" selected>@customer.CustomerName</option> }
+                            else             { <option value="@customer.CustomerId">@customer.CustomerName</option> }
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white-50 small fw-bold">ROUTE</label>
+                <select class="form-select driver-cyber-input" name="route" id="routeFilter" onchange="this.form.submit()">
+                    @{
+                        var selectedRoute = ViewData["SelectedRoute"]?.ToString() ?? "";
+                        var routes = ViewBag.Routes as List<string> ?? new List<string>();
+                    }
+                    <option value="">Semua Route</option>
+                    @foreach (var r in routes)
+                    {
+                        var isSelectedRoute = string.Equals(selectedRoute, r, StringComparison.OrdinalIgnoreCase);
+                        if (isSelectedRoute) { <option value="@r" selected>@r</option> }
+                        else                 { <option value="@r">@r</option> }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white-50 small fw-bold">CYCLE</label>
+                <select class="form-select driver-cyber-input" name="cycle" id="cycleFilter" onchange="this.form.submit()">
+                    @{
+                        var selectedCycle = ViewData["SelectedCycle"]?.ToString() ?? "";
+                        var cycles = ViewBag.Cycles as List<string> ?? new List<string>();
+                    }
+                    <option value="">Semua Cycle</option>
+                    @foreach (var cy in cycles)
+                    {
+                        var isSelectedCycle = string.Equals(selectedCycle, cy, StringComparison.OrdinalIgnoreCase);
+                        if (isSelectedCycle) { <option value="@cy" selected>@cy</option> }
+                        else                  { <option value="@cy">@cy</option> }
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label text-white-50 small fw-bold">STATUS</label>
+                @{
+                    var normStatus = selectedStatus?.Trim();
+                    bool isScheduled  = string.Equals(normStatus, "Scheduled",    StringComparison.OrdinalIgnoreCase);
+                    bool isInProgress = string.Equals(normStatus, "In Progress",  StringComparison.OrdinalIgnoreCase);
+                    bool isCompleted  = string.Equals(normStatus, "Completed",    StringComparison.OrdinalIgnoreCase);
+                    var scheduledClass  = (isScheduled  ? "btn-warning text-dark" : "btn-outline-warning text-warning")  + " btn btn-sm flex-fill fw-semibold";
+                    var inProgressClass = (isInProgress ? "btn-info text-dark"    : "btn-outline-info text-info")         + " btn btn-sm flex-fill fw-semibold";
+                    var completedClass  = (isCompleted  ? "btn-success"           : "btn-outline-success text-success")  + " btn btn-sm flex-fill fw-semibold";
+                }
+                <div class="d-flex flex-wrap gap-1 w-100">
+                    <button type="submit" name="status" value="Scheduled"  class="@scheduledClass">Scheduled</button>
+                    <button type="submit" name="status" value="In Progress" class="@inProgressClass">Pickup</button>
+                    <button type="submit" name="status" value="Completed"  class="@completedClass">Done</button>
+                </div>
+            </div>
+            <div class="col-md-1">
+                <a asp-controller="Driver" asp-action="Index" class="btn btn-secondary w-100"><i class="bi bi-x-lg"></i></a>
+            </div>
+        </form>
+    </div>
+
+@{
+    var needAction = ViewBag.NeedActionSchedules as List<DeliveryControl.Models.ViewModels.DriverTripViewModel> ?? new List<DeliveryControl.Models.ViewModels.DriverTripViewModel>();
+    var completed = ViewBag.CompletedSchedules as List<DeliveryControl.Models.ViewModels.DriverTripViewModel> ?? new List<DeliveryControl.Models.ViewModels.DriverTripViewModel>();
+}
+
+@if (!needAction.Any() && !completed.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Tidak ada jadwal delivery untuk tanggal ini.
+    </div>
+}
+else
+{
+    <!-- SECTION: BUTUH AKSI DRIVER -->
+    <div class="mb-4">
+        <div class="d-flex align-items-center mb-3 gap-2">
+            <i class="bi bi-exclamation-circle-fill text-warning fs-5"></i>
+            <span class="fw-bold text-white-50 small" style="letter-spacing:1px;">BUTUH AKSI DRIVER</span>
+            <span class="badge bg-warning text-dark ms-1">@needAction.Count</span>
+        </div>
+
+        @if (!needAction.Any())
+        {
+            <div class="alert alert-success"><i class="bi bi-check-circle"></i> Tidak ada jadwal yang butuh aksi driver.</div>
+        }
+        else
+        {
+            <div class="driver-gallery-grid">
+                @foreach (var trip in needAction)
+                {
+                    var displayStatus = trip.DriverStatus ?? trip.OverallStatus;
+                    var hasArrived  = trip.HasArrived;
+                    var hasDeparted = trip.HasDeparted;
+
+                    // Setiap card di Portal Driver sudah pasti Enter Dock (filter controller)
+                    // State: SIAP DIJEMPUT → TIBA → BERANGKAT
+                    string headerClass = "dh-scheduled";
+                    string borderClass = "border-warning";
+                    string statusLabel = "SIAP DIJEMPUT";
+                    if (hasDeparted)     { headerClass = "dh-completed";  borderClass = "border-success"; statusLabel = "BERANGKAT"; }
+                    else if (hasArrived) { headerClass = "dh-inprogress"; borderClass = "border-info";    statusLabel = "TIBA"; }
+
+                    <div class="driver-card @borderClass">
+                        <!-- HEADER -->
+                        <div class="driver-card-header @headerClass">
+                            <div>
+                                <div class="fw-bold" style="font-size:1rem;">@(trip.CustomerName)</div>
+                                <div class="dropdown mt-1">
+                                    <button class="btn btn-sm btn-light dropdown-toggle opacity-75 fw-bold" type="button"
+                                            data-bs-toggle="dropdown" style="font-size:0.7rem;border-radius:6px;padding:1px 7px;">
+                                        <i class="bi bi-list-check me-1"></i> MANIFESTS (@trip.Schedules.Count())
+                                    </button>
+                                    <ul class="dropdown-menu shadow-lg border-secondary"
+                                        style="max-height:250px;overflow-y:auto;min-width:180px;z-index:1051;">
+                                        @foreach (var m in trip.Schedules.OrderBy(x => x.ScheduleNumber))
+                                        {
+                                            <li><span class="dropdown-item-text py-1 px-3" style="font-size:0.8rem;border-bottom:1px solid rgba(0,0,0,0.05);">@m.ScheduleNumber</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            </div>
+                            <span class="driver-badge-status">@statusLabel</span>
+                        </div>
+
+                        <!-- BODY -->
+                        <div class="driver-card-body">
+                            @* Tanggal Delivery *@
+                            @{
+                                // Gunakan ScheduledDate (tanggal jadwal asli) untuk label HARI INI/BESOK,
+                                // bukan PickupTime.Date yang sudah di-bump ke H+1 untuk siklus overnight.
+                                // PickupTime tetap ditampilkan sebagai JAM (HH:mm) saja.
+                                var displayDate = trip.ScheduledDate ?? trip.PickupTime?.Date ?? DateTime.Today;
+                                var isToday    = displayDate.Date == DateTime.Today;
+                                var isTomorrow = displayDate.Date == DateTime.Today.AddDays(1);
+                                var dLabel     = isToday ? "HARI INI" : (isTomorrow ? "BESOK" : displayDate.Date.ToString("dd/MM/yyyy"));
+                                var dBadge     = isToday ? "bg-success" : (isTomorrow ? "bg-info" : "bg-secondary");
+                                var timeStr    = trip.PickupTime.HasValue ? trip.PickupTime.Value.ToString("HH:mm") : "-";
+                            }
+                            <div class="driver-delivery-banner d-flex justify-content-between align-items-center">
+                                <small><i class="bi bi-calendar-check me-1 text-info"></i>Tanggal Delivery:</small>
+                                <span class="badge @dBadge">@dLabel &ndash; @timeStr</span>
+                            </div>
+
+                            @* Cycle / Route / Area *@
+                            <div class="mb-1">
+                                <div class="driver-detail-label">Cycle</div>
+                                <div class="fw-bold" style="font-size:1.6rem;line-height:1.1;">@trip.Cycle</div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(trip.Route))
+                            {
+                                <div class="driver-detail-label">Route: <span class="text-white fw-semibold">@trip.Route</span></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(trip.Area))
+                            {
+                                <div class="driver-detail-label"><i class="bi bi-geo-alt me-1"></i>Area: <span class="text-white fw-semibold">@trip.Area</span></div>
+                            }
+                            <div class="driver-detail-label mt-1"><strong class="text-white">@trip.TotalSchedules</strong> Order Items</div>
+
+                            <hr class="driver-divider" />
+
+                            @* Pickup / ETD *@
+                            <div class="driver-time-row">
+                                @if (trip.PickupTime.HasValue)
+                                {
+                                    <div class="driver-time-cell">
+                                        <div class="driver-time-label"><i class="bi bi-truck me-1" style="color:#f59e0b;"></i>Pickup Time</div>
+                                        <div class="driver-time-val">@trip.PickupTime.Value.ToString("HH:mm")</div>
+                                    </div>
+                                }
+                                @if (trip.ETD.HasValue)
+                                {
+                                    <div class="driver-time-cell">
+                                        <div class="driver-time-label"><i class="bi bi-sign-turn-right me-1" style="color:#f59e0b;"></i>ETD</div>
+                                        <div class="driver-time-val">@trip.ETD.Value.ToString("HH:mm")</div>
+                                    </div>
+                                }
+                            </div>
+
+                            @* Actual Kedatangan *@
+                            @if (hasArrived && trip.ActualStartTime.HasValue)
+                            {
+                                <div class="driver-actual-row">
+                                    <i class="bi bi-check-circle-fill me-1 text-success"></i>
+                                    <strong>Tiba:</strong> @trip.ActualStartTime.Value.ToString("HH:mm")
+                                </div>
+                            }
+
+                            @* Actual Keberangkatan *@
+                            @if (hasDeparted && trip.ActualEndTime.HasValue)
+                            {
+                                var startTime2   = trip.ActualStartTime ?? trip.ActualEndTime.Value;
+                                var dur          = trip.ActualEndTime.Value - startTime2;
+                                var durTxt       = dur.TotalHours >= 1 ? $"{(int)dur.TotalHours}j {dur.Minutes}m" : $"{(int)dur.TotalMinutes}m";
+                                <div class="driver-actual-row" style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.4);">
+                                    <i class="bi bi-arrow-right-circle-fill me-1 text-success"></i>
+                                    <strong>Berangkat:</strong> @trip.ActualEndTime.Value.ToString("HH:mm")
+                                    <span class="text-muted ms-2" style="font-size:0.8rem;">(@durTxt)</span>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- FOOTER — TOMBOL AKSI -->
+                        <div class="driver-card-footer">
+                            @if (!hasArrived)
+                            {
+                                @* Belum konfirmasi kedatangan — membuka modal popup *@
+                                <div class="d-grid gap-2">
+                                    <button type="button" class="btn btn-warning fw-bold py-2"
+                                            onclick="openDriverArrivalModal(@trip.RepresentativeScheduleId, '@(trip.CustomerName.Replace("'", "\\'"))', '@(trip.Cycle)', '@(trip.Route)', '@(trip.Area)', '@(trip.PickupTime?.ToString("HH:mm") ?? "")', '@(trip.PickupTime?.ToString("yyyy-MM-ddTHH:mm") ?? "")')">
+                                        <i class="bi bi-geo-alt-fill me-1"></i> Konfirmasi Kedatangan
+                                    </button>
+                                    <form asp-action="QuickArrival" asp-route-id="@trip.RepresentativeScheduleId" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-warning w-100 py-2 fw-bold"
+                                                onclick="return confirm('Quick: catat kedatangan SEKARANG untuk trip ini?')">
+                                            <i class="bi bi-lightning-fill me-1"></i> Quick Tiba Sekarang
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                            else if (!hasDeparted)
+                            {
+                                @* Sudah tiba, belum berangkat — membuka modal popup *@
+                                <div class="d-grid gap-2">
+                                    <button type="button" class="btn btn-info fw-bold py-2"
+                                            onclick="openDriverDepartureModal(@trip.RepresentativeScheduleId, '@(trip.CustomerName.Replace("'", "\\'"))', '@(trip.Cycle)', '@(trip.Route)', '@(trip.Area)', '@(trip.PickupTime?.ToString("HH:mm") ?? "")', '@(trip.PickupTime?.ToString("yyyy-MM-ddTHH:mm") ?? "")', '@(trip.ActualStartTime?.ToString("HH:mm") ?? "")')">
+                                        <i class="bi bi-arrow-right-circle-fill me-1"></i> Konfirmasi Keberangkatan
+                                    </button>
+                                    <form asp-action="QuickDeparture" asp-route-id="@trip.RepresentativeScheduleId" method="post">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-outline-info w-100 py-2 fw-bold"
+                                                onclick="return confirm('Quick: catat keberangkatan SEKARANG untuk trip ini?')">
+                                            <i class="bi bi-lightning-fill me-1"></i> Quick Berangkat Sekarang
+                                        </button>
+                                    </form>
+                                </div>
+                            }
+                            else
+                            {
+                                <button class="btn btn-success w-100 disabled">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Selesai
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <hr class="my-4" style="border-color:rgba(255,255,255,0.1);" />
+
+    <!-- SECTION: SUDAH SELESAI -->
+    <div class="mb-3">
+        <div class="d-flex align-items-center mb-3 gap-2" style="border-top:2px solid rgba(16,185,129,0.3);padding-top:1.2rem;">
+            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+            <span class="fw-bold text-white-50 small" style="letter-spacing:1px;">SUDAH SELESAI / TIDAK PERLU AKSI</span>
+            <span class="badge bg-success ms-1">@completed.Count</span>
+        </div>
+
+        @if (!completed.Any())
+        {
+            <div class="alert alert-secondary"><i class="bi bi-info-circle"></i> Belum ada jadwal yang selesai.</div>
+        }
+        else
+        {
+            <div class="driver-gallery-grid" style="opacity:0.7;">
+                @foreach (var trip in completed)
+                {
+                    var hasArrived2  = trip.HasArrived;
+                    var hasDeparted2 = trip.HasDeparted;
+
+                    <div class="driver-card border-success">
+                        <div class="driver-card-header dh-completed">
+                            <div>
+                                <div class="fw-bold">@(trip.CustomerName)</div>
+                                <div class="dropdown mt-1">
+                                    <button class="btn btn-sm btn-light dropdown-toggle opacity-75 fw-bold" type="button"
+                                            data-bs-toggle="dropdown" style="font-size:0.7rem;border-radius:6px;padding:1px 7px;">
+                                        <i class="bi bi-list-check me-1"></i> MANIFESTS (@trip.Schedules.Count())
+                                    </button>
+                                    <ul class="dropdown-menu shadow-lg border-secondary"
+                                        style="max-height:250px;overflow-y:auto;min-width:180px;z-index:1051;">
+                                        @foreach (var m in trip.Schedules.OrderBy(x => x.ScheduleNumber))
+                                        {
+                                            <li><span class="dropdown-item-text py-1 px-3" style="font-size:0.8rem;border-bottom:1px solid rgba(0,0,0,0.05);">@m.ScheduleNumber</span></li>
+                                        }
+                                    </ul>
+                                </div>
+                            </div>
+                            <span class="driver-badge-status">SELESAI</span>
+                        </div>
+                        <div class="driver-card-body">
+                            <div class="mb-1">
+                                <div class="driver-detail-label">Cycle</div>
+                                <div class="fw-bold" style="font-size:1.6rem;line-height:1.1;">@trip.Cycle</div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(trip.Route))
+                            {
+                                <div class="driver-detail-label">Route: <span class="text-white fw-semibold">@trip.Route</span></div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(trip.Area))
+                            {
+                                <div class="driver-detail-label"><i class="bi bi-geo-alt me-1"></i>Area: <span class="text-white fw-semibold">@trip.Area</span></div>
+                            }
+                            <hr class="driver-divider" />
+                            @if (hasArrived2 && trip.ActualStartTime.HasValue)
+                            {
+                                <div class="driver-actual-row">
+                                    <i class="bi bi-check-circle-fill me-1 text-success"></i>
+                                    <strong>Tiba:</strong> @trip.ActualStartTime.Value.ToString("HH:mm")
+                                </div>
+                            }
+                            @if (hasDeparted2 && trip.ActualEndTime.HasValue)
+                            {
+                                var startTime3 = trip.ActualStartTime ?? trip.ActualEndTime.Value;
+                                var dur2       = trip.ActualEndTime.Value - startTime3;
+                                var durTxt2    = dur2.TotalHours >= 1 ? $"{(int)dur2.TotalHours}j {dur2.Minutes}m" : $"{(int)dur2.TotalMinutes}m";
+                                <div class="driver-actual-row" style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.4);">
+                                    <i class="bi bi-arrow-right-circle-fill me-1 text-success"></i>
+                                    <strong>Berangkat:</strong> @trip.ActualEndTime.Value.ToString("HH:mm")
+                                    <span class="text-muted ms-2" style="font-size:0.8rem;">(@durTxt2)</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="driver-card-footer">
+                            <button class="btn btn-success w-100 disabled">
+                                <i class="bi bi-check-circle-fill me-1"></i> Trip Completed
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+</div>
+
+<!-- MODAL KONFIRMASI KEDATANGAN DRIVER -->
+<div class="modal fade" id="modalDriverArrival" tabindex="-1" aria-labelledby="modalDriverArrivalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background:#1e293b;border:2px solid #f59e0b;border-radius:16px;">
+            <div class="modal-header d-flex justify-content-between align-items-center" style="background:#f59e0b;border-radius:14px 14px 0 0;">
+                <div>
+                    <h5 class="modal-title fw-bold text-dark mb-0" id="modalDriverArrivalLabel">
+                        <i class="bi bi-geo-alt-fill me-2"></i> KONFIRMASI KEDATANGAN DRIVER
+                    </h5>
+                    <small class="text-dark opacity-75 fw-semibold" id="daModalSubtitle">— Customer —</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="color:white;">
+                <form id="formDriverArrival">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="daId" name="id" value="" />
+                    
+                    <!-- Schedule Info Card -->
+                    <div class="p-3 mb-3" style="background:rgba(15,23,42,0.6);border:1px solid rgba(245,158,11,0.25);border-radius:10px;">
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <span class="text-white-50">Customer:</span>
+                                <div class="fw-bold text-warning" id="daInfoCustomer">-</div>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-white-50">Cycle / Route / Area:</span>
+                                <div class="fw-bold text-info" id="daInfoCycleRoute">-</div>
+                            </div>
+                            <div class="col-12 mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <span class="text-white-50">Target Pickup (Rencana):</span>
+                                <div class="fw-bold fs-6 text-success" id="daInfoTargetPickup">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-warning mb-1">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> PILIHAN CEPAT WAKTU:
+                        </label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-warning fw-bold flex-grow-1 text-dark" id="daBtnSetTarget" onclick="daSetTargetTime()">
+                                <i class="bi bi-bullseye me-1"></i> Set On-Time (Sesuai Rencana)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="daSetCurrentTime()">
+                                <i class="bi bi-clock me-1"></i> Jam Sekarang
+                            </button>
+                        </div>
+                        <div class="d-flex gap-1 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="daAdjustMinutes(-5)">-5m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="daAdjustMinutes(-10)">-10m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="daAdjustMinutes(-15)">-15m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="daAdjustMinutes(5)">+5m</button>
+                        </div>
+                    </div>
+
+                    <!-- Input Datetime -->
+                    <div class="mb-3">
+                        <label for="daInputDateTime" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event me-1"></i> WAKTU KEDATANGAN:
+                        </label>
+                        <input type="datetime-local" class="form-control form-control-lg fw-bold" id="daInputDateTime" name="arrivalTime" 
+                               style="background:#0f172a;border:2px solid #f59e0b;color:#fff;font-size:1.15rem;" required />
+                    </div>
+
+                    <!-- Catatan -->
+                    <div class="mb-2">
+                        <label for="daInputNotes" class="form-label small text-white-50">Catatan (Opsional):</label>
+                        <input type="text" class="form-control form-control-sm" id="daInputNotes" name="notes" placeholder="Contoh: Macet, antrian panjang, dll" style="background:#0f172a;border:1px solid rgba(255,255,255,0.2);color:#fff;" />
+                    </div>
+
+                    <div id="daFeedback" class="mt-2" style="font-size:0.85rem;min-height:24px;"></div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid rgba(245,158,11,0.25);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-warning fw-bold px-4 text-dark" id="daBtnSubmit" onclick="submitDriverArrival()">
+                    <i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Kedatangan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL KONFIRMASI KEBERANGKATAN DRIVER -->
+<div class="modal fade" id="modalDriverDeparture" tabindex="-1" aria-labelledby="modalDriverDepartureLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background:#1e293b;border:2px solid #3b82f6;border-radius:16px;">
+            <div class="modal-header d-flex justify-content-between align-items-center" style="background:#3b82f6;border-radius:14px 14px 0 0;">
+                <div>
+                    <h5 class="modal-title fw-bold text-white mb-0" id="modalDriverDepartureLabel">
+                        <i class="bi bi-arrow-right-circle-fill me-2"></i> KONFIRMASI KEBERANGKATAN DRIVER
+                    </h5>
+                    <small class="text-white opacity-75 fw-semibold" id="ddModalSubtitle">— Customer —</small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="color:white;">
+                <form id="formDriverDeparture">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="ddId" name="id" value="" />
+                    
+                    <!-- Schedule Info Card -->
+                    <div class="p-3 mb-3" style="background:rgba(15,23,42,0.6);border:1px solid rgba(59,130,246,0.25);border-radius:10px;">
+                        <div class="row g-2 small">
+                            <div class="col-6">
+                                <span class="text-white-50">Customer:</span>
+                                <div class="fw-bold text-warning" id="ddInfoCustomer">-</div>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-white-50">Cycle / Route / Area:</span>
+                                <div class="fw-bold text-info" id="ddInfoCycleRoute">-</div>
+                            </div>
+                            <div class="col-6 mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <span class="text-white-50">Waktu Tiba:</span>
+                                <div class="fw-bold text-success" id="ddInfoActualArrival">-</div>
+                            </div>
+                            <div class="col-6 mt-2 pt-2 border-top border-secondary border-opacity-25">
+                                <span class="text-white-50">Target Pickup:</span>
+                                <div class="fw-bold text-light" id="ddInfoTargetPickup">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Preset Buttons -->
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-info mb-1">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> PILIHAN CEPAT WAKTU:
+                        </label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-sm btn-info fw-bold flex-grow-1 text-white" id="ddBtnSetTarget" onclick="ddSetTargetTime()">
+                                <i class="bi bi-bullseye me-1"></i> Set On-Time (Sesuai Rencana)
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info fw-bold" onclick="ddSetCurrentTime()">
+                                <i class="bi bi-clock me-1"></i> Jam Sekarang
+                            </button>
+                        </div>
+                        <div class="d-flex gap-1 mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="ddAdjustMinutes(-5)">-5m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="ddAdjustMinutes(-10)">-10m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="ddAdjustMinutes(-15)">-15m</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary py-0 flex-fill" style="font-size:0.75rem;" onclick="ddAdjustMinutes(5)">+5m</button>
+                        </div>
+                    </div>
+
+                    <!-- Input Datetime -->
+                    <div class="mb-3">
+                        <label for="ddInputDateTime" class="form-label small fw-bold text-light">
+                            <i class="bi bi-calendar-event me-1"></i> WAKTU KEBERANGKATAN:
+                        </label>
+                        <input type="datetime-local" class="form-control form-control-lg fw-bold" id="ddInputDateTime" name="departureTime" 
+                               style="background:#0f172a;border:2px solid #3b82f6;color:#fff;font-size:1.15rem;" required />
+                    </div>
+
+                    <!-- Catatan -->
+                    <div class="mb-2">
+                        <label for="ddInputNotes" class="form-label small text-white-50">Catatan (Opsional):</label>
+                        <input type="text" class="form-control form-control-sm" id="ddInputNotes" name="notes" placeholder="Contoh: Selesai loading, jalan aman" style="background:#0f172a;border:1px solid rgba(255,255,255,0.2);color:#fff;" />
+                    </div>
+
+                    <div id="ddFeedback" class="mt-2" style="font-size:0.85rem;min-height:24px;"></div>
+                </form>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid rgba(59,130,246,0.25);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-info fw-bold px-4 text-white" id="ddBtnSubmit" onclick="submitDriverDeparture()">
+                    <i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Keberangkatan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/signalr.min.js"></script>
+    <script>
+        let daTargetFullTime = '';
+        let ddTargetFullTime = '';
+
+        function openDriverArrivalModal(id, customerName, cycle, route, area, targetTimeStr, targetFullTime) {
+            document.getElementById('daId').value = id;
+            daTargetFullTime = targetFullTime;
+
+            document.getElementById('daModalSubtitle').textContent = `${customerName} — Cycle ${cycle} (${area})`;
+            document.getElementById('daInfoCustomer').textContent = customerName;
+            document.getElementById('daInfoCycleRoute').textContent = `Cycle ${cycle} | ${route} | ${area}`;
+            document.getElementById('daInfoTargetPickup').textContent = targetTimeStr ? targetTimeStr : 'Tidak ada target';
+
+            const btnTarget = document.getElementById('daBtnSetTarget');
+            if (targetTimeStr) {
+                btnTarget.style.display = 'inline-block';
+                btnTarget.innerHTML = `<i class="bi bi-bullseye me-1"></i> Set On-Time (${targetTimeStr})`;
+            } else {
+                btnTarget.style.display = 'none';
+            }
+
+            const inputEl = document.getElementById('daInputDateTime');
+            if (targetFullTime) {
+                inputEl.value = targetFullTime;
+            } else {
+                daSetCurrentTime();
+            }
+
+            document.getElementById('daInputNotes').value = '';
+            document.getElementById('daFeedback').innerHTML = '';
+            const btnSubmit = document.getElementById('daBtnSubmit');
+            btnSubmit.disabled = false;
+
+            const modal = new bootstrap.Modal(document.getElementById('modalDriverArrival'));
+            modal.show();
+        }
+
+        function daSetTargetTime() {
+            if (daTargetFullTime) {
+                document.getElementById('daInputDateTime').value = daTargetFullTime;
+                document.getElementById('daFeedback').innerHTML = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i> Waktu disetel ke target (On-Time)</span>';
+            }
+        }
+
+        function daSetCurrentTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('daInputDateTime').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            document.getElementById('daFeedback').innerHTML = '<span class="text-info"><i class="bi bi-clock me-1"></i> Waktu disetel ke jam sekarang</span>';
+        }
+
+        function daAdjustMinutes(mins) {
+            const inputEl = document.getElementById('daInputDateTime');
+            if (!inputEl.value) { daSetCurrentTime(); return; }
+            const dt = new Date(inputEl.value);
+            if (isNaN(dt.getTime())) return;
+            dt.setMinutes(dt.getMinutes() + mins);
+            const year = dt.getFullYear();
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            const hours = String(dt.getHours()).padStart(2, '0');
+            const minutes = String(dt.getMinutes()).padStart(2, '0');
+            inputEl.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        function submitDriverArrival() {
+            const inputEl = document.getElementById('daInputDateTime');
+            if (!inputEl.value) {
+                document.getElementById('daFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Waktu kedatangan wajib diisi.</span>';
+                return;
+            }
+
+            const btnSubmit = document.getElementById('daBtnSubmit');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+
+            const form = document.getElementById('formDriverArrival');
+            const formData = new FormData(form);
+
+            fetch('/Driver/Arrival', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('daFeedback').innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> ${data.message}</span>`;
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('modalDriverArrival');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                        location.reload();
+                    }, 500);
+                } else {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Kedatangan';
+                    document.getElementById('daFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> ${data.message || 'Gagal menyimpan'}</span>`;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Kedatangan';
+                document.getElementById('daFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Terjadi kesalahan sistem.</span>';
+            });
+        }
+
+        function openDriverDepartureModal(id, customerName, cycle, route, area, targetTimeStr, targetFullTime, actualArrivalStr) {
+            document.getElementById('ddId').value = id;
+            ddTargetFullTime = targetFullTime;
+
+            document.getElementById('ddModalSubtitle').textContent = `${customerName} — Cycle ${cycle} (${area})`;
+            document.getElementById('ddInfoCustomer').textContent = customerName;
+            document.getElementById('ddInfoCycleRoute').textContent = `Cycle ${cycle} | ${route} | ${area}`;
+            document.getElementById('ddInfoActualArrival').textContent = actualArrivalStr ? actualArrivalStr : '-';
+            document.getElementById('ddInfoTargetPickup').textContent = targetTimeStr ? targetTimeStr : 'Tidak ada target';
+
+            const btnTarget = document.getElementById('ddBtnSetTarget');
+            if (targetTimeStr) {
+                btnTarget.style.display = 'inline-block';
+                btnTarget.innerHTML = `<i class="bi bi-bullseye me-1"></i> Set On-Time (${targetTimeStr})`;
+            } else {
+                btnTarget.style.display = 'none';
+            }
+
+            const inputEl = document.getElementById('ddInputDateTime');
+            if (targetFullTime) {
+                inputEl.value = targetFullTime;
+            } else {
+                ddSetCurrentTime();
+            }
+
+            document.getElementById('ddInputNotes').value = '';
+            document.getElementById('ddFeedback').innerHTML = '';
+            const btnSubmit = document.getElementById('ddBtnSubmit');
+            btnSubmit.disabled = false;
+
+            const modal = new bootstrap.Modal(document.getElementById('modalDriverDeparture'));
+            modal.show();
+        }
+
+        function ddSetTargetTime() {
+            if (ddTargetFullTime) {
+                document.getElementById('ddInputDateTime').value = ddTargetFullTime;
+                document.getElementById('ddFeedback').innerHTML = '<span class="text-success"><i class="bi bi-check2-circle me-1"></i> Waktu disetel ke target (On-Time)</span>';
+            }
+        }
+
+        function ddSetCurrentTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('ddInputDateTime').value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            document.getElementById('ddFeedback').innerHTML = '<span class="text-info"><i class="bi bi-clock me-1"></i> Waktu disetel ke jam sekarang</span>';
+        }
+
+        function ddAdjustMinutes(mins) {
+            const inputEl = document.getElementById('ddInputDateTime');
+            if (!inputEl.value) { ddSetCurrentTime(); return; }
+            const dt = new Date(inputEl.value);
+            if (isNaN(dt.getTime())) return;
+            dt.setMinutes(dt.getMinutes() + mins);
+            const year = dt.getFullYear();
+            const month = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            const hours = String(dt.getHours()).padStart(2, '0');
+            const minutes = String(dt.getMinutes()).padStart(2, '0');
+            inputEl.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        function submitDriverDeparture() {
+            const inputEl = document.getElementById('ddInputDateTime');
+            if (!inputEl.value) {
+                document.getElementById('ddFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Waktu keberangkatan wajib diisi.</span>';
+                return;
+            }
+
+            const btnSubmit = document.getElementById('ddBtnSubmit');
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Menyimpan...';
+
+            const form = document.getElementById('formDriverDeparture');
+            const formData = new FormData(form);
+
+            fetch('/Driver/Departure', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('ddFeedback').innerHTML = `<span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> ${data.message}</span>`;
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('modalDriverDeparture');
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        if (modal) modal.hide();
+                        location.reload();
+                    }, 500);
+                } else {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Keberangkatan';
+                    document.getElementById('ddFeedback').innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i> ${data.message || 'Gagal menyimpan'}</span>`;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Simpan Konfirmasi Keberangkatan';
+                document.getElementById('ddFeedback').innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i> Terjadi kesalahan sistem.</span>';
+            });
+        }
+
+        $(document).ready(function() {
+            // SignalR Connection
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/deliveryHub")
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on("deliveryUpdated", function (data) {
+                console.log("Update received from SignalR:", data);
+                var triggerActions = ["enterDock", "readyToDock", "arrival", "departure", "update", "leaderVerificationComplete"];
+                if (!data || !data.action || triggerActions.indexOf(data.action) !== -1) {
+                    location.reload();
+                }
+            });
+
+            connection.start()
+                .then(() => console.log("SignalR Connected to Delivery Hub"))
+                .catch(err => console.error("SignalR Connection Error: ", err.toString()));
+
+            setInterval(function() {
+                var now = new Date();
+                var timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                document.title = timeStr + ' - Portal Driver';
+            }, 1000);
+        });
+    </script>
+}

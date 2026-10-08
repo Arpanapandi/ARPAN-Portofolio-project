@@ -1,0 +1,330 @@
+@model DeliveryControl.Models.StockDashboardViewModel
+@{
+    ViewData["Title"] = Model.PlantName + " Transactions";
+    var selectedDate = ViewBag.SelectedDate as string;
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="header-main-row mb-3">
+            <div class="header-title-section">
+                <i class="bi bi-clock-history fs-4 text-primary"></i>
+
+                <h1 class="h5 fw-bold mb-0 text-white text-nowrap">@Model.PlantName - Transaction Logs</h1>
+            </div>
+
+            <form method="get" class="custom-filter-bar">
+                <div class="search-box-wrapper">
+                    <i class="bi bi-search search-icon"></i>
+                    <input type="text" name="search" id="logSearch" class="custom-search-input" placeholder="Cari Tag atau Kanban..." value="@ViewBag.SearchKeyword">
+                </div>
+
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="filter-group">
+                        <span class="filter-label">Tanggal:</span>
+                        <input type="date" name="date" class="custom-date-input" value="@selectedDate" onchange="this.form.submit()" />
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">Periode:</span>
+                        <select name="period" class="custom-select-input" onchange="this.form.submit()">
+                            <option value="Day" selected='@(ViewBag.SelectedPeriod == "Day")'>Day</option>
+                            <option value="Week" selected='@(ViewBag.SelectedPeriod == "Week")'>Week</option>
+                            <option value="Month" selected='@(ViewBag.SelectedPeriod == "Month")'>Month</option>
+                            <option value="Year" selected='@(ViewBag.SelectedPeriod == "Year")'>Year</option>
+                        </select>
+                    </div>
+                    
+                    <div class="dropdown ms-2">
+                        <button class="btn btn-success btn-sm dropdown-toggle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border-radius: 8px; font-weight: 600;">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Export Excel
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark shadow" style="border: 1px solid rgba(59, 130, 246, 0.2); background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(10px);">
+                            <li>
+                                <a class="dropdown-item py-2" href="javascript:void(0)" onclick="openExportModal('Pulling')">
+                                    <i class="bi bi-arrow-down-circle me-2 text-primary"></i> Pulling Only (IN)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item py-2" href="javascript:void(0)" onclick="openExportModal('Preparation')">
+                                    <i class="bi bi-truck me-2 text-info"></i> Prepare Only (OUT)
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider opacity-25"></li>
+                            <li>
+                                <a class="dropdown-item py-2 fw-bold" href="javascript:void(0)" onclick="openExportModal('All')">
+                                    <i class="bi bi-collection me-2 text-success"></i> All (Pulling + Prepare)
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Dashboard Sub-Menu Navigation -->
+        <div class="dashboard-nav-wrapper mb-2">
+            <partial name="_DashboardNav" />
+        </div>
+        <hr class="mt-0 opacity-25" />
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal fade" id="exportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg" style="background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(15px); border-radius: 20px;">
+            <div class="modal-header border-bottom border-secondary border-opacity-25 py-3">
+                <h5 class="modal-title text-white fw-bold">
+                    <i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>
+                    Export Excel - <span id="exportModeTitle">All</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label text-secondary small fw-bold">DARI TANGGAL</label>
+                        <input type="date" id="exportFromDate" class="form-control bg-dark border-secondary border-opacity-50 text-white" value="@selectedDate">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label text-secondary small fw-bold">SAMPAI TANGGAL</label>
+                        <input type="date" id="exportToDate" class="form-control bg-dark border-secondary border-opacity-50 text-white" value="@selectedDate">
+                    </div>
+                    <div class="col-12 mt-3">
+                        <label class="form-label text-secondary small fw-bold">USER (Opsional)</label>
+                        <select id="exportUser" class="form-select bg-dark border-secondary border-opacity-50 text-white">
+                            <option value="">Semua User</option>
+                            @if(Model.LogUsers != null) {
+                                foreach (var u in Model.LogUsers)
+                                {
+                                    <option value="@u">@u</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    @if(Context.Session.GetString("Role") == "Super Admin" || Context.Session.GetString("Role") == "Admin") {
+                        <div class="col-12 mt-3">
+                            <label class="form-label text-secondary small fw-bold">FORMAT EXPORT</label>
+                            <select id="exportFormat" class="form-select bg-dark border-secondary border-opacity-50 text-white">
+                                <option value="Normal">Normal (Per Baris Transaksi)</option>
+                                <option value="Sum">Sum (Akumulasi Qty)</option>
+                            </select>
+                        </div>
+                    }
+                </div>
+                <div class="mt-4 p-3 rounded bg-info bg-opacity-10 border border-info border-opacity-25">
+                    <p class="small text-info mb-0">
+                        <i class="bi bi-info-circle me-1"></i> Data yang di-export akan difilter berdasarkan range tanggal di atas untuk plant <strong>@Model.PlantName</strong>.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer border-top border-secondary border-opacity-25 pb-4 px-4">
+                <button type="button" class="btn btn-secondary border-0 px-4" data-bs-dismiss="modal" style="border-radius: 10px;">Batal</button>
+                <button type="button" id="btnDoExport" class="btn btn-success px-4" style="border-radius: 10px; font-weight: 600;">
+                    <i class="bi bi-download me-2"></i> Download Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* ========================================
+       DASHBOARD SUB-MENU NAV STYLING
+       ======================================== */
+    .dashboard-nav-wrapper {
+        border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .nav-links-container {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+    }
+
+    .nav-link-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #94a3b8;
+        text-decoration: none;
+        padding: 10px 0px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        position: relative;
+        border-bottom: 2px solid transparent;
+    }
+
+    .nav-link-item i {
+        font-size: 1rem;
+    }
+
+    .nav-link-item:hover {
+        color: #fff;
+    }
+
+    .nav-link-item.active {
+        color: #3b82f6;
+        border-bottom-color: #3b82f6;
+    }
+
+    .nav-link-item.active i {
+        color: #3b82f6;
+    }
+</style>
+
+<div id="transactionLogsContent">
+<div class="row">
+    <!-- Pulling History (IN) -->
+    <div class="col-md-6 mb-4">
+        <div class="cyber-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-primary"><i class="bi bi-arrow-down-circle me-2"></i> Pulling (IN)</h5>
+                <span class="badge bg-primary">@Model.RecentPulling.Count Records</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Time</th>
+                            <th>Stok</th>
+                            <th>Tag</th>
+                            <th>Label</th>
+                            <th>Rak & No Rak</th>
+                            <th>User</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in Model.RecentPulling)
+                        {
+                            <tr>
+                                <td class="small">@record.CreatedDate.ToString("dd/MM/yyyy")</td>
+                                <td class="small">@record.CreatedDate.ToString("HH:mm:ss")</td>
+                                <td><span class="badge bg-dark border border-primary text-primary">@record.Quantity.ToString("0.##") Box</span></td>
+                                <td><span class="text-primary fw-bold">@record.Tag</span></td>
+                                <td>@DeliveryControl.Helpers.VinHelper.FormatLabel(record.Label, record.Tag)</td>
+                                <td class="small text-truncate" style="max-width: 150px;">
+                                    @((record.Rack ?? "-") + "." + record.Column)
+                                </td>
+                                <td class="smaller">@record.CreatedBy</td>
+                            </tr>
+                        }
+                        @if (!Model.RecentPulling.Any())
+                        {
+                            <tr><td colspan="7" class="text-center py-4 text-muted small">Tidak ada data pulling pada tanggal ini.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preparation History (OUT) -->
+    <div class="col-md-6 mb-4">
+        <div class="cyber-card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-info"><i class="bi bi-truck me-2"></i> Preparation (OUT)</h5>
+                <span class="badge bg-info text-dark">@Model.RecentPreparation.Count Records</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Tanggal</th>
+                            <th>Time</th>
+                            <th>Tag</th>
+                            <th>Label</th>
+                            <th>Kanban</th>
+                            <th>User</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in Model.RecentPreparation)
+                        {
+                            <tr>
+                                <td class="small">@record.CreatedDate.ToString("dd/MM/yyyy")</td>
+                                <td class="small">@record.CreatedDate.ToString("HH:mm:ss")</td>
+                                <td><span class="text-info fw-bold">@record.Tag</span></td>
+                                <td>@DeliveryControl.Helpers.VinHelper.FormatLabel(record.Label, record.Tag)</td>
+                                <td><span class="badge bg-info text-dark">@record.Kanban</span></td>
+                                <td class="smaller">@record.CreatedBy</td>
+                            </tr>
+                        }
+                        @if (!Model.RecentPreparation.Any())
+                        {
+                            <tr><td colspan="6" class="text-center py-4 text-muted small">Tidak ada data preparation pada tanggal ini.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+<div class="row mt-2 mb-4">
+    <div class="col-12 text-center">
+        <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+    </div>
+</div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/stockHub")
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on("updateStock", function () {
+                if (window.showUpdateNotification) {
+                    window.showUpdateNotification('Data stock baru masuk — memperbarui...', 'pulling', 4000);
+                }
+                refreshLogs();
+            });
+
+            let searchTimer;
+            $('#logSearch').on('input', function() {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => {
+                    refreshLogs();
+                }, 500);
+            });
+
+            connection.start().catch(err => console.error(err.toString()));
+
+            function refreshLogs() {
+                const date = $('input[name="date"]').val() || '';
+                const period = $('select[name="period"]').val() || 'Day';
+                const search = $('input[name="search"]').val() || '';
+                const plant = "@Model.PlantName";
+                
+                $.ajax({
+                    url: `/Stock/${plant}?date=${date}&period=${period}&search=${encodeURIComponent(search)}`,
+                    type: 'GET',
+                    success: function (html) {
+                        const newContent = $(html).find('#transactionLogsContent').html();
+                        $('#transactionLogsContent').html(newContent);
+                    }
+                });
+            }
+
+            window.openExportModal = function(mode) {
+                $('#exportModeTitle').text(mode === 'All' ? 'All (Pulling + Prepare)' : mode);
+                $('#btnDoExport').off('click').on('click', function() {
+                    const from = $('#exportFromDate').val();
+                    const to = $('#exportToDate').val();
+                    const user = $('#exportUser').val() || 'All';
+                    const format = $('#exportFormat').length ? $('#exportFormat').val() : 'Normal';
+                    const plant = "@Model.PlantName";
+                    window.location.href = `/Stock/ExportTransactionLogToExcel?plant=${plant}&from=${from}&to=${to}&mode=${mode}&user=${user}&format=${format}`;
+                    $('#exportModal').modal('hide');
+                });
+                $('#exportModal').modal('show');
+            }
+        });
+    </script>
+}

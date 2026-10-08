@@ -1,0 +1,226 @@
+@model DeliveryControl.Models.StockDashboardViewModel
+@{
+    ViewData["Title"] = "Log Scan NG";
+    var selectedDate = ViewBag.SelectedDate as string;
+    var selectedPeriod = ViewBag.SelectedPeriod as string ?? "Day";
+    var searchVal = ViewBag.Search as string ?? "";
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="header-main-row mb-3">
+            <div class="header-title-section">
+                <i class="bi bi-bug-fill fs-4" style="color: #ef4444;"></i>
+                <h1 class="h5 fw-bold mb-0 text-white text-nowrap">Log Scan NG — Invalid Scan Records</h1>
+            </div>
+
+            <form method="get" class="custom-filter-bar">
+                <div class="search-box-wrapper">
+                    <i class="bi bi-search search-icon"></i>
+                    <input type="text" name="search" id="logSearch" class="custom-search-input" placeholder="Cari Tag, Label, User..." value="@ViewBag.Search" onkeypress="if(event.key === 'Enter') this.form.submit()">
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="filter-group">
+                        <span class="filter-label">Tanggal:</span>
+                        <input type="date" name="date" class="custom-date-input" value="@selectedDate" onchange="this.form.submit()" />
+                    </div>
+                    <div class="filter-group">
+                        <span class="filter-label">Periode:</span>
+                        <select name="period" class="custom-select-input" onchange="this.form.submit()">
+                            <option value="Day" selected='@(selectedPeriod == "Day")'>Day</option>
+                            <option value="Week" selected='@(selectedPeriod == "Week")'>Week</option>
+                            <option value="Month" selected='@(selectedPeriod == "Month")'>Month</option>
+                            <option value="Year" selected='@(selectedPeriod == "Year")'>Year</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Dashboard Sub-Menu Navigation -->
+        <div class="dashboard-nav-wrapper mb-2">
+            <partial name="_DashboardNav" />
+        </div>
+        <hr class="mt-0 opacity-25" />
+    </div>
+</div>
+
+<style>
+    .dashboard-nav-wrapper { border-bottom: 1px solid rgba(59, 130, 246, 0.2); }
+    .nav-links-container { display: flex; align-items: center; gap: 25px; }
+    .nav-link-item { display: flex; align-items: center; gap: 8px; color: #94a3b8; text-decoration: none; padding: 10px 0px; font-size: 0.85rem; font-weight: 500; transition: all 0.3s ease; position: relative; border-bottom: 2px solid transparent; }
+    .nav-link-item i { font-size: 1rem; }
+    .nav-link-item:hover { color: #fff; }
+    .nav-link-item.active { color: #ef4444; border-bottom-color: #ef4444; }
+    .nav-link-item.active i { color: #ef4444; }
+    .ng-pull-row { border-left: 3px solid #ef4444 !important; }
+    .ng-prep-row { border-left: 3px solid #f97316 !important; }
+    .reason-text { font-size: 0.72rem; color: #fca5a5; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
+</style>
+
+<!-- Summary Cards -->
+<div class="row mb-3">
+    <div class="col-md-6 mb-3">
+        <div class="cyber-card p-3 d-flex align-items-center gap-3" style="border: 1px solid #ef4444;">
+            <div class="text-center" style="min-width: 50px;">
+                <i class="bi bi-arrow-down-circle fs-3" style="color: #ef4444;"></i>
+            </div>
+            <div>
+                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Pulling NG</small>
+                <h3 class="fw-bold mb-0" style="color: #ef4444;">@Model.TotalNGPulling</h3>
+                <small class="text-white-50">Scan Invalid (Pulling)</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="cyber-card p-3 d-flex align-items-center gap-3" style="border: 1px solid #f97316;">
+            <div class="text-center" style="min-width: 50px;">
+                <i class="bi bi-truck fs-3" style="color: #f97316;"></i>
+            </div>
+            <div>
+                <small class="text-muted d-block text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Preparation NG</small>
+                <h3 class="fw-bold mb-0" style="color: #f97316;">@Model.TotalNGPreparation</h3>
+                <small class="text-white-50">Scan Invalid (Preparation)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="ngLogsContent">
+    <div class="row">
+        <!-- Pulling NG (IN) -->
+        <div class="col-md-6 mb-4">
+            <div class="cyber-card h-100" style="border: 1px solid rgba(239,68,68,0.4);">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0" style="color: #ef4444;"><i class="bi bi-arrow-down-circle me-2"></i>Pulling NG (IN)</h5>
+                    <span class="badge" style="background: #ef4444;">@Model.TotalNGPulling Records</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0" id="tablePullingNG">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Time</th>
+                                <th>Stok</th>
+                                <th>Tag</th>
+                                <th>Label</th>
+                                <th>Alasan</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in Model.NGPulling)
+                            {
+                                <tr class="ng-pull-row">
+                                    <td class="small">@log.CreatedDate.ToString("dd/MM/yyyy")</td>
+                                    <td class="small">@log.CreatedDate.ToString("HH:mm:ss")</td>
+                                    <td><span class="badge bg-dark border border-danger text-danger">NG</span></td>
+                                    <td><span style="color: #ef4444;" class="fw-bold">@log.Tag</span></td>
+                                    <td class="small">@log.Label</td>
+                                    <td><span class="reason-text" title="@log.Reason">@log.Reason</span></td>
+                                    <td class="small">@log.CreatedBy</td>
+                                </tr>
+                            }
+                            @if (!Model.NGPulling.Any())
+                            {
+                                <tr><td colspan="7" class="text-center py-4 text-muted small"><i class="bi bi-check-circle text-success me-1"></i>Tidak ada scan NG pada periode ini.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preparation NG (OUT) -->
+        <div class="col-md-6 mb-4">
+            <div class="cyber-card h-100" style="border: 1px solid rgba(249,115,22,0.4);">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0" style="color: #f97316;"><i class="bi bi-truck me-2"></i>Preparation NG (OUT)</h5>
+                    <span class="badge" style="background: #f97316;">@Model.TotalNGPreparation Records</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0" id="tablePreparationNG">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Time</th>
+                                <th>Tag</th>
+                                <th>Label</th>
+                                <th>Kanban</th>
+                                <th>Alasan</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in Model.NGPreparation)
+                            {
+                                <tr class="ng-prep-row">
+                                    <td class="small">@log.CreatedDate.ToString("dd/MM/yyyy")</td>
+                                    <td class="small">@log.CreatedDate.ToString("HH:mm:ss")</td>
+                                    <td><span style="color: #f97316;" class="fw-bold">@log.Tag</span></td>
+                                    <td class="small">@log.Label</td>
+                                    <td><span class="badge" style="background: #f97316; color: #fff;">@(string.IsNullOrEmpty(log.Kanban) ? "-" : log.Kanban)</span></td>
+                                    <td><span class="reason-text" title="@log.Reason">@log.Reason</span></td>
+                                    <td class="small">@log.CreatedBy</td>
+                                </tr>
+                            }
+                            @if (!Model.NGPreparation.Any())
+                            {
+                                <tr><td colspan="7" class="text-center py-4 text-muted small"><i class="bi bi-check-circle text-success me-1"></i>Tidak ada scan NG pada periode ini.</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="row mt-2 mb-4">
+        <div class="col-12 text-center">
+            <partial name="_Pager" model='new { CurrentPage = ViewBag.CurrentPage, TotalPages = ViewBag.TotalPages, TotalItems = ViewBag.TotalItems, RouteData = ViewBag.RouteData }' />
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/stockHub")
+                .withAutomaticReconnect()
+                .build();
+
+            connection.on("updateStock", function () {
+                if (window.showUpdateNotification) {
+                    window.showUpdateNotification('Ada scan NG baru — memperbarui log...', 'pulling', 4000);
+                }
+                setTimeout(refreshLogs, 800);
+            });
+
+            connection.start().catch(err => console.error(err.toString()));
+
+            function refreshLogs() {
+                const date = $('input[name="date"]').val() || '';
+                const period = $('select[name="period"]').val() || 'Day';
+                const search = $('input[name="search"]').val() || '';
+                const urlParams = new URLSearchParams(window.location.search);
+                const pageNumber = urlParams.get('pageNumber') || '1';
+
+                $.ajax({
+                    url: `/Stock/LogScanNG?date=${date}&period=${period}&search=${encodeURIComponent(search)}&pageNumber=${pageNumber}`,
+                    type: 'GET',
+                    success: function (html) {
+                        const newContent = $(html).find('#ngLogsContent').html();
+                        if (newContent) {
+                            $('#ngLogsContent').html(newContent);
+                        }
+                    }
+                });
+            }
+
+            // Auto-refresh setiap 30 detik
+            setInterval(refreshLogs, 30000);
+        });
+    </script>
+}

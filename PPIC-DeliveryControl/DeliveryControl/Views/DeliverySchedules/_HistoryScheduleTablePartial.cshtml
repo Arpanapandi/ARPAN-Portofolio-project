@@ -1,0 +1,274 @@
+@model IEnumerable<DeliveryControl.Models.DeliverySchedule>
+
+@foreach (var group in Model.GroupBy(s => new { 
+    CustomerId = s.CustomerId,
+    Route      = (s.Route ?? "").Trim().ToUpper(),
+    Cycle      = (s.Cycle ?? "").Trim().ToUpper(),
+    Date       = s.ScheduledDate.Date
+}))
+{
+    var schedules = group.ToList();
+    var firstItem = group.First();
+    var isPrepared = schedules.All(s => s.PreparationStatus == "Prepared");
+    var groupMaxReadyTime = schedules.Max(s => s.ReadyToDockTime);
+    
+    // Aggregates for Kanban (sama dengan dashboard _ScheduleTablePartial)
+    double totalKbnTarget = 0;
+    double totalKbnActual = 0;
+    foreach (var s in schedules)
+    {
+        if (s.DeliveryItems != null)
+        {
+            foreach (var di in s.DeliveryItems)
+            {
+                var qpc = di.Item?.QtyLot ?? 1;
+                if (qpc > 0)
+                {
+                    var diKbnTgt = Math.Ceiling((double)di.Quantity / qpc);
+                    totalKbnTarget += diKbnTgt;
+                    totalKbnActual += (di.ActualQuantity ?? 0) >= di.Quantity
+                        ? diKbnTgt
+                        : Math.Ceiling((double)(di.ActualQuantity ?? 0) / qpc);
+                }
+            }
+        }
+    }
+
+    // Time Aggregates (Representative times)
+    var pickupTime = schedules.Min(s => s.PickupTime);
+    var actPickupTime = schedules.Max(s => s.ActualStartTime);
+    var enterDockTime = schedules.Min(s => s.EnterDockTime);
+    var actEnterDockTime = schedules.Max(s => s.ActualEnterDockTime);
+    var etdTime = schedules.Max(s => s.ETD);
+    var actDeliveryTime = schedules.Max(s => s.ActualEndTime);
+
+    // Calculate actual range for the group
+    var actualRange = "";
+    if (actPickupTime.HasValue && actDeliveryTime.HasValue)
+    {
+        var duration = actDeliveryTime.Value - actPickupTime.Value;
+        actualRange = duration.TotalHours >= 1 
+            ? $"{(int)duration.TotalHours}j {duration.Minutes}m"
+            : $"{(int)duration.TotalMinutes}m";
+    }
+
+    // Delays
+    var isPickupLate = actPickupTime.HasValue && pickupTime.HasValue && actPickupTime.Value > pickupTime.Value;
+    var pickupDelayMinutes = isPickupLate ? (int)(actPickupTime!.Value - pickupTime!.Value).TotalMinutes : 0;
+    
+    var isDeliveryLate = actDeliveryTime.HasValue && etdTime.HasValue && actDeliveryTime.Value > etdTime.Value;
+    var deliveryDelayMinutes = isDeliveryLate ? (int)(actDeliveryTime!.Value - etdTime!.Value).TotalMinutes : 0;
+
+    var isEnterDockLate = actEnterDockTime.HasValue && enterDockTime.HasValue && actEnterDockTime.Value > enterDockTime.Value;
+    var enterDockDelayMinutes = isEnterDockLate ? (int)(actEnterDockTime!.Value - enterDockTime!.Value).TotalMinutes : 0;
+
+    <tr>
+        @if (Context.Session.GetString("Role") == "Admin" || Context.Session.GetString("Role") == "Super Admin")
+        {
+            <td class="text-center align-middle">
+                @{
+                    var allIds = string.Join(",", schedules.Select(s => s.ScheduleId));
+                }
+                <input type="checkbox" class="form-check-input row-checkbox" value="@allIds" title="@(firstItem.ScheduleNumber?.Split('/')[0])">
+            </td>
+        }
+
+        <td class="text-center align-middle">
+            @{
+                var customers = schedules.Select(s => s.Customer?.CustomerCode ?? "-").Distinct().ToList();
+                var custLabel = customers.Count > 1 ? string.Join(", ", customers) : (customers.FirstOrDefault() ?? "-");
+            }
+            <div class="fw-bold" style="@(customers.Count > 1 ? "font-size: 0.7rem;" : "")">@custLabel</div>
+        </td>
+        <td class="text-center align-middle">
+            <small>@(firstItem.Route ?? "-")</small>
+        </td>
+        <td class="text-center align-middle">
+            <small>@(firstItem.Cycle ?? "-")</small>
+        </td>
+        <td class="text-center align-middle">
+            <div class="@(totalKbnActual >= totalKbnTarget && totalKbnTarget > 0 ? "text-success" : (totalKbnActual > 0 ? "text-warning" : "")) fw-bold">
+                @((int)totalKbnActual)/@((int)totalKbnTarget)
+            </div>
+        </td>
+        <td class="text-center align-middle">
+            <div>@{
+                var startP = firstItem.StartPrepareTime > 0 ? firstItem.StartPrepareTime : (firstItem.Customer?.StartPrepareTime ?? 0);
+                @($"{startP / 60:D2}:{startP % 60:D2}")
+            }</div>
+        </td>
+        <td class="text-center align-middle">
+            <div>@{
+                var stdP = firstItem.StdPrepareTime > 0 ? firstItem.StdPrepareTime : (firstItem.Customer?.StdPrepareTime ?? 0);
+                @($"{stdP / 60:D2}:{stdP % 60:D2}")
+            }</div>
+        </td>
+        <td class="text-center align-middle">
+            @if (isPrepared && groupMaxReadyTime.HasValue)
+            {
+                <div class="fw-bold">
+                    @groupMaxReadyTime.Value.ToString("HH:mm")
+                </div>
+                var planEndTime = firstItem.ScheduledDate.Date.AddMinutes(stdP);
+                var delayMin = (int)(groupMaxReadyTime.Value - planEndTime).TotalMinutes;
+                <div class="fw-bold @(delayMin > 0 ? "text-danger" : "text-success")" style="font-size: 0.75rem;">
+                    @Math.Round((groupMaxReadyTime.Value - firstItem.ScheduledDate.Date).TotalMinutes)m
+                </div>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (enterDockTime.HasValue)
+            {
+                <strong>@enterDockTime.Value.ToString("HH:mm")</strong>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (actEnterDockTime.HasValue)
+            {
+                <div>
+                    <strong class="@(isEnterDockLate ? "text-danger" : "text-success")">
+                        @actEnterDockTime.Value.ToString("HH:mm")
+                    </strong>
+                </div>
+                @if (isEnterDockLate)
+                {
+                    <small class="text-danger d-block" style="font-size: 0.7rem;">
+                        <strong>+@enterDockDelayMinutes m</strong>
+                    </small>
+                }
+                else
+                {
+                    <small class="text-success d-block" style="font-size: 0.7rem;">On Time</small>
+                }
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (enterDockTime.HasValue)
+            {
+                <strong>@enterDockTime.Value.AddMinutes(15).ToString("HH:mm")</strong>
+                <div class="text-muted" style="font-size: 0.75rem;">(+15m)</div>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (actEnterDockTime.HasValue)
+            {
+                <strong>@actEnterDockTime.Value.AddMinutes(15).ToString("HH:mm")</strong>
+                <div class="text-muted" style="font-size: 0.75rem;">(+15m)</div>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (pickupTime.HasValue)
+            {
+                <strong>@pickupTime.Value.ToString("HH:mm")</strong>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (actPickupTime.HasValue)
+            {
+                <div>
+                    <strong class="@(isPickupLate ? "text-danger" : "text-success")">
+                        @actPickupTime.Value.ToString("HH:mm")
+                    </strong>
+                </div>
+                @if (isPickupLate)
+                {
+                    <small class="text-danger d-block" style="font-size: 0.7rem;">
+                        <strong>+@pickupDelayMinutes m</strong>
+                    </small>
+                }
+                else
+                {
+                    <small class="text-success d-block" style="font-size: 0.7rem;">On Time</small>
+                }
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (etdTime.HasValue)
+            {
+                <strong>@etdTime.Value.ToString("HH:mm")</strong>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            @if (actDeliveryTime.HasValue)
+            {
+                <div>
+                    <strong class="@(isDeliveryLate ? "text-danger" : "text-success")">
+                        @actDeliveryTime.Value.ToString("HH:mm")
+                    </strong>
+                </div>
+                @if (isDeliveryLate)
+                {
+                    <small class="text-danger d-block" style="font-size: 0.7rem;">
+                        <strong>+@deliveryDelayMinutes m</strong>
+                    </small>
+                }
+                else
+                {
+                    <small class="text-success d-block" style="font-size: 0.7rem;">On Time</small>
+                }
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            <small>@(firstItem.Range ?? "-")</small>
+        </td>
+        <td class="text-center align-middle">
+            @if (!string.IsNullOrWhiteSpace(actualRange))
+            {
+                <strong class="text-primary">@actualRange</strong>
+            }
+            else
+            {
+                <span class="text-muted">-</span>
+            }
+        </td>
+        <td class="text-center align-middle">
+            <div class="btn-group-vertical btn-group-sm" role="group">
+                <a asp-action="Details" asp-route-id="@firstItem.ScheduleId" class="btn btn-info btn-sm px-2 py-1" title="Detail Utama">
+                    <i class="bi bi-eye"></i>
+                </a>
+                @if (Context.Session.GetString("Role") == "Admin")
+                {
+                    <a asp-action="Edit" asp-route-id="@firstItem.ScheduleId" class="btn btn-warning btn-sm px-2 py-1" title="Edit Utama">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                }
+            </div>
+        </td>
+    </tr>
+}

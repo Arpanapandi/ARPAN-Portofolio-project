@@ -1,0 +1,1660 @@
+@model DeliveryControl.Models.ViewModels.GanttChartViewModel
+
+@{
+    ViewData["Title"] = "Gantt Chart - Jadwal Delivery";
+    var startDate = ViewData["StartDate"]?.ToString() ?? DateTime.Today.ToString("yyyy-MM-dd");
+    var endDate = ViewData["EndDate"]?.ToString() ?? DateTime.Today.ToString("yyyy-MM-dd");
+}
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2 class="mb-1"><i class="bi bi-bar-chart-line"></i> Visualisasi Jadwal Shipping Delivery</h2>
+        <p class="text-muted mb-0">Timeline visual untuk monitoring jadwal delivery</p>
+    </div>
+    <div class="col-md-4 text-end d-flex gap-2 justify-content-end align-items-center mt-2 mt-md-0">
+        <div id="signalr-status-gantt" class="realtime-status-badge status-connecting">
+            <div class="status-pulse"></div>
+            <i class="bi bi-circle-fill status-icon"></i>
+            <span class="status-text">Connecting...</span>
+        </div>
+        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-light">
+            <i class="bi bi-speedometer2"></i> Dashboard Shipping
+        </a>
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="bi bi-table"></i> Tampilan Tabel
+        </a>
+    </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form asp-action="GanttChart" method="get" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label"><i class="bi bi-calendar"></i> Tanggal Mulai</label>
+                <input type="date" class="form-control" name="startDate" value="@startDate" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label"><i class="bi bi-calendar"></i> Tanggal Selesai</label>
+                <input type="date" class="form-control" name="endDate" value="@endDate" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label"><i class="bi bi-building"></i> Customer</label>
+                <select class="form-select" name="customerId">
+                    <option value="">-- Semua Customer --</option>
+                    @foreach (var item in (IEnumerable<SelectListItem>)ViewData["Customers"]!)
+                    {
+                        <option value="@item.Value" selected="@(item.Value == ViewData["CustomerId"]?.ToString())">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Filter Reset Button -->
+<div class="row mb-3" id="filterResetRow" style="display: none;">
+    <div class="col-12 text-end">
+        <button class="btn btn-outline-light btn-sm" onclick="resetDockFilter()">
+            <i class="bi bi-arrow-clockwise"></i> Reset Filter
+        </button>
+    </div>
+</div>
+
+<!-- Gantt Chart Container -->
+@if (!Model.Rows.Any())
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Tidak ada customer aktif yang ditemukan. Tambahkan customer terlebih dahulu.
+    </div>
+}
+else
+{
+    <div class="cyber-card gantt-main-card" id="ganttContainer">
+        <div class="card-header gantt-header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-bar-chart-line-fill" style="color: #60a5fa;"></i>
+                <span style="color: #60a5fa; font-weight: 700;">Timeline Shipping Delivery</span>
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge bg-dark border border-primary text-light" style="font-size:0.8rem;">
+                    <i class="bi bi-calendar-event"></i>
+                    <span class="ms-1">
+                        @DateTime.Now.ToString("dddd, dd MMMM yyyy", new System.Globalization.CultureInfo("id-ID"))
+                    </span>
+                </span>
+                <span class="badge bg-primary border border-primary text-light" style="font-size:0.85rem;">
+                    <i class="bi bi-clock-fill"></i>
+                    <span class="ms-1" id="ganttCurrentTime">00:00:00</span>
+                </span>
+                <button type="button" class="btn btn-sm btn-outline-light" id="ganttAutoScrollToggle" title="Toggle Auto Scroll">
+                    <i class="bi bi-arrow-down-up" id="ganttAutoScrollIcon"></i>
+                    <span id="ganttAutoScrollText">Auto Scroll: ON</span>
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-info" id="ganttDockFilterBtn" title="Filter Dock" data-bs-toggle="modal" data-bs-target="#dockFilterModal">
+                    <i class="bi bi-funnel-fill"></i> Filter Dock
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-light gantt-fullscreen-btn ms-lg-2" id="ganttFullscreenToggle">
+                    <i class="bi bi-arrows-fullscreen" id="ganttFullscreenIcon"></i> Full Screen
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            @{
+                // =====================================================================
+                // LAYOUT TIMELINE:
+                //   H-1   : kemarin 18:00–24:00 → col 0–5   (6 jam)   — hanya untuk data delay
+                //   H     : hari ini  00:00–24:00 → col 6–29 (24 jam)  — UTAMA
+                //   H+1   : besok    00:00–12:00 → col 30–41 (12 jam)
+                // Total 42 jam × 40px = 1680px
+                // =====================================================================
+                const int colPx = 40;
+                const int totalCols = 42;
+                const int timelineMinPx = colPx * totalCols; // 1680px
+                const int custColPx = 150;
+                const int remColPx  = 90;
+            }
+            <div id="ganttChart" style="display: flex; flex-direction: column; max-height: 82vh; overflow-y: auto; overflow-x: auto;">
+                <!-- Timeline Header (Fixed) -->
+                <div style="display: flex; border-bottom: 3px solid #3b82f6; position: sticky; top: 0; z-index: 100; min-width: @(custColPx + remColPx + timelineMinPx)px;">
+                    <div style="width: @(custColPx)px; min-width: @(custColPx)px; background: #0f172a; padding: 8px 6px; font-weight: 700; color: #60a5fa; text-transform: uppercase; font-size: 0.75rem; border-right: 2px solid #3b82f6; box-sizing: border-box; flex-shrink: 0; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4); position: sticky; left: 0; z-index: 101;">
+                        Customer / Schedule
+                    </div>
+                    <div style="width: @(remColPx)px; min-width: @(remColPx)px; background: #0f172a; padding: 8px 6px; font-weight: 700; color: #fbbf24; text-transform: uppercase; font-size: 0.72rem; border-right: 3px solid #3b82f6; box-sizing: border-box; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4); position: sticky; left: @(custColPx)px; z-index: 101;">
+                        Remark Order
+                    </div>
+                    <div style="flex-grow: 1; min-width: @(timelineMinPx)px; background: #0f172a; position: relative; flex-shrink: 0;">
+                        @{
+                            // Percent positions 
+                            int h1Cols    = 6;   // H-1: col 0-5
+                            int todayCols = 24;  // Today: col 6-29
+                            double colPct = 100.0 / totalCols; // ~2.38%
+                            
+                            double h1PxStart    = 0;
+                            double todayPxStart = h1Cols * colPct;
+                            double h1PlusPxStart = (h1Cols + todayCols) * colPct;
+                            double h1PxWidth    = h1Cols * colPct;
+                            double todayPxWidth = todayCols * colPct;
+                            double h1PlusPxWidth = (totalCols - h1Cols - todayCols) * colPct;
+                        }
+                        <!-- H-1 Header (18:00-24:00) - Gray -->
+                        <div style="position: absolute; top: 0; left: @h1PxStart.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)%; width: @h1PxWidth.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)%; height: 20px; background: rgba(100, 116, 139, 0.3); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(148, 163, 184, 0.3);">
+                            <span style="font-size: 0.7rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px;">H-1 (18:00-24:00)</span>
+                        </div>
+                        <!-- HARI INI Header (00:00-24:00) - Blue -->
+                        <div style="position: absolute; top: 0; left: @todayPxStart.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)%; width: @todayPxWidth.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)%; height: 20px; background: rgba(59, 130, 246, 0.2); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(59, 130, 246, 0.4); border-left: 2px solid #60a5fa;">
+                            <span style="font-size: 0.7rem; font-weight: 600; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px;">HARI INI (00:00-24:00)</span>
+                        </div>
+                        <!-- H+1 Header (00:00-12:00) - Purple -->
+                        <div style="position: absolute; top: 0; left: @h1PlusPxStart.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)%; width: @h1PlusPxWidth.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)%; height: 20px; background: rgba(168, 85, 247, 0.2); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(168, 85, 247, 0.4); border-left: 2px solid #a855f7;">
+                            <span style="font-size: 0.7rem; font-weight: 600; color: #c084fc; text-transform: uppercase; letter-spacing: 0.5px;">H+1 (00:00-12:00)</span>
+                        </div>
+
+                        <!-- Hour labels grid — setiap jam ditampilkan -->
+                        <div style="display: grid; grid-template-columns: repeat(@totalCols, 1fr); height: 45px; width: 100%; padding-top: 20px;">
+                            @for (int i = 0; i < totalCols; i++)
+                            {
+                                int actualHour;
+                                string zone;
+                                if (i < 6) { actualHour = i + 18; zone = "h1"; }
+                                else if (i < 30) { actualHour = i - 6; zone = "today"; }
+                                else { actualHour = i - 30; zone = "h1plus"; }
+
+                                var isMidnightToday  = zone == "today"  && actualHour == 0;
+                                var isMidnightH1plus = zone == "h1plus" && actualHour == 0;
+                                var isMainHour = actualHour % 6 == 0;
+                                string borderColor, borderWidth, textColor;
+
+                                if (isMidnightToday)       { borderColor = "#60a5fa"; borderWidth = "3px"; }
+                                else if (isMidnightH1plus) { borderColor = "#a855f7"; borderWidth = "3px"; }
+                                else if (isMainHour && zone == "h1plus") { borderColor = "#c084fc"; borderWidth = "2px"; }
+                                else if (isMainHour)       { borderColor = "#60a5fa"; borderWidth = "2px"; }
+                                else                       { borderColor = "rgba(148, 163, 184, 0.25)"; borderWidth = "1px"; }
+
+                                textColor = zone == "h1plus" ? "#c084fc" : (zone == "today" ? "#60a5fa" : "#94a3b8");
+
+                                <div style="border-right: @borderWidth solid @borderColor;
+                                            display: flex;
+                                            align-items: center;
+                                            justify-content: center;
+                                            position: relative;
+                                            overflow: visible;">
+                                    <!-- Setiap jam ditampilkan — kolom cukup lebar (@(colPx)px) -->
+                                    <span style="font-size: 0.72rem;
+                                                 font-weight: @(isMainHour || isMidnightToday || isMidnightH1plus ? "800" : "600");
+                                                 color: @textColor;
+                                                 white-space: nowrap;
+                                                 text-shadow: 0 1px 2px rgba(0,0,0,0.5);">
+                                        @actualHour.ToString("D2"):00
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div id="ganttBody">
+                    <div style="display: flex; flex-direction: column; width: 100%; min-width: @(custColPx + remColPx + timelineMinPx)px;">
+                    <table class="table mb-0" style="table-layout: fixed; width: 100%; min-width: @(custColPx + remColPx + timelineMinPx)px; border-collapse: separate; border-spacing: 0;">
+                        <tbody>
+        @{
+            // =====================================================================
+            // Helper: konversi DateTime ke posisi PERCENT di timeline 42 jam
+            // =====================================================================
+            double DateTimeToPct(DateTime dt, DateTime selDate) {
+                double cPct = 100.0 / 42.0;
+                double col = 0.0;
+
+                // Normalisasi jika tanggal dt tidak cocok dengan selDate (misal tanggal default atau inkonsisten)
+                DateTime d = dt;
+                if (d.Date != selDate.Date && d.Date != selDate.Date.AddDays(-1) && d.Date != selDate.Date.AddDays(1)) {
+                    d = selDate.Date.Add(dt.TimeOfDay);
+                }
+
+                if (d.Date == selDate.Date.AddDays(-1)) {
+                    double h = d.Hour + d.Minute / 60.0;
+                    col = h - 18.0;
+                    if (col < 0) col = 0;
+                } else if (d.Date == selDate.Date) {
+                    double h = d.Hour + d.Minute / 60.0;
+                    col = 6.0 + h;
+                } else if (d.Date == selDate.Date.AddDays(1)) {
+                    double h = d.Hour + d.Minute / 60.0;
+                    col = 30.0 + h;
+                    if (col > 42.0) col = 42.0;
+                } else if (d < selDate.Date) {
+                    col = 0;
+                } else {
+                    col = 42.0;
+                }
+                return col * cPct;
+            }
+            double WidthInPct42(double durationHours) {
+                return durationHours * (100.0 / 42.0);
+            }
+        }
+
+        @foreach (var row in Model.Rows)
+        {
+            var customer = row.Customer;
+            var schedules = row.Schedules;
+            var selectedDate = Model.SelectedDate;
+
+            // Prioritaskan jadwal hari target jika ada agar tidak tercampur dengan hari lain
+            var activeSchedules = schedules.Where(s => s.ScheduledDate.Date == selectedDate.Date).ToList();
+            if (!activeSchedules.Any()) activeSchedules = schedules;
+            int schCount = activeSchedules.Count;
+
+            // ========================
+            // Timing: prioritize from schedules, fallback to Customer master
+            // ========================
+            DateTime? pickupTime = null;
+            DateTime? etdTime = null;
+            DateTime? enterDockTime = null;
+            DateTime? actualEnterDockTime = null;
+            DateTime? actualStartTime = null;
+            DateTime? actualEndTime = null;
+            int startPrepMins = 0;
+            int stdPrepMins = 0;
+
+            if (activeSchedules.Any())
+            {
+                pickupTime = activeSchedules.Where(s => s.PickupTime.HasValue).Select(s => s.PickupTime).Min();
+                etdTime = activeSchedules.Where(s => s.ETD.HasValue).Select(s => s.ETD).Max();
+                enterDockTime = activeSchedules.Where(s => s.EnterDockTime.HasValue).Select(s => s.EnterDockTime).Min();
+                actualEnterDockTime = activeSchedules.Where(s => s.ActualEnterDockTime.HasValue).Select(s => s.ActualEnterDockTime).Min();
+                actualStartTime = activeSchedules.Where(s => s.ActualStartTime.HasValue).Select(s => s.ActualStartTime).Min();
+                actualEndTime = activeSchedules.Where(s => s.ActualEndTime.HasValue).Select(s => s.ActualEndTime).Max();
+                startPrepMins = activeSchedules.Where(s => s.StartPrepareTime > 0).Select(s => s.StartPrepareTime).DefaultIfEmpty(0).Min();
+                stdPrepMins = activeSchedules.Where(s => s.StdPrepareTime > 0).Select(s => s.StdPrepareTime).DefaultIfEmpty(0).Min();
+                if (startPrepMins == 0) startPrepMins = customer.StartPrepareTime;
+                if (stdPrepMins == 0) stdPrepMins = customer.StdPrepareTime;
+            }
+            else
+            {
+                startPrepMins = customer.StartPrepareTime;
+                stdPrepMins = customer.StdPrepareTime;
+                if (!string.IsNullOrWhiteSpace(customer.Docking) && TimeSpan.TryParse(customer.Docking, out var dockTs))
+                    enterDockTime = selectedDate.Date.Add(dockTs);
+                if (!string.IsNullOrWhiteSpace(customer.Pickup) && TimeSpan.TryParse(customer.Pickup, out var pTs))
+                    pickupTime = selectedDate.Date.Add(pTs);
+                if (!string.IsNullOrWhiteSpace(customer.ETD) && TimeSpan.TryParse(customer.ETD, out var eTs))
+                    etdTime = selectedDate.Date.Add(eTs);
+            }
+
+            var estimatedDockTime = enterDockTime?.AddMinutes(15);
+            var actualEstimatedDockTime = actualEnterDockTime?.AddMinutes(15);
+
+            // Status & Filter
+            string statusStr = "Scheduled";
+            bool isLate = false;
+            if (schedules.Any()) {
+                var repS = schedules.OrderByDescending(s => s.ActualStartTime.HasValue).First();
+                statusStr = (repS.DriverStatus ?? repS.Status) ?? "Scheduled";
+                isLate = actualStartTime.HasValue && pickupTime.HasValue && actualStartTime.Value > pickupTime.Value;
+            }
+            var statusFilter = statusStr.ToLower().Replace(" ", "");
+
+            // Prepare Calculations
+            var prepareStartPct = 0.0;
+            var prepareEndPct   = 0.0;
+            DateTime? prepareStartTime = null;
+            DateTime? prepareEndTime   = null;
+            if (startPrepMins > 0 && stdPrepMins > 0)
+            {
+                prepareStartTime = selectedDate.Date.AddMinutes(startPrepMins);
+                prepareEndTime = selectedDate.Date.AddMinutes(stdPrepMins);
+                if (prepareEndTime <= prepareStartTime) prepareEndTime = prepareEndTime.Value.AddDays(1);
+                prepareStartPct = DateTimeToPct(prepareStartTime.Value, selectedDate);
+                prepareEndPct   = DateTimeToPct(prepareEndTime.Value,   selectedDate);
+            }
+
+            // Remark / Cycle
+            var remarkOrder = customer.RemarkOrder ?? "";
+            var cycleStr = customer.Cycle ?? (schedules.Any() ? (schedules.First().Cycle ?? "") : "");
+            var dockCycleKey = customer.CustomerName + (string.IsNullOrEmpty(cycleStr) ? "" : " - " + cycleStr);
+
+            <tr class="gantt-row" 
+                data-status="@statusFilter" 
+                data-late="@(isLate ? "true" : "false")"
+                data-has-schedule="@(row.HasSchedule ? "true" : "false")"
+                data-dock-name="@customer.CustomerName"
+                data-dock-cycle="@dockCycleKey"
+                data-dock-id="@customer.CustomerId"
+                style="display: flex; border-bottom: 1px solid rgba(59, 130, 246, 0.2);">
+                
+                <!-- Customer Info Cell -->
+                <td class="gantt-customer-cell" style="width: @(custColPx)px; min-width: @(custColPx)px; flex-shrink: 0; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); box-shadow: 3px 0 15px rgba(0,0,0,0.3); border-right: 2px solid @(row.HasSchedule ? "#3b82f6" : "#475569"); padding: 6px 8px; box-sizing: border-box; border-bottom: none; position: sticky; left: 0; z-index: 3;">
+                    <div class="customer-info-gantt d-flex flex-column justify-content-center" style="height: 100%;">
+                        <div class="d-flex align-items-center mb-1">
+                            <div class="flex-grow-1" style="min-width: 0; overflow: hidden;">
+                                <div style="font-weight: 700; color: @(row.HasSchedule ? "#60a5fa" : "#94a3b8"); font-size: 0.88rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@customer.CustomerName">
+                                    @customer.CustomerName
+                                </div>
+                                <div style="font-size: 0.72rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    @customer.CustomerCode
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <small style="color: #94a3b8; font-size: 0.72rem;">
+                                @if (!string.IsNullOrEmpty(cycleStr)) {
+                                    <span><i class="bi bi-arrow-repeat" style="font-size: 0.65rem;"></i> @cycleStr</span>
+                                }
+                                @if (schCount > 0) {
+                                    <span class="ms-1 badge bg-primary" style="font-size: 0.65rem;">@schCount</span>
+                                }
+                            </small>
+                            @if (pickupTime.HasValue) {
+                                <small style="color: #fbbf24; font-size: 0.72rem; font-weight: 600;">
+                                    <i class="bi bi-clock-fill"></i> @pickupTime.Value.ToString("HH:mm")
+                                </small>
+                            }
+                        </div>
+                    </div>
+                </td>
+
+                <td style="width: @(remColPx)px; min-width: @(remColPx)px; flex-shrink: 0; background: @(row.HasSchedule ? "#1a2636" : "#151e2d"); border-right: 3px solid @(row.HasSchedule ? "#3b82f6" : "#475569"); padding: 6px 5px; box-sizing: border-box; border-bottom: none; display: flex; align-items: center; justify-content: center; position: sticky; left: @(custColPx)px; z-index: 3;">
+                    @if (row.HasSchedule) {
+                        if (!string.IsNullOrWhiteSpace(remarkOrder)) {
+                            <div style="font-size: 0.75rem; color: #34d399; background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.25); border-radius: 4px; padding: 4px 8px; text-align: center; word-break: break-word; line-height: 1.3;" title="@remarkOrder">@remarkOrder</div>
+                        } else {
+                            <div style="font-size: 0.7rem; color: #475569; font-style: italic; text-align: center;">—</div>
+                        }
+                    } else {
+                        <div style="font-size: 0.72rem; color: #f87171; font-weight: 600; text-align: center; background: rgba(248, 113, 113, 0.08); border: 1px solid rgba(248, 113, 113, 0.2); border-radius: 4px; padding: 4px 8px; line-height: 1.3;">Not Yet Release</div>
+                    }
+                </td>
+
+                <td class="gantt-timeline-cell" style="flex-grow: 1; min-width: @(timelineMinPx)px; position: relative; height: 306px; padding: 0; background: @(row.HasSchedule ? "#1e293b" : "#172032"); border-bottom: none;">
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: grid; grid-template-columns: repeat(@totalCols, 1fr); z-index: 0; pointer-events: none;">
+                        @for (int i = 0; i < totalCols; i++) {
+                            int gh; string gz;
+                            if (i < 6) { gh = i + 18; gz = "h1"; }
+                            else if (i < 30) { gh = i - 6; gz = "today"; }
+                            else { gh = i - 30; gz = "h1plus"; }
+                            bool gMidT = gz == "today" && gh == 0;
+                            bool gMidP = gz == "h1plus" && gh == 0;
+                            bool gMain = gh % 6 == 0;
+                            string gBord, gBordW;
+                            if (gMidT) { gBord="#60a5fa"; gBordW="3px"; }
+                            else if (gMidP) { gBord="#a855f7"; gBordW="3px"; }
+                            else if (gMain) { gBord="#60a5fa"; gBordW="2px"; }
+                            else { gBord="rgba(148,163,184,0.15)"; gBordW="1px"; }
+                            <div style="border-right: @gBordW solid @gBord; height: 100%;"></div>
+                        }
+                    </div>
+
+                    @{
+                        // Real-time Delay Booleans
+                        var nowReal = DateTime.Now;
+                        bool delayP = false; bool delayD = false; bool delayPk = false;
+                        int dPMin = 0; int dDMin = 0; int dPkMin = 0;
+                        if (schedules.Any() && !actualEndTime.HasValue && !schedules.Any(s => s.Status == "Completed")) {
+                            if (prepareEndTime.HasValue && !actualStartTime.HasValue && nowReal > prepareEndTime) { delayP=true; dPMin=(int)(nowReal-prepareEndTime.Value).TotalMinutes; }
+                            if (enterDockTime.HasValue && !actualEnterDockTime.HasValue && nowReal > enterDockTime) { delayD=true; dDMin=(int)(nowReal-enterDockTime.Value).TotalMinutes; }
+                            if (pickupTime.HasValue && !actualStartTime.HasValue && nowReal > pickupTime) { delayPk=true; dPkMin=(int)(nowReal-pickupTime.Value).TotalMinutes; }
+                        }
+                    }
+
+                    @if (prepareStartTime.HasValue && prepareEndPct > prepareStartPct) {
+                        var wPrep = prepareEndPct - prepareStartPct;
+                        <div style="position: absolute; top: 4px; left: @prepareStartPct.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; width: @wPrep.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: linear-gradient(135deg, #fb923c 0%, #f97316 100%); border-radius: 5px; border: 2px solid #fb923c; opacity: 0.95; z-index: 2; display: flex; align-items: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" title="Planned Prepare @prepareStartTime.Value.ToString("HH:mm") - @prepareEndTime.Value.ToString("HH:mm")">
+                            <span style="font-size: 0.92rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap;">@prepareStartTime!.Value.ToString("HH:mm") - @prepareEndTime!.Value.ToString("HH:mm")</span>
+                        </div>
+                    }
+
+                    @if (delayP) {
+                        var wD = WidthInPct42(1.2);
+                        <div style="position: absolute; top: 54px; left: @prepareStartPct.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; width: @wD.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); border-radius: 5px; border: 2px solid #f87171; opacity: 0.95; z-index: 3; display: flex; align-items: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" class="blink-soft">
+                            <span style="font-size: 0.9rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.7); white-space: nowrap;">Delay +@dPMin m</span>
+                        </div>
+                    }
+
+                    @if (enterDockTime.HasValue) {
+                        var px = DateTimeToPct(enterDockTime.Value, selectedDate);
+                        <div style="position: absolute; top: 104px; left: @px.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%); border-radius: 5px; border: 2px solid #38bdf8; opacity: 0.95; z-index: 2; display: flex; align-items: center; justify-content: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" title="Planned Dock @@ @enterDockTime.Value.ToString("HH:mm")">
+                            <span style="font-size: 0.92rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap;">@enterDockTime.Value.ToString("HH:mm")</span>
+                        </div>
+                    }
+
+                    @if (actualEnterDockTime.HasValue) {
+                        var aPx = DateTimeToPct(actualEnterDockTime.Value, selectedDate);
+                        bool isD = enterDockTime.HasValue && actualEnterDockTime.Value > enterDockTime.Value;
+                        <div style="position: absolute; top: 154px; left: @aPx.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: @(isD ? "linear-gradient(135deg, #f87171 0%, #ef4444 100%)" : "linear-gradient(135deg, #4ade80 0%, #22c55e 100%)"); border-radius: 5px; border: 2px solid @(isD ? "#f87171" : "#4ade80"); opacity: 0.95; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" title="Actual Dock @@ @actualEnterDockTime.Value.ToString("HH:mm")">
+                            <span style="font-size: 0.92rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap;">@actualEnterDockTime.Value.ToString("HH:mm")</span>
+                        </div>
+                    } else if (delayD && enterDockTime.HasValue) {
+                        var px = DateTimeToPct(enterDockTime.Value, selectedDate);
+                        var wD = WidthInPct42(1.2);
+                        <div style="position: absolute; top: 154px; left: @px.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); border-radius: 5px; border: 2px solid #f87171; opacity: 0.95; z-index: 2; display: flex; align-items: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" class="blink-soft">
+                            <span style="font-size: 0.9rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.7); white-space: nowrap;">Delay +@dDMin m</span>
+                        </div>
+                    }
+
+                    @if (pickupTime.HasValue && etdTime.HasValue) {
+                        var pS = DateTimeToPct(pickupTime.Value, selectedDate);
+                        var pE = DateTimeToPct(etdTime.Value, selectedDate);
+                        if (pE > pS) {
+                            var dur = pE - pS;
+                            <div style="position: absolute; top: 204px; left: @pS.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; width: @dur.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%); border-radius: 5px; border: 2px solid #c084fc; opacity: 0.95; z-index: 2; display: flex; align-items: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" title="Planned Pickup @pickupTime.Value.ToString("HH:mm") - @etdTime.Value.ToString("HH:mm")">
+                                <span style="font-size: 0.92rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap;">@pickupTime.Value.ToString("HH:mm") - @etdTime.Value.ToString("HH:mm")</span>
+                            </div>
+                        }
+                    }
+
+                    @if (actualStartTime.HasValue) {
+                        var aS = DateTimeToPct(actualStartTime.Value, selectedDate);
+                        double dur = 0;
+                        string actText;
+                        if (actualEndTime.HasValue) {
+                            var aE = DateTimeToPct(actualEndTime.Value, selectedDate);
+                            dur = aE > aS ? (aE - aS) : 0;
+                            actText = actualStartTime.Value.ToString("HH:mm") + " - " + actualEndTime.Value.ToString("HH:mm");
+                        } else {
+                            actText = actualStartTime.Value.ToString("HH:mm") + " (In Progress)";
+                        }
+                        bool isL = pickupTime.HasValue && actualStartTime.Value > pickupTime.Value;
+                        <div style="position: absolute; top: 254px; left: @aS.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; width: @dur.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: @(isL ? "linear-gradient(135deg, #f87171 0%, #ef4444 100%)" : "linear-gradient(135deg, #4ade80 0%, #22c55e 100%)"); border-radius: 5px; border: 2px solid @(isL ? "#f87171" : "#4ade80"); opacity: 0.95; z-index: 3; display: flex; align-items: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" title="Actual: @actText">
+                            <span style="font-size: 0.92rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.8); white-space: nowrap;">@actText</span>
+                        </div>
+                    } else if (delayPk && pickupTime.HasValue) {
+                        var pS = DateTimeToPct(pickupTime.Value, selectedDate);
+                        var wD = WidthInPct42(1.2);
+                        <div style="position: absolute; top: 254px; left: @pS.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)%; min-width: max-content; height: 44px; background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); border-radius: 5px; border: 2px solid #f87171; opacity: 0.95; z-index: 2; display: flex; align-items: center; padding: 0 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); overflow: visible;" class="blink-soft">
+                            <span style="font-size: 0.9rem; color: white; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.7); white-space: nowrap;">Delay +@dPkMin m</span>
+                        </div>
+                    }
+                </td>
+            </tr>
+        }
+                    </tbody>
+                </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Legend -->
+            <div class="legend-container">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="legend-title-inline"><i class="bi bi-info-circle-fill"></i> Ket:</span>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:10px;background:#64748b;border-radius:2px;margin-right:3px;"></span>H-1 (18-24)</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:10px;background:#3b82f6;border-radius:2px;margin-right:3px;"></span>Hari Ini</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:10px;background:#a855f7;border-radius:2px;margin-right:3px;"></span>H+1</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:5px;background:linear-gradient(135deg,#fb923c,#f97316);border-radius:2px;margin-right:3px;"></span>Planned Prepare</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:5px;background:linear-gradient(135deg,#38bdf8,#0ea5e9);border-radius:2px;margin-right:3px;"></span>Enter Dock</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:5px;background:linear-gradient(135deg,#c084fc,#a855f7);border-radius:2px;margin-right:3px;"></span>Pickup-ETD</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:5px;background:linear-gradient(135deg,#4ade80,#22c55e);border-radius:2px;margin-right:3px;"></span>Actual On Time</div>
+                    <div class="legend-item-simple"><span style="display:inline-block;width:10px;height:5px;background:linear-gradient(135deg,#f87171,#ef4444);border-radius:2px;margin-right:3px;"></span>Late/Delay</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dock Filter Modal -->
+    <div class="modal fade" id="dockFilterModal" tabindex="-1" aria-labelledby="dockFilterModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content" style="background: #1e293b; border: 1px solid #334155; color: #e2e8f0;">
+                <div class="modal-header" style="border-bottom: 1px solid #334155;">
+                    <h5 class="modal-title" id="dockFilterModalLabel">
+                        <i class="bi bi-funnel-fill" style="color: #60a5fa;"></i> Filter Dock — Pilih Dock Yang Ditampilkan
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Search + Select All -->
+                    <div class="d-flex align-items-center gap-2 mb-3">
+                        <input type="text" class="form-control form-control-sm" id="dockFilterSearch" placeholder="Cari dock..." 
+                               style="background: #0f172a; border-color: #334155; color: #e2e8f0; max-width: 250px;">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="dockSelectAll">
+                            <i class="bi bi-check-all"></i> Pilih Semua
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="dockDeselectAll">
+                            <i class="bi bi-x-lg"></i> Hapus Semua
+                        </button>
+                        <span class="ms-auto badge bg-primary" id="dockSelectedCount">0 dipilih</span>
+                    </div>
+                    <!-- Dock Grid -->
+                    <div id="dockFilterGrid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-height: 400px; overflow-y: auto;">
+                        @foreach (var row in Model.Rows)
+                        {
+                            var dkName = row.Customer?.CustomerName ?? "(No Customer)";
+                            var dkCode = row.Customer?.CustomerCode ?? "-";
+                            var dkId = row.Customer?.CustomerId ?? 0;
+                            var dkHasSch = row.HasSchedule;
+                            var dkCycle = row.Customer?.Cycle ?? (row.Schedules.Any() ? row.Schedules.First().Cycle ?? "" : "");
+                            var dkCycleKey = dkName + (string.IsNullOrEmpty(dkCycle) ? "" : " - " + dkCycle);
+                            <label class="dock-filter-item d-flex align-items-center gap-2 p-2" 
+                                   style="background: #0f172a; border: 1px solid @(dkHasSch ? "#334155" : "#1e293b"); border-radius: 6px; cursor: pointer; transition: all 0.15s;"
+                                   data-dock-name="@dkCycleKey">
+                                <input type="checkbox" class="form-check-input dock-filter-cb" value="@dkId" data-dock-name="@dkCycleKey" checked 
+                                       style="margin: 0; flex-shrink: 0;">
+                                <div style="min-width: 0; overflow: hidden;">
+                                    <div style="font-size: 0.78rem; font-weight: 600; color: @(dkHasSch ? "#60a5fa" : "#94a3b8"); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        @dkName
+                                        @if (!string.IsNullOrEmpty(dkCycle))
+                                        {
+                                            <span style="color: #fbbf24; font-size: 0.68rem; font-weight: 500;"> — @dkCycle</span>
+                                        }
+                                    </div>
+                                    <div style="font-size: 0.63rem; color: #64748b;">@dkCode @(dkHasSch ? "✓" : "")</div>
+                                </div>
+                            </label>
+                        }
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid #334155;">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="dockFilterApply">
+                        <i class="bi bi-check-lg"></i> Terapkan Filter
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script>
+        // ================== JAM BERJALAN DI HEADER GANTT ==================
+        (function () {
+            function updateGanttTime() {
+                const el = document.getElementById('ganttCurrentTime');
+                if (!el) return;
+                const now = new Date();
+                const h = now.getHours().toString().padStart(2, '0');
+                const m = now.getMinutes().toString().padStart(2, '0');
+                const s = now.getSeconds().toString().padStart(2, '0');
+                el.textContent = `${h}:${m}:${s}`;
+            }
+            updateGanttTime();
+            setInterval(updateGanttTime, 1000);
+        })();
+
+        // Global filter state
+        let currentGanttFilter = 'all';
+
+        // Reset dock filter (show all)
+        function resetDockFilter() {
+            $('.dock-filter-cb').prop('checked', true);
+            localStorage.removeItem('gantt_dock_filter');
+            $('.gantt-row').show();
+            $('#filterResetRow').fadeOut();
+            const btn = $('#ganttDockFilterBtn');
+            btn.removeClass('btn-info').addClass('btn-outline-info');
+            btn.html('<i class="bi bi-funnel-fill"></i> Filter Dock');
+        }
+
+        // ============================================
+        // AUTO-SCROLL VERTICAL GANTT CHART
+        // ============================================
+        let ganttAutoScrollInterval = null;
+        let isGanttScrollingDown = true;
+        let isGanttPaused = false;
+        let isGanttAutoScrollEnabled = true; // Default enabled
+        const ganttScrollSpeed = 1; // pixels per frame
+        const ganttScrollDelay = 20; // milliseconds between scrolls
+        const GANTT_STORAGE_KEY = 'gantt_autoscroll_enabled';
+
+        // Load state from localStorage
+        function loadGanttAutoScrollState() {
+            const saved = localStorage.getItem(GANTT_STORAGE_KEY);
+            if (saved !== null) {
+                isGanttAutoScrollEnabled = saved === 'true';
+            }
+            updateGanttAutoScrollToggleUI();
+        }
+
+        // Update toggle button UI
+        function updateGanttAutoScrollToggleUI() {
+            const toggleBtn = document.getElementById('ganttAutoScrollToggle');
+            const toggleIcon = document.getElementById('ganttAutoScrollIcon');
+            const toggleText = document.getElementById('ganttAutoScrollText');
+            
+            if (toggleBtn && toggleIcon && toggleText) {
+                if (isGanttAutoScrollEnabled) {
+                    toggleBtn.classList.remove('btn-outline-secondary');
+                    toggleBtn.classList.add('btn-outline-success');
+                    toggleIcon.classList.remove('bi-pause-circle', 'bi-arrow-down-up');
+                    toggleIcon.classList.add('bi-arrow-down-up');
+                    toggleText.textContent = 'Auto Scroll: ON';
+                } else {
+                    toggleBtn.classList.remove('btn-outline-success');
+                    toggleBtn.classList.add('btn-outline-secondary');
+                    toggleIcon.classList.remove('bi-arrow-down-up');
+                    toggleIcon.classList.add('bi-pause-circle');
+                    toggleText.textContent = 'Auto Scroll: OFF';
+                }
+            }
+        }
+
+        // Toggle auto-scroll on/off
+        function toggleGanttAutoScroll() {
+            isGanttAutoScrollEnabled = !isGanttAutoScrollEnabled;
+            localStorage.setItem(GANTT_STORAGE_KEY, isGanttAutoScrollEnabled.toString());
+            updateGanttAutoScrollToggleUI();
+            
+            if (isGanttAutoScrollEnabled) {
+                startGanttAutoScroll();
+            } else {
+                stopGanttAutoScroll();
+            }
+        }
+
+        function startGanttAutoScroll() {
+            if (!isGanttAutoScrollEnabled) return; // Don't start if disabled
+            
+            const ganttChart = document.getElementById('ganttChart');
+            if (!ganttChart) return;
+
+            // Hanya jalankan jika konten lebih tinggi dari container
+            if (ganttChart.scrollHeight <= ganttChart.clientHeight) {
+                return; // Tidak perlu scroll jika konten tidak overflow
+            }
+
+            // Hapus interval yang sudah ada jika ada
+            if (ganttAutoScrollInterval) {
+                clearInterval(ganttAutoScrollInterval);
+            }
+
+            ganttAutoScrollInterval = setInterval(function() {
+                if (isGanttPaused || !isGanttAutoScrollEnabled) return;
+
+                const maxScroll = ganttChart.scrollHeight - ganttChart.clientHeight;
+                const currentScroll = ganttChart.scrollTop;
+
+                if (isGanttScrollingDown) {
+                    // Scroll ke bawah
+                    if (currentScroll < maxScroll) {
+                        ganttChart.scrollTop += ganttScrollSpeed;
+                    } else {
+                        // Sudah sampai bawah, mulai scroll ke atas
+                        isGanttScrollingDown = false;
+                    }
+                } else {
+                    // Scroll ke atas
+                    if (currentScroll > 0) {
+                        ganttChart.scrollTop -= ganttScrollSpeed;
+                    } else {
+                        // Sudah sampai atas, mulai scroll ke bawah
+                        isGanttScrollingDown = true;
+                    }
+                }
+            }, ganttScrollDelay);
+        }
+
+        function stopGanttAutoScroll() {
+            if (ganttAutoScrollInterval) {
+                clearInterval(ganttAutoScrollInterval);
+                ganttAutoScrollInterval = null;
+            }
+        }
+
+        // Filter function for Gantt Chart rows (dock filter)
+        function filterGanttRows(filter) {
+            if (filter === 'all') {
+                resetDockFilter();
+            }
+        }
+
+        $(document).ready(function() {
+            // ========== DOCK FILTER LOGIC ==========
+            const DOCK_FILTER_KEY = 'gantt_dock_filter';
+
+            function updateDockSelectedCount() {
+                const total = $('.dock-filter-cb').length;
+                const checked = $('.dock-filter-cb:checked').length;
+                $('#dockSelectedCount').text(checked + ' / ' + total + ' dipilih');
+                // Update button badge
+                if (checked < total) {
+                    $('#ganttDockFilterBtn').removeClass('btn-outline-info').addClass('btn-info');
+                    $('#ganttDockFilterBtn').html('<i class="bi bi-funnel-fill"></i> Filter Dock (' + checked + ')');
+                } else {
+                    $('#ganttDockFilterBtn').removeClass('btn-info').addClass('btn-outline-info');
+                    $('#ganttDockFilterBtn').html('<i class="bi bi-funnel-fill"></i> Filter Dock');
+                }
+            }
+
+            function applyDockFilter() {
+                const checkedNames = [];
+                $('.dock-filter-cb:checked').each(function() {
+                    checkedNames.push($(this).data('dock-name'));
+                });
+                // Save to localStorage
+                localStorage.setItem(DOCK_FILTER_KEY, JSON.stringify(checkedNames));
+                // Show/hide rows
+                $('.gantt-row').each(function() {
+                    const rowDockCycle = $(this).data('dock-cycle');
+                    if (checkedNames.includes(rowDockCycle)) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+                updateDockSelectedCount();
+            }
+
+            // Load saved filter
+            function loadDockFilter() {
+                const saved = localStorage.getItem(DOCK_FILTER_KEY);
+                if (saved) {
+                    try {
+                        const names = JSON.parse(saved);
+                        if (Array.isArray(names) && names.length > 0) {
+                            $('.dock-filter-cb').each(function() {
+                                const dockName = $(this).data('dock-name');
+                                $(this).prop('checked', names.includes(dockName));
+                            });
+                            applyDockFilter();
+                            return;
+                        }
+                    } catch(e) {}
+                }
+                updateDockSelectedCount();
+            }
+
+            // Search filter
+            $('#dockFilterSearch').on('input', function() {
+                const q = $(this).val().toLowerCase();
+                $('.dock-filter-item').each(function() {
+                    const name = $(this).data('dock-name').toLowerCase();
+                    $(this).toggle(name.indexOf(q) > -1);
+                });
+            });
+
+            // Select all / deselect all
+            $('#dockSelectAll').on('click', function() {
+                $('.dock-filter-cb:visible').prop('checked', true);
+                updateDockSelectedCount();
+            });
+            $('#dockDeselectAll').on('click', function() {
+                $('.dock-filter-cb:visible').prop('checked', false);
+                updateDockSelectedCount();
+            });
+
+            // Checkbox change
+            $(document).on('change', '.dock-filter-cb', function() {
+                updateDockSelectedCount();
+            });
+
+            // Apply button
+            $('#dockFilterApply').on('click', function() {
+                applyDockFilter();
+                // Close modal
+                var modal = bootstrap.Modal.getInstance(document.getElementById('dockFilterModal'));
+                if (modal) modal.hide();
+            });
+
+            // Load saved dock filter
+            loadDockFilter();
+
+            // ========== END DOCK FILTER LOGIC ==========
+            // Add hover effect to gantt bars
+            $('.gantt-bar').hover(
+                function() {
+                    $(this).css('opacity', '0.8');
+                },
+                function() {
+                    $(this).css('opacity', '1');
+                }
+            );
+
+            // Add tooltip functionality
+            $('.gantt-bar').attr('title', function() {
+                return $(this).find('strong').text();
+            });
+            
+            // Initialize
+            loadDockFilter();
+            
+            // Load saved auto-scroll state
+            loadGanttAutoScrollState();
+            
+            // Setup toggle button
+            const ganttToggleBtn = document.getElementById('ganttAutoScrollToggle');
+            if (ganttToggleBtn) {
+                ganttToggleBtn.addEventListener('click', toggleGanttAutoScroll);
+            }
+            
+            // Initialize auto-scroll setelah Gantt Chart ter-render
+            setTimeout(function() {
+                if (isGanttAutoScrollEnabled) {
+                    startGanttAutoScroll();
+                }
+            }, 1000);
+
+            // Pause saat hover, resume saat tidak hover
+            const ganttChart = document.getElementById('ganttChart');
+            if (ganttChart) {
+                ganttChart.addEventListener('mouseenter', function() {
+                    isGanttPaused = true;
+                });
+
+                ganttChart.addEventListener('mouseleave', function() {
+                    isGanttPaused = false;
+                });
+            }
+        });
+
+        // ================= FULLSCREEN HANDLING =================
+        const ganttContainer = document.getElementById('ganttContainer');
+        const ganttFsToggle = document.getElementById('ganttFullscreenToggle');
+        const ganttFsIcon = document.getElementById('ganttFullscreenIcon');
+
+        function isFullscreen() {
+            return document.fullscreenElement === ganttContainer;
+        }
+
+        function updateFullscreenButton() {
+            if (isFullscreen()) {
+                ganttFsIcon.classList.remove('bi-arrows-fullscreen');
+                ganttFsIcon.classList.add('bi-fullscreen-exit');
+                ganttFsToggle.innerHTML = '<i class=\"bi bi-fullscreen-exit\" id=\"ganttFullscreenIcon\"></i> Exit Full Screen';
+            } else {
+                ganttFsIcon.classList.remove('bi-fullscreen-exit');
+                ganttFsIcon.classList.add('bi-arrows-fullscreen');
+                ganttFsToggle.innerHTML = '<i class=\"bi bi-arrows-fullscreen\" id=\"ganttFullscreenIcon\"></i> Full Screen';
+            }
+        }
+
+        if (ganttFsToggle && ganttContainer) {
+            ganttFsToggle.addEventListener('click', async () => {
+                try {
+                    if (!isFullscreen()) {
+                        await ganttContainer.requestFullscreen();
+                    } else {
+                        await document.exitFullscreen();
+                    }
+                } catch (e) {
+                    console.error('Fullscreen error:', e);
+                }
+            });
+
+            document.addEventListener('fullscreenchange', updateFullscreenButton);
+        }
+
+        // ============================================
+        // SIGNALR REAL-TIME UPDATE FOR GANTT CHART
+        // ============================================
+        
+        console.log("🚀 Initializing SignalR connection for Gantt Chart...");
+        
+        // Build SignalR connection
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/deliveryHub")
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        // Connection state management
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+
+        // Helper function to update status badge
+        function updateStatusBadge(status, text) {
+            const badge = $('#signalr-status-gantt');
+            badge.removeClass('status-connecting status-live status-reconnecting status-disconnected');
+            badge.addClass(`status-${status}`);
+            badge.find('.status-text').text(text);
+        }
+
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toastHtml = `
+                <div class="position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+                    <div class="toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'danger' ? 'danger' : 'info'} border-0 show" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="d-flex">
+                            <div class="toast-body">
+                                <i class="bi bi-${type === 'success' ? 'check-circle-fill' : type === 'danger' ? 'exclamation-triangle-fill' : 'info-circle-fill'}"></i> ${message}
+                            </div>
+                            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            $('body').append(toastHtml);
+            setTimeout(() => {
+                $('.toast').fadeOut(300, function() { $(this).parent().remove(); });
+            }, 5000);
+        }
+
+        // Refresh Gantt Chart data
+        function refreshGanttChart() {
+            console.log("🔄 Refreshing Gantt Chart data...");
+            
+            // Get current filter values — sanitasi agar tidak ada "undefined"/"null"
+            const startDateVal  = ($('input[name="startDate"]').val()  || '').trim();
+            const endDateVal    = ($('input[name="endDate"]').val()    || '').trim();
+            const customerIdVal = ($('select[name="customerId"]').val() || '').trim();
+            
+            // Build query string — hanya sertakan jika ada nilai
+            const params = new URLSearchParams();
+            if (startDateVal)  params.set('startDate',  startDateVal);
+            if (endDateVal)    params.set('endDate',    endDateVal);
+            if (customerIdVal) params.set('customerId', customerIdVal);
+            
+            const qs = params.toString() ? '?' + params.toString() : '';
+            const url = '@Url.Action("GanttChart", "DeliverySchedules")' + qs;
+            
+            // Reload chart menggunakan AJAX agar TV tidak keluar dari mode Full Screen
+            $('#ganttChart').fadeOut(200, function() {
+                $.get(url, function(data) {
+                    var newContent = $(data).find('#ganttChart').html();
+                    if(newContent) {
+                        $('#ganttChart').html(newContent).fadeIn(200);
+                        
+                        // Re-bind event listeners (Hover & Tooltip)
+                        $('.gantt-bar').hover(
+                            function() { $(this).css('opacity', '0.8'); },
+                            function() { $(this).css('opacity', '1'); }
+                        );
+                        $('.gantt-bar').attr('title', function() {
+                            return $(this).find('strong').text();
+                        });
+                        
+                        // Re-bind mouse events untuk auto-scroll
+                        const ganttChart = document.getElementById('ganttChart');
+                        if (ganttChart) {
+                            ganttChart.addEventListener('mouseenter', function() { isGanttPaused = true; });
+                            ganttChart.addEventListener('mouseleave', function() { isGanttPaused = false; });
+                        }
+                    } else {
+                        // Fallback jika gagal
+                        window.location.href = url;
+                    }
+                }).fail(function() {
+                    window.location.href = url;
+                });
+            });
+        }
+
+        // SignalR event handlers
+        connection.on("deliveryUpdated", function(data) {
+            console.log("🔔 Delivery Update Received:", data);
+            
+            // Use camelCase for data properties
+            const action = data.action || data.Action;
+            const message = data.message || data.Message;
+            
+            // Show notification
+            const icon = action === 'arrival' ? '🚚' : '✅';
+            showToast(`${icon} ${message}`, 'success');
+            
+            // Refresh Gantt Chart after a short delay (allow animation)
+            setTimeout(() => {
+                refreshGanttChart();
+            }, 1000);
+        });
+
+        // Connection lifecycle events
+        connection.onreconnecting((error) => {
+            console.warn("⚠️ SignalR reconnecting...", error);
+            isConnected = false;
+            updateStatusBadge('reconnecting', 'Reconnecting...');
+        });
+
+        connection.onreconnected((connectionId) => {
+            console.log("✅ SignalR reconnected! Connection ID:", connectionId);
+            isConnected = true;
+            reconnectAttempts = 0;
+            updateStatusBadge('live', 'Live');
+            
+            // Refresh data after reconnection
+            refreshGanttChart();
+        });
+
+        connection.onclose((error) => {
+            console.error("❌ SignalR connection closed:", error);
+            isConnected = false;
+            updateStatusBadge('disconnected', 'Disconnected');
+            
+            // Auto reconnect
+            if (reconnectAttempts < maxReconnectAttempts) {
+                reconnectAttempts++;
+                console.log(`🔄 Attempting to reconnect... (${reconnectAttempts}/${maxReconnectAttempts})`);
+                setTimeout(() => startConnection(), 5000);
+            } else {
+                console.error("❌ Max reconnect attempts reached. Please refresh the page.");
+                showToast('Koneksi terputus. Silakan refresh halaman.', 'danger');
+            }
+        });
+
+        // Start connection function
+        async function startConnection() {
+            try {
+                await connection.start();
+                console.log("✅ SignalR connection started successfully!");
+                isConnected = true;
+                reconnectAttempts = 0;
+                updateStatusBadge('live', 'Live');
+            } catch (err) {
+                console.error("❌ SignalR connection failed:", err);
+                isConnected = false;
+                setTimeout(() => startConnection(), 5000);
+            }
+        }
+
+        // Initialize connection on page load
+        startConnection();
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (connection && isConnected) {
+                connection.stop();
+            }
+        });
+
+        console.log("✅ SignalR initialization complete for Gantt Chart!");
+    </script>
+}
+
+<style>
+    /* ========================================
+       REALTIME STATUS BADGE - Enhanced Styling
+       ======================================== */
+    .realtime-status-badge {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+        backdrop-filter: blur(10px);
+    }
+
+    .realtime-status-badge .status-pulse {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border-radius: 25px;
+        opacity: 0;
+        animation: pulse-ring 2s infinite;
+        pointer-events: none;
+    }
+
+    .realtime-status-badge .status-icon {
+        font-size: 0.7rem;
+        filter: drop-shadow(0 0 4px currentColor);
+    }
+
+    .realtime-status-badge .status-text {
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Status: Connecting (Gray) */
+    .status-connecting {
+        background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        border-color: #adb5bd;
+        color: #fff;
+    }
+
+    .status-connecting .status-pulse {
+        background: rgba(108, 117, 125, 0.5);
+    }
+
+    .status-connecting .status-icon {
+        animation: pulse-icon 1.5s infinite;
+    }
+
+    /* Status: Live (Green) */
+    .status-live {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        border-color: #34d399;
+        color: #fff;
+        animation: glow-green 2s infinite alternate;
+    }
+
+    .status-live .status-pulse {
+        background: rgba(16, 185, 129, 0.5);
+    }
+
+    .status-live .status-icon {
+        animation: pulse-icon-success 1.5s infinite;
+    }
+
+    /* Status: Reconnecting (Yellow) */
+    .status-reconnecting {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        border-color: #fbbf24;
+        color: #fff;
+        animation: glow-yellow 1s infinite alternate;
+    }
+
+    .status-reconnecting .status-pulse {
+        background: rgba(245, 158, 11, 0.5);
+    }
+
+    .status-reconnecting .status-icon {
+        animation: spin 2s linear infinite;
+    }
+
+    /* Status: Disconnected (Red) */
+    .status-disconnected {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        border-color: #f87171;
+        color: #fff;
+    }
+
+    .status-disconnected .status-pulse {
+        background: rgba(239, 68, 68, 0.5);
+    }
+
+    .status-disconnected .status-icon {
+        animation: blink-icon 1s infinite;
+    }
+
+    /* Animations */
+    @@keyframes pulse-ring {
+        0% {
+            transform: scale(1);
+            opacity: 0.5;
+        }
+        100% {
+            transform: scale(1.2);
+            opacity: 0;
+        }
+    }
+
+    @@keyframes pulse-icon {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
+
+    @@keyframes pulse-icon-success {
+        0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 0.8;
+        }
+    }
+
+    @@keyframes glow-green {
+        0% {
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+        100% {
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.8), 0 0 30px rgba(16, 185, 129, 0.4);
+        }
+    }
+
+    @@keyframes glow-yellow {
+        0% {
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+        100% {
+            box-shadow: 0 4px 20px rgba(245, 158, 11, 0.8);
+        }
+    }
+
+    @@keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    @@keyframes blink-icon {
+        0%, 49% {
+            opacity: 1;
+        }
+        50%, 100% {
+            opacity: 0.3;
+        }
+    }
+
+    /* ========== STATISTICS CARDS ========== */
+    .cyber-card {
+        border-radius: 12px;
+        border: 2px solid rgba(59, 130, 246, 0.3);
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+
+    .cyber-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 15px rgba(59, 130, 246, 0.4);
+    }
+
+    /* Filter Card Styles */
+    .filter-card-gantt {
+        border: 3px solid transparent;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .filter-card-gantt:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
+
+    .filter-card-gantt.active {
+        border-color: #ffffff;
+        box-shadow: 0 0 20px rgba(255,255,255,0.6), 0 10px 25px rgba(0,0,0,0.4);
+        transform: scale(1.05);
+    }
+
+    .filter-card-gantt::after {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .filter-card-gantt:hover::after {
+        opacity: 1;
+    }
+
+    .filter-card-gantt.active::after {
+        opacity: 1;
+    }
+
+    .stat-card-blue {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        border-color: rgba(13, 110, 253, 0.5);
+    }
+
+    .stat-card-green {
+        background: linear-gradient(135deg, #198754 0%, #146c43 100%);
+        border-color: rgba(25, 135, 84, 0.5);
+    }
+
+    .stat-card-yellow {
+        background: linear-gradient(135deg, #ffc107 0%, #d39e00 100%);
+        border-color: rgba(255, 193, 7, 0.5);
+    }
+
+    .stat-card-red {
+        background: linear-gradient(135deg, #dc3545 0%, #b02a37 100%);
+        border-color: rgba(220, 53, 69, 0.5);
+        animation: pulse-danger 2s ease-in-out infinite;
+    }
+
+    .stat-icon-gantt {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        background: rgba(255, 255, 255, 0.25);
+        transition: all 0.3s ease;
+        opacity: 1;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .cyber-card:hover .stat-icon-gantt {
+        transform: scale(1.05);
+    }
+
+    .stat-icon-blue { 
+        color: #ffffff; 
+        opacity: 1;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+    }
+    .stat-icon-green { 
+        color: #ffffff; 
+        opacity: 1;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+    }
+    .stat-icon-yellow { 
+        color: #ffffff; 
+        opacity: 1;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+    }
+    .stat-icon-red { 
+        color: #ffffff; 
+        opacity: 1;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+    }
+
+    @@keyframes pulse-danger {
+        0%, 100% {
+            box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+        }
+        50% {
+            box-shadow: 0 6px 15px rgba(220, 53, 69, 0.5);
+        }
+    }
+
+    /* ========== GANTT CHART MAIN ========== */
+    .gantt-main-card {
+        border: 3px solid rgba(59, 130, 246, 0.4);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .gantt-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        border-bottom: 3px solid #3b82f6;
+        padding: 1.5rem;
+    }
+
+    /* ========== GANTT BARS ========== */
+    .gantt-bar {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .gantt-bar:hover {
+        transform: translateY(-2px);
+        filter: brightness(1.1);
+        z-index: 10 !important;
+    }
+
+    .gantt-bar.gantt-planned:hover {
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.6);
+    }
+
+    .gantt-bar-success:hover {
+        box-shadow: 0 4px 12px rgba(25, 135, 84, 0.6);
+    }
+
+    .gantt-bar-danger:hover {
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.6);
+    }
+
+    .gantt-bar.gantt-inprogress:hover {
+        box-shadow: 0 4px 12px rgba(255, 193, 7, 0.6);
+    }
+
+    .gantt-bar.gantt-dock-scheduled:hover {
+        box-shadow: 0 3px 10px rgba(14, 165, 233, 0.6);
+        transform: translateY(-1px);
+    }
+
+    .gantt-bar.gantt-dock-actual:hover {
+        box-shadow: 0 3px 10px rgba(34, 197, 94, 0.6);
+        transform: translateY(-1px);
+    }
+
+    @@keyframes pulse-warning {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.7;
+        }
+    }
+
+    /* ========== GANTT CHART CONTAINER ========== */
+    #ganttChart {
+        background: #1e293b;
+    }
+
+    .gantt-row {
+        transition: all 0.2s ease;
+    }
+
+    .gantt-row:hover {
+        background-color: rgba(59, 130, 246, 0.1);
+    }
+    
+    .gantt-row:hover .gantt-customer-cell {
+        background: #334155 !important;
+    }
+
+    /* Fullscreen styles */
+    #ganttContainer:fullscreen {
+        border-radius: 0;
+    }
+
+    #ganttContainer:fullscreen #ganttChart {
+        max-height: calc(100vh - 140px);
+    }
+
+    /* ========== SCROLLBAR ========== */
+    #ganttChart::-webkit-scrollbar {
+        width: 12px;
+        height: 12px;
+    }
+
+    #ganttChart::-webkit-scrollbar-track {
+        background: #1e293b;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    #ganttChart::-webkit-scrollbar-thumb {
+        background: #3b82f6;
+        border-radius: 6px;
+    }
+
+    #ganttChart::-webkit-scrollbar-thumb:hover {
+        background: #60a5fa;
+    }
+
+    #ganttChart::-webkit-scrollbar-corner {
+        background: #1e293b;
+    }
+
+    /* ========== LEGEND STYLES ========== */
+    .legend-container {
+        background: rgba(30, 41, 59, 0.4) !important;
+        border-top: 1px solid rgba(59, 130, 246, 0.3) !important;
+        padding: 0.4rem 1rem !important;
+        border-radius: 0 0 12px 12px !important;
+        margin-top: 0 !important;
+    }
+
+    .legend-title-inline {
+        color: #60a5fa;
+        font-size: 0.75rem;
+        font-weight: 700;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .legend-title {
+        color: #60a5fa !important;
+        font-size: 0.9rem !important;
+        font-weight: 700 !important;
+        margin-bottom: 0.5rem !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.4rem !important;
+    }
+
+    .legend-title i {
+        font-size: 0.9rem !important;
+    }
+
+    .legend-item-simple {
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.25rem !important;
+        padding: 0.2rem 0.45rem !important;
+        background: rgba(59, 130, 246, 0.08) !important;
+        border-radius: 4px !important;
+        border: 1px solid rgba(59, 130, 246, 0.15) !important;
+        font-size: 0.72rem !important;
+        color: #cbd5e1 !important;
+        white-space: nowrap !important;
+    }
+
+    .legend-item-simple:hover {
+        background: rgba(59, 130, 246, 0.15) !important;
+        border-color: rgba(96, 165, 250, 0.35) !important;
+    }
+
+    .legend-item-simple i {
+        font-size: 1rem !important;
+        flex-shrink: 0 !important;
+    }
+
+    .legend-item-simple span {
+        line-height: 1.5 !important;
+    }
+
+    /* ========== TIMELINE GRID ========== */
+    #ganttChart table td.gantt-timeline-cell {
+        background: #1e293b !important;
+        border-top: 1px solid rgba(59, 130, 246, 0.2);
+        border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    /* ========== CUSTOMER COLUMN ========== */
+    .gantt-customer-cell {
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%) !important;
+        box-shadow: 3px 0 10px rgba(0, 0, 0, 0.4) !important;
+        border-right: 3px solid #3b82f6 !important;
+    }
+
+
+    /* ========== CUSTOMER INFO ========== */
+    .customer-info-gantt {
+        transition: all 0.3s ease;
+    }
+
+    .customer-avatar-gantt {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 1rem;
+        flex-shrink: 0;
+        border: 2px solid rgba(96, 165, 250, 0.4);
+        transition: all 0.3s ease;
+        opacity: 1;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    }
+    
+    .customer-avatar-gantt i {
+        opacity: 1;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    /* Compact version for better space */
+    .customer-avatar-gantt-compact {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.85rem;
+        flex-shrink: 0;
+        border: 2px solid rgba(96, 165, 250, 0.4);
+        transition: all 0.3s ease;
+        opacity: 1;
+        box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+    }
+    
+    .customer-avatar-gantt-compact i {
+        opacity: 1;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    .badge-gantt {
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 1;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .badge-gantt i {
+        opacity: 1;
+    }
+
+    .gantt-row:hover .customer-info-gantt {
+        transform: translateX(3px);
+    }
+
+    .gantt-row:hover .customer-avatar-gantt {
+        transform: scale(1.05);
+        border-color: rgba(96, 165, 250, 0.6);
+    }
+
+    /* ========== RESPONSIVE ========== */
+    @@media (max-width: 768px) {
+        .stat-icon-gantt {
+            width: 50px;
+            height: 50px;
+            font-size: 1.5rem;
+        }
+        
+        .legend-item-gantt {
+            padding: 10px 12px;
+        }
+        
+        .legend-box {
+            width: 40px;
+            height: 24px;
+        }
+    }
+
+    /* Auto Scroll Toggle Button */
+    #ganttAutoScrollToggle {
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.8rem;
+    }
+
+    #ganttAutoScrollToggle:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    #ganttAutoScrollToggle.btn-outline-success {
+        border-color: #198754;
+        color: #198754;
+    }
+
+    #ganttAutoScrollToggle.btn-outline-success:hover {
+        background-color: #198754;
+        color: white;
+    }
+
+    #ganttAutoScrollToggle.btn-outline-secondary {
+        border-color: #6c757d;
+        color: #6c757d;
+    }
+
+    #ganttAutoScrollToggle.btn-outline-secondary:hover {
+        background-color: #6c757d;
+        color: white;
+    }
+    }
+</style>
+

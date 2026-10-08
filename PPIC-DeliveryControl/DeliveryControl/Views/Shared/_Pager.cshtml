@@ -1,0 +1,76 @@
+@model dynamic
+@{
+    var type = Model.GetType();
+    
+    // Helper to safely get property value
+    Func<string, object?> getVal = (propName) => type.GetProperty(propName)?.GetValue(Model);
+
+    int currentPage = (int)(getVal("CurrentPage") ?? 1);
+    int totalPages = (int)(getVal("TotalPages") ?? 1);
+    int totalItems = (int)(getVal("TotalItems") ?? 0);
+    
+    string action = getVal("Action")?.ToString() ?? ViewContext.RouteData.Values["action"]?.ToString() ?? "Index";
+    string controller = getVal("Controller")?.ToString() ?? ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    
+    var routeData = getVal("RouteData") as Dictionary<string, string> ?? new Dictionary<string, string>();
+}
+
+<nav aria-label="Page navigation" class="mt-4">
+        <ul class="pagination pagination-sm justify-content-center mb-0">
+            @if (currentPage > 1)
+            {
+                <li class="page-item">
+                    <a class="page-link bg-dark border-secondary text-info" asp-controller="@controller" asp-action="@action" asp-all-route-data="routeData" asp-route-pageNumber="1" title="First Page">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link bg-dark border-secondary text-info" asp-controller="@controller" asp-action="@action" asp-all-route-data="routeData" asp-route-pageNumber="@(currentPage - 1)">
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <span class="page-link bg-dark border-secondary text-muted"><i class="bi bi-chevron-double-left"></i></span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link bg-dark border-secondary text-muted"><i class="bi bi-chevron-left"></i> Previous</span>
+                </li>
+            }
+
+            @for (int i = Math.Max(1, currentPage - 2); i <= Math.Min(totalPages, currentPage + 2); i++)
+            {
+                <li class="page-item @(i == currentPage ? "active" : "")">
+                    <a class="page-link @(i == currentPage ? "bg-primary border-primary" : "bg-dark border-secondary text-white")" asp-controller="@controller" asp-action="@action" asp-all-route-data="routeData" asp-route-pageNumber="@i">@i</a>
+                </li>
+            }
+
+            @if (currentPage < totalPages)
+            {
+                <li class="page-item">
+                    <a class="page-link bg-dark border-secondary text-info" asp-controller="@controller" asp-action="@action" asp-all-route-data="routeData" asp-route-pageNumber="@(currentPage + 1)">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link bg-dark border-secondary text-info" asp-controller="@controller" asp-action="@action" asp-all-route-data="routeData" asp-route-pageNumber="@totalPages" title="Last Page">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </a>
+                </li>
+            }
+            else
+            {
+                <li class="page-item disabled">
+                    <span class="page-link bg-dark border-secondary text-muted">Next <i class="bi bi-chevron-right"></i></span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link bg-dark border-secondary text-muted"><i class="bi bi-chevron-double-right"></i></span>
+                </li>
+            }
+        </ul>
+        <div class="text-center mt-2">
+            <small class="text-muted">Halaman @currentPage dari @totalPages (Total @totalItems Data)</small>
+        </div>
+</nav>

@@ -1,0 +1,151 @@
+@model DeliveryControl.Models.ActivityLog
+
+@{
+    ViewData["Title"] = "Detail Activity Log";
+    var badgeClass = Model.Action switch
+    {
+        "Create" => "bg-success",
+        "Update" => "bg-info",
+        "Delete" => "bg-danger",
+        "Confirm" => "bg-primary",
+        _ => "bg-secondary"
+    };
+}
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h2><i class="bi bi-info-circle"></i> Detail Activity Log</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <a asp-action="Index" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Kembali ke List
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header @badgeClass text-white">
+        <h5 class="mb-0">
+            <i class="bi bi-file-text"></i> Log #@Model.LogId
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <dl class="row">
+                    <dt class="col-sm-4">Timestamp:</dt>
+                    <dd class="col-sm-8">@Model.Timestamp.ToString("dddd, dd MMMM yyyy HH:mm:ss")</dd>
+
+                    <dt class="col-sm-4">Modul:</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge bg-secondary">@Model.Module</span>
+                    </dd>
+
+                    <dt class="col-sm-4">Aksi:</dt>
+                    <dd class="col-sm-8">
+                        <span class="badge @badgeClass">@Model.Action</span>
+                    </dd>
+
+                    <dt class="col-sm-4">Entity Name:</dt>
+                    <dd class="col-sm-8">
+                        @if (!string.IsNullOrEmpty(Model.EntityName))
+                        {
+                            <strong>@Model.EntityName</strong>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Entity ID:</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.EntityId.HasValue)
+                        {
+                            <code>@Model.EntityId.Value</code>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+
+            <div class="col-md-6">
+                <dl class="row">
+                    <dt class="col-sm-4">Performed By:</dt>
+                    <dd class="col-sm-8">
+                        <i class="bi bi-person-fill"></i> <strong>@Model.PerformedBy</strong>
+                    </dd>
+
+                    <dt class="col-sm-4">IP Address:</dt>
+                    <dd class="col-sm-8">
+                        @if (!string.IsNullOrEmpty(Model.IpAddress))
+                        {
+                            <code>@Model.IpAddress</code>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">User Agent:</dt>
+                    <dd class="col-sm-8">
+                        @if (!string.IsNullOrEmpty(Model.UserAgent))
+                        {
+                            <small class="text-muted">@Model.UserAgent</small>
+                        }
+                        else
+                        {
+                            <span class="text-muted">-</span>
+                        }
+                    </dd>
+                </dl>
+            </div>
+        </div>
+
+        <hr />
+
+        <div class="row">
+            <div class="col-12">
+                <h6><i class="bi bi-chat-left-text"></i> Deskripsi:</h6>
+                @if (!string.IsNullOrEmpty(Model.Description))
+                {
+                    <div class="alert alert-info">
+                        @Model.Description
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted">Tidak ada deskripsi</p>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(Model.OldData) || !string.IsNullOrEmpty(Model.NewData))
+        {
+            <hr />
+
+            <div class="row">
+                @if (!string.IsNullOrEmpty(Model.OldData))
+                {
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-arrow-left-circle"></i> Data Lama:</h6>
+                        <pre class="bg-light p-3 rounded"><code>@Model.OldData</code></pre>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(Model.NewData))
+                {
+                    <div class="col-md-6">
+                        <h6><i class="bi bi-arrow-right-circle"></i> Data Baru:</h6>
+                        <pre class="bg-light p-3 rounded"><code>@Model.NewData</code></pre>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+

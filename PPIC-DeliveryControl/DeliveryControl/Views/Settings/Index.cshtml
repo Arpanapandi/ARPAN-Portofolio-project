@@ -1,0 +1,222 @@
+@using DeliveryControl.Controllers
+@model SettingsPageViewModel
+
+@{
+    ViewData["Title"] = "Pengaturan Sistem";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="fw-bold"><i class="bi bi-gear-fill me-2 text-primary"></i> Pengaturan Sistem</h2>
+        <p class="text-muted">Kelola parameter operasional dan konfigurasi import sistem.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Auto Scheduler Cutoff -->
+    <div class="col-md-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-primary text-white fw-bold py-3">
+                <i class="bi bi-alarm me-2"></i> Auto Scheduler Cutoff
+            </div>
+            <div class="card-body">
+                <form asp-action="Index" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="mb-3">
+                        <label asp-for="AutoScheduler.CutoffTime" class="form-label fw-bold">Jam Cutoff (HH:mm)</label>
+                        <input asp-for="AutoScheduler.CutoffTime" name="CutoffTime" class="form-control form-control-lg text-center" placeholder="18:00" />
+                        <span asp-validation-for="AutoScheduler.CutoffTime" class="text-danger small"></span>
+                        
+                        <div class="alert alert-info mt-3 p-2 small mb-0">
+                            <i class="bi bi-info-circle-fill me-1"></i>
+                            Sistem akan men-generate jadwal untuk BESOK (H+1) secara otomatis jika jam sekarang sudah melewati cutoff ini.
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-save me-1"></i> Simpan Jam Cutoff
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Smart Import Header Mapping -->
+    <div class="col-md-8">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header border-bottom py-3 d-flex justify-content-between align-items-center" style="background: rgba(16, 185, 129, 0.1);">
+                <span class="text-white fw-bold"><i class="bi bi-file-earmark-excel me-2 text-success"></i> Mapping Header Excel (Smart Import)</span>
+                <button type="button" class="btn btn-sm btn-success border" data-bs-toggle="collapse" data-bs-target="#collapseAddMapping">
+                    <i class="bi bi-plus-lg me-1"></i> Tambah Mapping
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <!-- Add Form (Collapsed) -->
+                <div class="collapse p-3 bg-light border-bottom" id="collapseAddMapping">
+                    <form asp-action="AddHeaderMapping" method="post" class="row g-2 align-items-end">
+                        @Html.AntiForgeryToken()
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold">Customer Name</label>
+                            <input type="text" name="customerName" class="form-control form-control-sm" placeholder="ADM / GENERIC" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold">Target Field</label>
+                            <select name="targetField" class="form-select form-select-sm" required>
+                                <option value="Manifest">Manifest</option>
+                                <option value="PartNo">Part No</option>
+                                <option value="PartName">Part Name</option>
+                                <option value="Qty">Qty</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Keywords (koma dipisahkan)</label>
+                            <input type="text" name="keywords" class="form-control form-control-sm" placeholder="Misal: Order No, Manifest" required>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success btn-sm w-100">Daftarkan</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-responsive" style="max-height: 400px;">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-dark sticky-top">
+                            <tr style="font-size: 0.75rem;">
+                                <th class="ps-3">CUSTOMER</th>
+                                <th>FIELD</th>
+                                <th>KEYWORDS (EXPECTED HEADERS)</th>
+                                <th class="text-center">AKSI</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.HeaderMappings.Any())
+                            {
+                                foreach (var mapping in Model.HeaderMappings)
+                                {
+                                    <tr>
+                                        <td class="ps-3">
+                                            @if (mapping.CustomerName == "GENERIC")
+                                            {
+                                                <span class="badge border border-secondary text-secondary bg-transparent px-2">GENERIC</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge border border-primary text-primary bg-transparent px-2">@mapping.CustomerName</span>
+                                            }
+                                        </td>
+                                        <td class="text-white fw-bold">@mapping.TargetField</td>
+                                        <td>
+                                            <div class="text-wrap" style="max-width: 300px;">
+                                                @foreach (var k in mapping.HeaderKeywords.Split(','))
+                                                {
+                                                    <span class="badge border border-info text-info me-1 mb-1 fw-normal bg-transparent" style="opacity: 0.8;">
+                                                        @k.Trim()
+                                                    </span>
+                                                }
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <form asp-action="DeleteHeaderMapping" method="post" onsubmit="return confirm('Hapus mapping ini?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@mapping.Id" />
+                                                <button type="submit" class="btn btn-link text-danger p-0">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted fst-italic">Belum ada mapping kustom. Menggunakan default sistem.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <!-- Scan Method Configuration -->
+    <div class="col-12">
+        <div class="card cyber-card shadow-sm border-0">
+            <div class="card-header border-bottom py-3 d-flex justify-content-between align-items-center" style="background: rgba(59, 130, 246, 0.15);">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-upc-scan me-2 text-primary fs-4"></i> 
+                    <span class="text-white fw-bold">Konfigurasi Metode Scan Preparation (Two Point vs Three Point)</span>
+                </div>
+                <span class="badge bg-primary rounded-pill px-3">Total: @Model.AllCustomers.Count Customer</span>
+            </div>
+            <div class="card-body">
+                <div class="alert cyber-alert mb-4" style="background: rgba(59, 130, 246, 0.05); border-left: 4px solid var(--primary-blue);">
+                    <p class="text-info small mb-0 fw-bold">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        Pilih customer yang menggunakan metode <strong>Two Point Check</strong> (Hanya scan Rak + Label, tanpa Kanban). 
+                        Matching dilakukan berdasarkan <strong>tanggal upload terbaru</strong>. 
+                        Customer yang tidak dipilih akan menggunakan metode <strong>Three Point Check</strong> (standard).
+                    </p>
+                </div>
+
+                <form asp-action="UpdateScanMethods" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3 mb-4 p-3 rounded" style="background: rgba(15, 23, 42, 0.3); border: 1px solid rgba(59, 130, 246, 0.1);">
+                        @if (Model.AllCustomers.Any())
+                        {
+                            foreach (var customerCode in Model.AllCustomers)
+                            {
+                                bool isChecked = Model.TwoPointCheckCustomerCodes.Contains(customerCode, StringComparer.OrdinalIgnoreCase);
+                                <div class="col">
+                                    <div class="form-check form-switch card-hover-simple p-2 d-flex align-items-center">
+                                        <input class="form-check-input me-2" type="checkbox" name="selectedCustomers" value="@customerCode" id="chk_@customerCode" @(isChecked ? "checked" : "") style="cursor:pointer; width: 2.5em; height: 1.25em;">
+                                        <label class="form-check-label small fw-bold @(isChecked ? "text-primary" : "text-secondary")" for="chk_@customerCode" style="cursor:pointer; transition: all 0.2s;">
+                                            @customerCode
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="col-12 text-center py-4 text-muted">
+                                <i class="bi bi-exclamation-triangle me-2 text-warning"></i> Data customer tidak ditemukan di Master.
+                            </div>
+                        }
+                    </div>
+
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary fw-bold px-5">
+                            <i class="bi bi-save2-fill me-2"></i> Simpan Konfigurasi Scan
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card-hover-simple {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid transparent;
+    }
+    .card-hover-simple:hover {
+        background: rgba(59, 130, 246, 0.1);
+        border-color: rgba(59, 130, 246, 0.3);
+        transform: translateY(-1px);
+    }
+    .form-check-input:checked + .form-check-label {
+        color: var(--primary-blue) !important;
+        text-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+    }
+</style>
+
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

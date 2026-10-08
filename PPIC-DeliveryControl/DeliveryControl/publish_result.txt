@@ -1,0 +1,6 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+C:\Program Files\dotnet\sdk\10.0.101\Current\SolutionFile\ImportAfter\Microsoft.NET.Sdk.Solution.targets(36,5): warning NETSDK1194: The "--output" option isn't supported when building a solution. Specifying a solution-level output path results in all projects copying outputs to the same directory, which can lead to inconsistent builds. [C:\DeliveryControl\DeliveryControl\DeliveryControl.sln]
+  DeliveryControl -> C:\DeliveryControl\DeliveryControl\bin\Release\net8.0\DeliveryControl.dll
+C:\Program Files\dotnet\sdk\10.0.101\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets(371,5): warning MSB3026: Could not copy "C:\DeliveryControl\DeliveryControl\publish\publish\publish\publish\publish\web.config" to "C:\DeliveryControl\DeliveryControl\publish\publish\publish\publish\publish\publish\web.config". Beginning retry 1 in 1000ms. Could not find file 'C:\DeliveryControl\DeliveryControl\publish\publish\publish\publish\publish\web.config'.  [C:\DeliveryControl\DeliveryControl\DeliveryControl.csproj]
+  DeliveryControl -> C:\DeliveryControl\DeliveryControl\publish\

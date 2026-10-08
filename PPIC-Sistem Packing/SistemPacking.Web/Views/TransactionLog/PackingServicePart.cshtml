@@ -1,0 +1,50 @@
+@{
+    ViewData["Title"] = "Packing Service Part Log";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Log Transaksi</li>
+    <li class="breadcrumb-item active">Packing Service Part Log</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title"><i class="bi bi-box-seam"></i> Packing Service Part Log</h2>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped" id="packingLogTable" style="width:100%">
+                <thead class="table-light">
+                    <tr>
+                        <th>Waktu</th>
+                        <th>Order No</th>
+                        <th>Item</th>
+                        <th>Barcode</th>
+                        <th>Qty</th>
+                        <th>Operator</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            $('#packingLogTable').DataTable({
+                ajax: '/TransactionLog/GetPackingSparePartLogs',
+                order: [[0, 'desc']],
+                columns: [
+                    { data: 'waktu' },
+                    { data: 'orderNo', className: 'fw-semibold text-primary' },
+                    { data: 'item' },
+                    { data: 'barcode', render: data => `<code>${data}</code>` },
+                    { data: 'qty', className: 'text-end' },
+                    { data: 'operatorName' }
+                ]
+            });
+        });
+    </script>
+}

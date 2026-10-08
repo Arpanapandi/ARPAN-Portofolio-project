@@ -1,0 +1,314 @@
+@model IEnumerable<SistemPacking.Web.Models.OrderFlattenedDto>
+@{
+    ViewData["Title"] = "Order Management";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item active">Order Management</li>
+}
+
+<div class="page-header">
+    <h2 class="page-title"><i class="bi bi-clipboard-data"></i>Order Management</h2>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary" onclick="showUploadModal()">
+            <i class="bi bi-upload me-1"></i>Bulk Upload
+        </button>
+        <a asp-action="ManualInput" class="btn btn-warning">
+            <i class="bi bi-pencil-square me-1"></i>Input Manual
+        </a>
+        <a asp-action="DownloadTemplate" class="btn btn-outline-success">
+            <i class="bi bi-file-earmark-excel me-1"></i>Template Excel
+        </a>
+        <a asp-action="History" class="btn btn-outline-secondary">
+            <i class="bi bi-clock-history me-1"></i>History
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0" id="orderDataTable">
+            <thead>
+                <tr>
+                    <th>NO</th>
+                    <th>Jadwal</th>
+                    <th>Order No</th>
+                    <th>Dock</th>
+                    <th>Customer</th>
+                    <th>Part No</th>
+                    <th>VIN</th>
+                    <th class="text-end">QTY/ACT</th>
+                    <th>Status Order</th>
+                    <th>Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int rowNo = 1; }
+                @foreach (var o in Model)
+                {
+                    <tr>
+                        <td>@(rowNo++)</td>
+                        <td>@o.OrderDate.ToString("dd/MM/yyyy")</td>
+                        <td class="fw-semibold text-primary">@o.OrderNo</td>
+                        <td>@(o.Dock ?? "-")</td>
+                        <td>@o.CustomerName</td>
+                        <td class="fw-semibold">@o.PartNo</td>
+                        <td>@(o.VIN ?? "-")</td>
+                        <td class="text-end">
+                            <span class="fw-bold">@o.TargetQty.ToString("N0")</span> / <span class="text-success">@o.ActualQty.ToString("N0")</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-@o.StatusColor">@o.StatusLabel</span>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-1">
+                                <a asp-action="Detail" asp-route-id="@o.OrderId"
+                                   class="btn btn-xs btn-outline-primary" title="Detail Order">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                @if (o.Status == OrderStatus.Draft)
+                                {
+                                    <button class="btn btn-xs btn-success release-btn"
+                                            data-id="@o.OrderId" data-no="@o.OrderNo" title="Release Order">
+                                        <i class="bi bi-play-circle"></i>
+                                    </button>
+                                    <button class="btn btn-xs btn-danger cancel-btn"
+                                            data-id="@o.OrderId" data-no="@o.OrderNo" title="Cancel Order">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Upload Excel -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Upload Order Excel</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-4" style="border-radius:12px; border-left:4px solid var(--info);">
+                    <strong><i class="bi bi-info-circle me-2"></i>Format Excel:</strong>
+                    <div class="mt-2 small">
+                        <code>Kolom A: OrderNo | B: CustomerCode | C: OrderDate | D: ItemBarcode | E: TargetQty | F: DeliveryNote</code>
+                    </div>
+                </div>
+
+                <div id="uploadArea" class="upload-dropzone mb-3">
+                    <div class="text-center py-4">
+                        <i class="bi bi-cloud-upload fs-1 text-primary mb-3 d-block"></i>
+                        <p class="fw-semibold mb-1">Drag & Drop file Excel di sini</p>
+                        <p class="text-muted small mb-3">atau</p>
+                        <label for="fileInput" class="btn btn-primary">
+                            <i class="bi bi-folder-open me-2"></i>Pilih File
+                        </label>
+                        <input type="file" id="fileInput" accept=".xlsx,.xls" class="d-none" />
+                    </div>
+                    <div id="fileInfo" class="d-none text-center py-2">
+                        <i class="bi bi-file-earmark-excel text-success fs-3 me-2"></i>
+                        <span id="fileName" class="fw-semibold"></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="clearFile">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="resultArea" class="d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+                <button type="button" class="btn btn-primary" id="uploadBtn" disabled>
+                    <i class="bi bi-upload me-2"></i>Upload & Proses
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(document).ready(function () {
+    $('#orderDataTable').DataTable({
+        pageLength: 20,
+        order: [[2, 'desc']],
+        language: {
+            url: '/js/id.json'
+        }
+    });
+
+    // Release order
+    $(document).on('click', '.release-btn', function () {
+        const id = $(this).data('id'), no = $(this).data('no');
+        Swal.fire({
+            title: `Release Order ${no}?`,
+            text: 'Order akan masuk ke status Waiting Shopping.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '✅ Release',
+            confirmButtonColor: '#22c55e'
+        }).then(r => {
+            if (!r.isConfirmed) return;
+            $.post('/Order/Release', { id, __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val() })
+                .done(res => {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: res.message, timer: 2000, showConfirmButton: false })
+                            .then(() => location.reload());
+                    } else {
+                        Swal.fire({ icon: 'error', title: res.message });
+                    }
+                });
+        });
+    });
+
+    // Cancel order
+    $(document).on('click', '.cancel-btn', function () {
+        const id = $(this).data('id'), no = $(this).data('no');
+        Swal.fire({
+            title: `Cancel Order ${no}?`,
+            input: 'textarea',
+            inputLabel: 'Alasan Cancel',
+            inputPlaceholder: 'Masukkan alasan...',
+            showCancelButton: true,
+            confirmButtonText: 'Cancel Order',
+            confirmButtonColor: '#ef4444',
+            inputValidator: val => { if (!val.trim()) return 'Alasan wajib diisi!'; }
+        }).then(r => {
+            if (!r.isConfirmed) return;
+            $.post('/Order/Cancel', { id, reason: r.value, __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val() })
+                .done(res => {
+                    if (res.success) {
+                        Swal.fire({ icon: 'success', title: res.message, timer: 2000, showConfirmButton: false })
+                            .then(() => location.reload());
+                    }
+                });
+        });
+    });
+
+    // UPLOAD EXCEL LOGIC
+    let selectedFile = null;
+    const dropZone = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    window.showUploadModal = function() {
+        clearFile();
+        document.getElementById('resultArea').classList.add('d-none');
+        document.getElementById('resultArea').innerHTML = '';
+        $('#uploadModal').modal('show');
+    };
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) setFile(file);
+    });
+
+    fileInput.addEventListener('change', () => { if (fileInput.files[0]) setFile(fileInput.files[0]); });
+    document.getElementById('clearFile').addEventListener('click', clearFile);
+
+    function setFile(file) {
+        selectedFile = file;
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileInfo').classList.remove('d-none');
+        uploadBtn.disabled = false;
+    }
+
+    function clearFile() {
+        selectedFile = null;
+        fileInput.value = '';
+        document.getElementById('fileInfo').classList.add('d-none');
+        uploadBtn.disabled = true;
+    }
+
+    uploadBtn.addEventListener('click', function () {
+        if (!selectedFile) return;
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('__RequestVerificationToken', $('[name="__RequestVerificationToken"]').val());
+
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Memproses...';
+
+        fetch('/Order/Upload', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(result => {
+                showResult(result);
+                if (result.success) {
+                    // Reload datatable on success
+                    setTimeout(() => location.reload(), 2000);
+                }
+            })
+            .catch(() => {
+                Swal.fire({ icon: 'error', title: 'Upload gagal!', text: 'Terjadi kesalahan jaringan.' });
+            })
+            .finally(() => {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = '<i class="bi bi-upload me-2"></i>Upload & Proses';
+            });
+    });
+
+    function showResult(result) {
+        const resultArea = document.getElementById('resultArea');
+        resultArea.classList.remove('d-none');
+
+        const icon = result.success ? '✅' : '❌';
+        const color = result.success ? 'success' : 'danger';
+
+        let html = `
+            <div class="alert alert-${color} mt-3" style="border-radius:10px;">
+                <strong>${icon} ${result.message}</strong>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-4 text-center">
+                    <div class="fw-bold fs-3 text-primary">${result.totalRows}</div>
+                    <div class="text-muted small">Total Baris</div>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="fw-bold fs-3 text-success">${result.successRows}</div>
+                    <div class="text-muted small">Berhasil</div>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="fw-bold fs-3 text-danger">${result.failedRows}</div>
+                    <div class="text-muted small">Gagal</div>
+                </div>
+            </div>`;
+
+        if (result.errors?.length > 0) {
+            html += '<div class="mt-2"><strong class="text-danger small">Error:</strong><ul class="small text-muted mt-1" style="max-height: 150px; overflow-y: auto;">';
+            result.errors.forEach(e => { html += `<li>${e}</li>`; });
+            html += '</ul></div>';
+        }
+
+        resultArea.innerHTML = html;
+    }
+});
+</script>
+@Html.AntiForgeryToken()
+}
+
+<style>
+.btn-xs { padding: 4px 8px; font-size: 12px; }
+.upload-dropzone {
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--page-bg);
+}
+.upload-dropzone:hover, .upload-dropzone.drag-over {
+    border-color: var(--primary);
+    background: var(--primary-light);
+}
+</style>
+

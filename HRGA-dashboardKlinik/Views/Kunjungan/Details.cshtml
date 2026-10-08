@@ -1,0 +1,88 @@
+@model dashboardKlinik.Models.KunjunganKlinik
+@{
+    ViewData["Title"] = "Detail Kunjungan";
+}
+
+<div style="margin-bottom: 24px;">
+    <a href="@Url.Action("Index")" class="btn-action btn-outline-custom">
+        <i class="bi bi-arrow-left"></i> Kembali
+    </a>
+</div>
+
+<div style="max-width: 800px;">
+    <div class="card-custom fade-in" id="kunjungan-detail">
+        <div class="card-header-custom">
+            <h6><i class="bi bi-clipboard2-pulse-fill" style="color: var(--primary)"></i> Detail Kunjungan #@Model.Id</h6>
+            <span style="font-size: 13px; color: var(--text-muted);">@Model.Timestamp.ToString("dd MMM yyyy HH:mm")</span>
+        </div>
+        <div class="card-body-custom">
+            <!-- Patient Info -->
+            <div style="display: flex; align-items: center; gap: 16px; padding: 16px; background: linear-gradient(135deg, var(--primary-bg), rgba(99, 102, 241, 0.08)); border-radius: var(--border-radius-sm); margin-bottom: 24px;">
+                <div style="width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, var(--primary), #6366f1); display: flex; align-items: center; justify-content: center; color: white; font-size: 22px;">
+                    <i class="bi @(Model.JenisKelamin == "L" ? "bi-gender-male" : "bi-gender-female")"></i>
+                </div>
+                <div>
+                    <h5 style="font-weight: 700; margin: 0;">@Model.NamaPasien</h5>
+                    <span style="color: var(--text-secondary); font-size: 13px;">NPK: @Model.NPK | @Model.Plant - @Model.Departemen</span>
+                </div>
+                <div style="margin-left: auto;">
+                    @{
+                        var badgeClass = Model.Status switch
+                        {
+                            "Rawat Jalan" => "rawat-jalan",
+                            "Perawatan" => "perawatan",
+                            "Dirujuk" => "dirujuk",
+                            _ => "rawat-jalan"
+                        };
+                    }
+                    <span class="badge-status @badgeClass" style="font-size: 14px; padding: 8px 16px;">@Model.Status</span>
+                </div>
+            </div>
+
+            <!-- Detail Grid -->
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <label>Tanggal Kunjungan</label>
+                    <span><i class="bi bi-calendar3" style="color: var(--primary); margin-right: 4px;"></i> @Model.TanggalKunjungan.ToString("dd MMMM yyyy")</span>
+                </div>
+                <div class="detail-item">
+                    <label>Dokter</label>
+                    <span><i class="bi bi-person-badge" style="color: var(--success); margin-right: 4px;"></i> @Model.Dokter</span>
+                </div>
+                <div class="detail-item" style="grid-column: span 2;">
+                    <label>Keluhan</label>
+                    <span>@Model.Keluhan</span>
+                </div>
+                <div class="detail-item" style="grid-column: span 2;">
+                    <label>Diagnosa</label>
+                    <span>@Model.Diagnosa</span>
+                </div>
+                <div class="detail-item">
+                    <label>Jenis Kelamin</label>
+                    <span>
+                        <span class="badge-gender @(Model.JenisKelamin == "L" ? "laki-laki" : "perempuan")">
+                            <i class="bi @(Model.JenisKelamin == "L" ? "bi-gender-male" : "bi-gender-female")"></i>
+                            @(Model.JenisKelamin == "L" ? "Laki-laki" : "Perempuan")
+                        </span>
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <label>Status</label>
+                    <span><span class="badge-status @badgeClass">@Model.Status</span></span>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 8px;">
+                <a href="@Url.Action("Riwayat", new { npk = Model.NPK, namaPasien = Model.NamaPasien })" class="btn-action btn-primary-custom">
+                    <i class="bi bi-clock-history"></i> Lihat Riwayat Pasien
+                </a>
+                @if (Model.PasienId != null)
+                {
+                    <a href="@Url.Action("Details", "Pasien", new { id = Model.PasienId })" class="btn-action btn-outline-custom">
+                        <i class="bi bi-person"></i> Profil Pasien
+                    </a>
+                }
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,146 @@
+<!-- Modal Konfirmasi Delete -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteModalLabel">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Konfirmasi Hapus Schedule
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>PERINGATAN!</strong>
+                </div>
+                <p>Apakah Anda yakin ingin menghapus schedule ini?</p>
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <p class="mb-0"><strong>No. Schedule:</strong> <span id="deleteScheduleNumber"></span></p>
+                    </div>
+                </div>
+                <p class="text-danger"><strong>Semua delivery items dalam schedule ini juga akan terhapus!</strong></p>
+                <p class="text-muted small">Tindakan ini tidak dapat dibatalkan.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Batal
+                </button>
+                <form asp-action="Delete" method="post" style="display: inline;" id="deleteForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" id="deleteScheduleId" name="id" value="" />
+                    <button type="submit" class="btn btn-danger">
+                        <i class="bi bi-trash-fill"></i> Ya, Hapus!
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select All functionality
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function() {
+                    const checkboxes = document.querySelectorAll('.row-checkbox');
+                    checkboxes.forEach(function(cb) {
+                        cb.checked = selectAllCheckbox.checked;
+                    });
+                    updateBulkDeleteButton();
+                });
+            }
+
+            // Individual checkbox change
+            const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+            rowCheckboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    updateBulkDeleteButton();
+                    updateSelectAllState();
+                });
+            });
+        });
+
+        function updateBulkDeleteButton() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            if (checkedBoxes.length > 0) {
+                bulkDeleteBtn.style.display = 'inline-block';
+                selectedCount.textContent = checkedBoxes.length;
+            } else {
+                bulkDeleteBtn.style.display = 'none';
+            }
+        }
+
+        function updateSelectAllState() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            const selectAll = document.getElementById('selectAll');
+            
+            if (selectAll) {
+                selectAll.checked = checkboxes.length === checkedBoxes.length && checkboxes.length > 0;
+            }
+        }
+
+        function confirmSingleDelete(scheduleId, scheduleNumber) {
+            // Set data ke modal
+            document.getElementById('deleteScheduleId').value = scheduleId;
+            document.getElementById('deleteScheduleNumber').textContent = scheduleNumber;
+            
+            // Show modal
+            var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            deleteModal.show();
+        }
+
+        function confirmBulkDelete() {
+            const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            
+            if (checkedBoxes.length === 0) {
+                alert('Tidak ada schedule yang dipilih!');
+                return false;
+            }
+            
+            const ids = Array.from(checkedBoxes).map(function(cb) { 
+                return cb.value; 
+            }).join(',');
+            
+            if (confirm(`Anda yakin ingin menghapus ${checkedBoxes.length} schedule terpilih?\n\nSemua delivery items dalam schedule tersebut juga akan terhapus!\n\nTindakan ini tidak dapat dibatalkan.`)) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '@Url.Action("BulkDelete", "DeliverySchedules")';
+                
+                // Get token from hidden form
+                const tokenElement = document.querySelector('#hiddenTokenForm input[name="__RequestVerificationToken"]');
+                if (!tokenElement) {
+                    alert('Error: Anti-forgery token tidak ditemukan!');
+                    return false;
+                }
+                
+                const token = tokenElement.value;
+                
+                const tokenInput = document.createElement('input');
+                tokenInput.type = 'hidden';
+                tokenInput.name = '__RequestVerificationToken';
+                tokenInput.value = token;
+                
+                const idsInput = document.createElement('input');
+                idsInput.type = 'hidden';
+                idsInput.name = 'selectedIds';
+                idsInput.value = ids;
+                
+                form.appendChild(tokenInput);
+                form.appendChild(idsInput);
+                document.body.appendChild(form);
+                form.submit();
+            }
+            
+            return false;
+        }
+    </script>
+}
+

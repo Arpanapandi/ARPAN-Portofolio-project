@@ -1,0 +1,64 @@
+@model DeliveryControl.Models.ScheduleTemplate
+
+@{
+    ViewData["Title"] = "Tambah Template";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white d-flex align-items-center">
+                <i class="bi bi-file-earmark-plus fs-4 me-2"></i>
+                <h4 class="mb-0">Registrasi Template Baru</h4>
+            </div>
+            <div class="card-body p-4">
+                <form asp-action="Create">
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Name" class="form-label fw-bold"></label>
+                            <input asp-for="Name" class="form-control" placeholder="Contoh: Template ADM 2026" />
+                            <span asp-validation-for="Name" class="text-danger small"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="CustomerName" class="form-label fw-bold"></label>
+                            <input asp-for="CustomerName" class="form-control" placeholder="Contoh: ADM" />
+                            <span asp-validation-for="CustomerName" class="text-danger small"></span>
+                            <div class="form-text small text-info">Gunakan "GENERIC" untuk semua customer.</div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="FileType" class="form-label fw-bold"></label>
+                        <select asp-for="FileType" class="form-select">
+                            <option value="Excel">Excel (.xlsx, .xls)</option>
+                            <option value="PDF">PDF</option>
+                            <option value="Image">Image (.jpg, .png)</option>
+                        </select>
+                        <span asp-validation-for="FileType" class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Description" class="form-label fw-bold"></label>
+                        <textarea asp-for="Description" class="form-control" rows="3" placeholder="Informasi tambahan tentang template ini..."></textarea>
+                        <span asp-validation-for="Description" class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a asp-action="Index" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-1"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary px-4">
+                            Lanjut ke Mapping <i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}

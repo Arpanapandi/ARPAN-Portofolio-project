@@ -1,0 +1,320 @@
+@{
+    ViewData["Title"] = "Packing Service Part";
+}
+
+@section Breadcrumb {
+    <li class="breadcrumb-item">Operasional</li>
+    <li class="breadcrumb-item active">Packing Service Part</li>
+}
+
+<style>
+    .sp-container {
+        padding: 10px;
+    }
+    .info-label {
+        font-size: 0.75rem;
+        font-weight: bold;
+        color: #6c757d;
+        margin-bottom: 0.2rem;
+    }
+    .val-box {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 0.9rem;
+        padding: 0 10px;
+        border-radius: 0.25rem;
+    }
+    .indicator-header {
+        background-color: #f8f9fa;
+        color: #6c757d;
+        font-weight: bold;
+        text-align: center;
+        padding: 5px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        font-size: 0.8rem;
+    }
+    .indicator-val {
+        background-color: #fff;
+        color: #212529;
+        font-weight: bold;
+        text-align: center;
+        padding: 5px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .img-container {
+        border: 1px solid #dee2e6;
+        border-top: none;
+        min-height: 500px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        border-radius: 0 0 0.25rem 0.25rem;
+    }
+</style>
+
+<div class="sp-container container-fluid p-0">
+    <!-- Top Headers -->
+    <div class="row bg-white p-3 mb-3 rounded shadow-sm align-items-center mx-0 border">
+        <!-- Left Section -->
+        <div class="col-md-4">
+            <div class="row text-center mb-1 fw-bold text-muted" style="font-size: 0.75rem;">
+                <div class="col-4"></div>
+                <div class="col-4">ORDER PACKING (D-1)</div>
+                <div class="col-4">ORDER PULLING (D)</div>
+            </div>
+            <div class="row mb-2">
+                <div class="col-4 pe-1">
+                    <div class="val-box bg-light text-muted justify-content-start">PROCESS DATE</div>
+                </div>
+                <div class="col-4 px-1">
+                    <div class="val-box text-primary">@DateTime.Now.AddDays(-1).ToString("dd MMM yyyy")</div>
+                </div>
+                <div class="col-4 ps-1">
+                    <div class="val-box text-success">@DateTime.Now.ToString("dd MMM yyyy")</div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6 pe-1">
+                    <select id="operatorSelect" class="form-select form-select-sm fw-bold border-secondary text-dark h-100" style="min-height: 35px;">
+                        <option>@(ViewBag.User?.FullName ?? "Operator")</option>
+                    </select>
+                </div>
+                <div class="col-6 ps-1">
+                    <select id="shiftSelect" class="form-select form-select-sm fw-bold border-secondary text-dark h-100" style="min-height: 35px;">
+                        <option value="">-- Shift --</option>
+                        @if(ViewBag.Shifts != null) {
+                            foreach(var s in ViewBag.Shifts) {
+                                <option value="@s.Id">@s.ShiftName</option>
+                            }
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Section -->
+        <div class="col-md-4 text-center">
+            <h4 class="text-primary fw-bold m-0" style="letter-spacing: 1px;">POINTCHECK PACKING SERVICE PARTS</h4>
+            <div class="badge bg-warning text-dark mt-2 p-2 fw-bold" style="font-size: 0.8rem;">
+                <i class="bi bi-info-circle me-1"></i> Jika Error Scan, tekan "Ctrl+Z"
+            </div>
+            @if(ViewBag.User?.RoleName == "Super Admin")
+            {
+                <div class="form-check form-switch mt-2 d-flex justify-content-center align-items-center">
+                    <input class="form-check-input me-2" type="checkbox" id="manualModeToggle">
+                    <label class="form-check-label text-muted fw-bold" for="manualModeToggle" style="font-size: 0.8rem;">Manual Mode (Ketik)</label>
+                </div>
+            }
+        </div>
+
+        <!-- Right Section -->
+        <div class="col-md-4">
+            <div class="row align-items-center mb-2 g-2">
+                <div class="col-6">
+                    <div class="input-group input-group-sm h-100">
+                        <span class="input-group-text bg-success text-white fw-bold border-success" style="width: 70px; justify-content:center;">KANBAN</span>
+                        <input type="text" id="scanKanban" class="form-control text-center fw-bold border-success" autofocus autocomplete="off" />
+                    </div>
+                </div>
+                <div class="col-2 px-1"><div class="indicator-header bg-primary text-white border-primary w-100">ORDER</div></div>
+                <div class="col-2 px-1"><div class="indicator-header bg-success text-white border-success w-100">PACKED</div></div>
+                <div class="col-2 px-1"><div class="indicator-header bg-danger text-white border-danger w-100">BALANCE</div></div>
+            </div>
+            
+            <div class="row align-items-center mb-2 g-2">
+                <div class="col-6">
+                    <div class="input-group input-group-sm h-100">
+                        <span class="input-group-text bg-danger text-white fw-bold border-danger" style="width: 70px; justify-content:center;">LABEL</span>
+                        <input type="text" id="scanLabel" class="form-control text-center fw-bold border-danger" disabled autocomplete="off" />
+                    </div>
+                </div>
+                <div class="col-2 px-1"><div class="indicator-val text-primary border-primary w-100" id="indTarget">0</div></div>
+                <div class="col-2 px-1"><div class="indicator-val text-success border-success w-100" id="indActual">0</div></div>
+                <div class="col-2 px-1"><div class="indicator-val text-danger border-danger w-100" id="indBalance">0</div></div>
+            </div>
+
+            <div class="row g-2 mt-1">
+                <div class="col-4">
+                    <div class="val-box text-muted fw-bold border-0 bg-light" style="font-size: 0.8rem;" id="valDate">-</div>
+                </div>
+                <div class="col-8">
+                    <div class="val-box text-dark fw-bold border-0 bg-light" style="font-size: 0.8rem;" id="valPart">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Images Row -->
+    <div class="row g-3 mt-0">
+        <!-- SPIS -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-warning text-dark text-center py-2 border-0 rounded-top">
+                    <h6 class="m-0 fw-bold">SERVICE PARTS IDENTIFICATION STANDARDS (SPIS)</h6>
+                </div>
+                <div class="img-container">
+                    <img id="imgSpis" src="" class="img-fluid d-none" style="max-height: 450px;" />
+                    <div id="noSpis" class="text-muted text-center p-5">
+                        <i class="bi bi-image" style="font-size:3rem; opacity:0.3;"></i>
+                        <p class="mt-2 small mb-0">Gambar SPIS Kosong</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPSS -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-warning text-dark text-center py-2 border-0 rounded-top">
+                    <h6 class="m-0 fw-bold">SERVICE PARTS PACKAGING STANDARDS (SPSS)</h6>
+                </div>
+                <div class="img-container">
+                    <img id="imgSpps" src="" class="img-fluid d-none" style="max-height: 450px;" />
+                    <div id="noSpps" class="text-muted text-center p-5">
+                        <i class="bi bi-box-seam" style="font-size:3rem; opacity:0.3;"></i>
+                        <p class="mt-2 small mb-0">Gambar SPSS Kosong</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(document).ready(function () {
+    let lastKeyTimeLabel = Date.now();
+    let lastKeyTimeKanban = Date.now();
+
+    function setupScanner(inputId, lastKeyTimeVar, onEnter) {
+        $(inputId).on('keypress', function(e) {
+            let currentTime = Date.now();
+            let isManual = $('#manualModeToggle').length > 0 && $('#manualModeToggle').is(':checked');
+            
+            if (!isManual && currentTime - lastKeyTimeVar > 50) {
+                $(this).val('');
+            }
+            lastKeyTimeVar = currentTime;
+            
+            if (e.which === 13) {
+                e.preventDefault();
+                if ($(this).val().length > 0) {
+                    onEnter($(this).val().trim());
+                }
+            }
+        });
+        $(inputId).on('paste', function(e) { 
+            let isManual = $('#manualModeToggle').length > 0 && $('#manualModeToggle').is(':checked');
+            if (!isManual) {
+                e.preventDefault(); 
+            }
+        });
+    }
+
+    setupScanner('#scanKanban', lastKeyTimeKanban, function(val) {
+        $('#scanKanban').prop('disabled', true);
+        $('#scanLabel').prop('disabled', false).val('').focus();
+    });
+
+    setupScanner('#scanLabel', lastKeyTimeLabel, function(labelVal) {
+        const kanbanVal = $('#scanKanban').val().trim();
+        doScan(kanbanVal, labelVal);
+    });
+
+    function resetScanners() {
+        $('#scanKanban').prop('disabled', false).val('').focus();
+        $('#scanLabel').prop('disabled', true).val('');
+    }
+
+    function doScan(kanban, label) {
+        const shiftId = $('#shiftSelect').val();
+        if (!shiftId) {
+            Swal.fire({
+                icon: 'warning', title: 'Pilih Shift', text: 'Harap pilih shift operasional terlebih dahulu sebelum melakukan scan.',
+                allowOutsideClick: false, confirmButtonColor: '#3085d6'
+            }).then(() => { $('#shiftSelect').focus(); resetScanners(); });
+            return;
+        }
+
+        $('#scanKanban').prop('disabled', true);
+
+        $.post('/Packing_SP/Scan', {
+            kanban: kanban,
+            label: label,
+            shiftId: shiftId,
+            __RequestVerificationToken: $('[name="__RequestVerificationToken"]').val()
+        })
+        .done(function (result) {
+            resetScanners();
+            
+            if (result.success && !result.isOverQty) {
+                updateIndicators(result.targetQty, result.actualQty, result.remaining);
+                updateImages(result.spisImagePath, result.sppsImagePath);
+                updateInfo(result.partNo, result.itemName, result.customerName, result.vin);
+
+                if (result.isComplete) {
+                    Swal.fire({ icon: 'success', title: '🎉 Packing Selesai!', text: 'Semua item pada order ini telah dipacking.', timer: 3000, showConfirmButton: false });
+                } else {
+                    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1500, timerProgressBar: true });
+                    Toast.fire({ icon: 'success', title: 'Scan OK: ' + result.itemName });
+                }
+            } else {
+                showStrictError(result.message);
+            }
+        })
+        .fail(() => { 
+            resetScanners();
+            showStrictError('Gagal terhubung ke server.'); 
+        });
+    }
+
+    function updateIndicators(target, actual, balance) {
+        $('#indTarget').text(target || 0);
+        $('#indActual').text(actual || 0);
+        $('#indBalance').text(balance || 0);
+    }
+
+    function updateImages(spis, spps) {
+        if (spis) { $('#imgSpis').attr('src', spis).removeClass('d-none'); $('#noSpis').addClass('d-none'); } 
+        else { $('#imgSpis').addClass('d-none'); $('#noSpis').removeClass('d-none'); }
+        if (spps) { $('#imgSpps').attr('src', spps).removeClass('d-none'); $('#noSpps').addClass('d-none'); } 
+        else { $('#imgSpps').addClass('d-none'); $('#noSpps').removeClass('d-none'); }
+    }
+
+    function updateInfo(partNo, itemName, customerName, vin) {
+        $('#valDate').text(new Date().toLocaleDateString('id-ID', {day:'2-digit', month:'short'}));
+        $('#valPart').text((partNo || '') + (itemName ? ' - ' + itemName : ''));
+    }
+
+    // Ctrl+Z = reset scanners
+    $(document).on('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'z') {
+            e.preventDefault();
+            resetScanners();
+            const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 1000 });
+            Toast.fire({ icon: 'info', title: 'Scanner direset' });
+        }
+    });
+
+    function showStrictError(msg) {
+        Swal.fire({
+            icon: 'error', title: '❌ GAGAL SCAN!', text: msg, allowOutsideClick: false, allowEscapeKey: false,
+            confirmButtonText: 'Tutup & Scan Ulang', confirmButtonColor: '#d33', backdrop: `rgba(220, 38, 38, 0.4)`
+        }).then(() => { resetScanners(); });
+    }
+});
+</script>
+}

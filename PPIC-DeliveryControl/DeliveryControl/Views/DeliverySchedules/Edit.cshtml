@@ -1,0 +1,296 @@
+@model DeliveryControl.Models.DeliverySchedule
+
+@{
+    ViewData["Title"] = "Edit Schedule";
+}
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-pencil-square"></i> Edit Delivery Schedule</h2>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a asp-action="Index">Delivery Schedule</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-file-earmark-text"></i> Form Edit Schedule</h5>
+            </div>
+            <div class="card-body">
+                <form asp-action="Edit" method="post">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    
+                    <input type="hidden" asp-for="ScheduleId" />
+                    <input type="hidden" asp-for="CreatedDate" />
+                    <input type="hidden" asp-for="CreatedBy" />
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="ScheduleNumber" class="form-label"></label>
+                            <input asp-for="ScheduleNumber" class="form-control" />
+                            <span asp-validation-for="ScheduleNumber" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="ScheduledDate" class="form-label"></label>
+                            <input asp-for="ScheduledDate" class="form-control" type="date" />
+                            <span asp-validation-for="ScheduledDate" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="CustomerId" class="form-label">Customer</label>
+                            <select asp-for="CustomerId" class="form-select" asp-items="ViewBag.CustomerId" id="customerId">
+                                <option value="">-- Pilih Customer --</option>
+                            </select>
+                            <span asp-validation-for="CustomerId" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="Route" class="form-label"></label>
+                            <input asp-for="Route" class="form-control" id="routeInput" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="Cycle" class="form-label"></label>
+                            <input asp-for="Cycle" class="form-control" id="cycleInput" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="SKID" class="form-label"></label>
+                            <input asp-for="SKID" class="form-control" id="skidInput" type="text" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="EnterDockTime" class="form-label"></label>
+                            <input asp-for="EnterDockTime" class="form-control" type="datetime-local" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="PickupTime" class="form-label"></label>
+                            <input asp-for="PickupTime" class="form-control" type="datetime-local" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="ETD" class="form-label"></label>
+                            <input asp-for="ETD" class="form-control" type="datetime-local" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="ActualEnterDockTime" class="form-label"></label>
+                            <input asp-for="ActualEnterDockTime" class="form-control" type="datetime-local" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="ActualPickupTime" class="form-label">Actual Pickup Time</label>
+                            <input asp-for="ActualPickupTime" class="form-control" type="datetime-local" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="ActualStartTime" class="form-label">Actual Arrival Time (Customer)</label>
+                            <input asp-for="ActualStartTime" class="form-control" type="datetime-local" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label asp-for="ActualEndTime" class="form-label">Actual Departure Time (Customer)</label>
+                            <input asp-for="ActualEndTime" class="form-control" type="datetime-local" />
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="TotalTargetQuantity" class="form-label">Target Qty (Pcs)</label>
+                            <input asp-for="TotalTargetQuantity" class="form-control" type="number" />
+                        </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Start Prep</label>
+                            <input type="text" class="form-control time-input-helper" 
+                                   value="@($"{Model.StartPrepareTime / 60:D2}:{Model.StartPrepareTime % 60:D2}")" 
+                                   placeholder="HH:mm" />
+                            <input type="hidden" asp-for="StartPrepareTime" class="actual-minutes" id="startPrepareInput" />
+                            <span asp-validation-for="StartPrepareTime" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">End Prep</label>
+                            <input type="text" class="form-control time-input-helper" 
+                                   value="@($"{Model.StdPrepareTime / 60:D2}:{Model.StdPrepareTime % 60:D2}")" 
+                                   placeholder="HH:mm" />
+                            <input type="hidden" asp-for="StdPrepareTime" class="actual-minutes" id="stdPrepareInput" />
+                            <span asp-validation-for="StdPrepareTime" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="TotalActualQuantity" class="form-label">Actual Qty (Pcs)</label>
+                            <input asp-for="TotalActualQuantity" class="form-control" type="number" />
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label asp-for="Status" class="form-label"></label>
+                            <select asp-for="Status" class="form-select">
+                                <option value="Scheduled">Scheduled</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Cancelled">Cancelled</option>
+                                <option value="Delayed">Delayed</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Range" class="form-label"></label>
+                            <input asp-for="Range" class="form-control" id="rangeInput" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Area" class="form-label"></label>
+                        <input asp-for="Area" class="form-control" id="areaInput" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Notes" class="form-label"></label>
+                        <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="d-flex gap-2 justify-content-end mt-4">
+                        <a asp-action="Index" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Batal
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> Update
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history"></i> Informasi</h6>
+            </div>
+            <div class="card-body">
+                <p class="small">
+                    <strong>Dibuat:</strong><br />
+                    @Model.CreatedDate.ToString("dd MMM yyyy HH:mm")<br />
+                    <span class="text-muted">oleh @(Model.CreatedBy ?? "System")</span>
+                </p>
+                @if (Model.UpdatedDate.HasValue)
+                {
+                    <p class="small">
+                        <strong>Terakhir Diupdate:</strong><br />
+                        @Model.UpdatedDate.Value.ToString("dd MMM yyyy HH:mm")<br />
+                        <span class="text-muted">oleh @(Model.UpdatedBy ?? "System")</span>
+                    </p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        $(document).ready(function() {
+            // Auto-fill customer details when customer is selected
+            $('#customerId').change(function() {
+                var customerId = $(this).val();
+                if (customerId) {
+                    $.get('/DeliverySchedules/GetCustomerDetails', { customerId: customerId }, function(data) {
+                        $('#routeInput').val(data.route);
+                        $('#cycleInput').val(data.cycle);
+                        $('#skidInput').val(data.skid);
+                        $('#areaInput').val(data.area);
+                        $('#startPrepareInput').val(data.startPrepareTime);
+                        $('#stdPrepareInput').val(data.stdPrepareTime);
+                    }).fail(function() {
+                        alert('Gagal memuat data customer');
+                    });
+                }
+            });
+
+            // Auto-calculate Range when PickupTime or ETD changes
+            function calculateRange() {
+                var pickupTime = $('input[name="PickupTime"]').val();
+                var etd = $('input[name="ETD"]').val();
+                
+                if (pickupTime && etd) {
+                    var pickup = new Date(pickupTime);
+                    var etdDate = new Date(etd);
+                    
+                    var diffMs = etdDate - pickup;
+                    var diffMins = Math.round(diffMs / 60000);
+                    
+                    if (diffMins >= 0) {
+                        var hours = Math.floor(diffMins / 60);
+                        var minutes = diffMins % 60;
+                        
+                        var rangeText = '';
+                        if (hours > 0) {
+                            rangeText = hours + ' jam';
+                            if (minutes > 0) {
+                                rangeText += ' ' + minutes + ' menit';
+                            }
+                        } else {
+                            rangeText = minutes + ' menit';
+                        }
+                        
+                        $('#rangeInput').val(rangeText);
+                    } else {
+                        $('#rangeInput').val('Invalid (ETD < Pickup)');
+                    }
+                }
+            }
+            
+            $('input[name="PickupTime"]').change(calculateRange);
+            $('input[name="ETD"]').change(calculateRange);
+
+            // Time input helper conversion
+            $('form').on('submit', function() {
+                $('.time-input-helper').each(function() {
+                    var val = $(this).val().trim();
+                    var minutes = 0;
+                    if (val.includes(':')) {
+                        var parts = val.split(':');
+                        if (parts.length >= 2) {
+                            var hours = parseInt(parts[0]) || 0;
+                            var mins = parseInt(parts[1]) || 0;
+                            minutes = (hours * 60) + mins;
+                        }
+                    } else if (!isNaN(val) && val !== '') {
+                        minutes = parseInt(val);
+                    }
+                    $(this).siblings('.actual-minutes').val(minutes);
+                });
+            });
+        });
+    </script>
+    <style>
+        /* Pastikan semua form control memiliki styling dark mode */
+        .form-control, .form-select {
+            background: rgba(30, 41, 59, 0.6) !important;
+            border: 1px solid var(--border-color) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            background: rgba(30, 41, 59, 0.8) !important;
+            border-color: var(--primary-blue) !important;
+            color: var(--text-primary) !important;
+        }
+        
+        .form-control[type="date"],
+        .form-control[type="datetime-local"],
+        .form-control[type="time"] {
+            background: rgba(30, 41, 59, 0.6) !important;
+            color: var(--text-primary) !important;
+        }
+    </style>
+}
+

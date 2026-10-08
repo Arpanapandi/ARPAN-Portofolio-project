@@ -1,0 +1,184 @@
+@{
+    ViewData["Title"] = "Admin Panel";
+}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <h2 class="mb-0"><i class="fa-solid fa-gear me-2"></i>Admin Panel</h2>
+        <div class="text-secondary small">Master Data Management</div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-primary bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-industry fa-2x text-primary"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Machines</h5>
+                        <small class="text-secondary">Manage machines</small>
+                    </div>
+                </div>
+                <a asp-action="Machines" class="btn btn-primary w-100">
+                    <i class="fa-solid fa-list me-2"></i>View All Machines
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-success bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-box fa-2x text-success"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Products</h5>
+                        <small class="text-secondary">Manage products</small>
+                    </div>
+                </div>
+                <a asp-action="Products" class="btn btn-success w-100">
+                    <i class="fa-solid fa-list me-2"></i>View All Products
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-info bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-clipboard-list fa-2x text-info"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Work Orders</h5>
+                        <small class="text-secondary">Manage production planning</small>
+                    </div>
+                </div>
+                <a asp-action="WorkOrders" class="btn btn-info w-100">
+                    <i class="fa-solid fa-list me-2"></i>View All Work Orders
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-warning bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-exclamation-triangle fa-2x text-warning"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Downtime Reasons</h5>
+                        <small class="text-secondary">Manage downtime categories</small>
+                    </div>
+                </div>
+                <a asp-action="DowntimeReasons" class="btn btn-warning w-100">
+                    <i class="fa-solid fa-list me-2"></i>View All Reasons
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-info bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-users fa-2x text-info"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Man Power</h5>
+                        <small class="text-secondary">Manage man power options</small>
+                    </div>
+                </div>
+                <a asp-action="ManPowers" class="btn btn-info w-100">
+                    <i class="fa-solid fa-list me-2"></i>View All Man Power
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-primary bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-building fa-2x text-primary"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Plants</h5>
+                        <small class="text-secondary">Manage plant master</small>
+                    </div>
+                </div>
+                <a asp-action="Plants" class="btn btn-primary w-100">
+                    <i class="fa-solid fa-list me-2"></i>View All Plants
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-secondary bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-link fa-2x text-secondary"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Product ⇄ Machine Mapping</h5>
+                        <small class="text-secondary">Atur kombinasi produk dan mesin</small>
+                    </div>
+                </div>
+                <a asp-action="ProductMachineMappings" class="btn btn-secondary w-100">
+                    <i class="fa-solid fa-gears me-2"></i>Manage Mappings
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-danger bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-link fa-2x text-danger"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Downtime ⇄ Machine Mapping</h5>
+                        <small class="text-secondary">Atur reason per mesin</small>
+                    </div>
+                </div>
+                <a asp-action="DowntimeMachineMappings" class="btn btn-danger w-100">
+                    <i class="fa-solid fa-gears me-2"></i>Manage Downtime Mapping
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 machine-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="bg-danger bg-opacity-25 rounded p-3 me-3">
+                        <i class="fa-solid fa-ban fa-2x text-danger"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0">Product ⇄ NG Mapping</h5>
+                        <small class="text-secondary">Atur tipe NG per produk</small>
+                    </div>
+                </div>
+                <a asp-action="ProductNgMappings" class="btn btn-danger w-100">
+                    <i class="fa-solid fa-gears me-2"></i>Manage NG Mapping
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+

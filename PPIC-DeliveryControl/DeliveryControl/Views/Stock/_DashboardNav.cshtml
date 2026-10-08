@@ -1,0 +1,72 @@
+<style>
+    .dashboard-nav-wrapper {
+        border-bottom: 2px solid rgba(59, 130, 246, 0.2);
+        margin-top: 5px;
+        padding-bottom: 0;
+    }
+    .nav-links-container {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+    }
+    .nav-link-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #94a3b8;
+        text-decoration: none;
+        padding: 10px 0px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        position: relative;
+        border-bottom: 2px solid transparent;
+    }
+    .nav-link-item i {
+        font-size: 1rem;
+    }
+    .nav-link-item:hover {
+        color: #fff;
+    }
+    .nav-link-item.active {
+        color: #0dcaf0;
+        border-bottom-color: #0dcaf0;
+    }
+    .nav-link-item.active i {
+        color: #0dcaf0;
+    }
+</style>
+<div class="nav-links-container">
+    <a asp-controller="Stock" asp-action="Index" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Index" ? "active" : "")">
+        <i class="bi bi-columns-gap"></i>
+        <span>Overall Stock</span>
+    </a>
+    <a asp-controller="Stock" asp-action="TrendCriticalStock" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "TrendCriticalStock" ? "active" : "")" style="@(ViewContext.RouteData.Values["action"]?.ToString() != "TrendCriticalStock" ? "color: #ef4444;" : "")">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <span>Critical Stock</span>
+    </a>
+    <a asp-controller="Stock" asp-action="SummaryCustomer" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "SummaryCustomer" ? "active" : "")">
+        <i class="bi bi-people-fill"></i>
+        <span>Customer Summary FG</span>
+    </a>
+    <a asp-controller="Stock" asp-action="Molded" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Molded" ? "active" : "")">
+        <i class="bi bi-grid-3x3-gap"></i>
+        <span>Transaction Molded</span>
+    </a>
+    <a asp-controller="Stock" asp-action="Hose" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "Hose" ? "active" : "")">
+        <i class="bi bi-layers"></i>
+        <span>Transaction Hose</span>
+    </a>
+    <a asp-controller="Stock" asp-action="RVI" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "RVI" ? "active" : "")">
+        <i class="bi bi-cpu"></i>
+        <span>Transaction RVI</span>
+    </a>
+    <a asp-controller="Stock" asp-action="BTR" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "BTR" ? "active" : "")">
+        <i class="bi bi-building-gear"></i>
+        <span>Transaction BTR</span>
+    </a>
+    <a asp-controller="Stock" asp-action="LogScanNG" class="nav-link-item @(ViewContext.RouteData.Values["action"]?.ToString() == "LogScanNG" ? "active" : "")">
+        <i class="bi bi-bug"></i>
+        <span>Log Scan NG</span>
+    </a>
+</div>

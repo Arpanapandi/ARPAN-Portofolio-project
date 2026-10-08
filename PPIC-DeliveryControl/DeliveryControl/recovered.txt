@@ -1,0 +1,143 @@
+Created At: 2026-06-18T00:49:05Z
+Completed At: 2026-06-18T00:49:05Z
+File Path: `file:///c:/DeliveryControl_backup1/DeliveryControl/Controllers/DeliverySchedulesController.cs`
+Total Lines: 3135
+Total Bytes: 149162
+Showing lines 676 to 1475
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+676: 
+677:         [HttpGet]
+678:         public async Task<IActionResult> GetTrendDeliveryData(DateTime? date)
+679:         {
+680:             var targetDate = (date ?? GetBusinessNow()).Date;
+681:             var now = GetBusinessNow();
+682: 
+683:             // 1. Data Harian (Top Cards & Vendor List)
+684:             // Load schedules exactly like Dashboard Shipping to ensure Top Indicators match
+685:             var activeSchedules = await _context.DeliverySchedules
+686:                 .Include(s => s.Customer)
+687:                 .Include(s => s.DeliveryItems)
+688:                     .ThenInclude(di => di.Item)
+689:                 .Where(s => s.Status != "Cancelled" && (
+690:                             s.ScheduledDate.Date == targetDate ||
+691:                             (s.ScheduledDate.Date >= targetDate.AddDays(-3) && s.ScheduledDate.Date < targetDate && !(s.ActualEndTime.HasValue || s.Status == "Completed" || s.Status == "Closed")) ||
+692:                             (s.ScheduledDate.Date == targetDate.AddDays(1) && s.PickupTime != null && s.PickupTime.Value.Hour < 12)
+693:                         ))
+694:                 .ToListAsync();
+695: 
+696:             var activeGroups = activeSchedules
+697:                 .GroupBy(s => new {
+698:                     s.CustomerId,
+699:                     Area  = (string.IsNullOrEmpty(s.Area) ? (s.Customer?.Docking ?? "") : s.Area).Trim().ToUpper(),
+700:                     Cycle = (s.Cycle ?? "").Trim().ToUpper(),
+701:                     Route = (s.Route ?? 
+<truncated 44052 bytes>
+liveryItems)
+1445:                     .ThenInclude(di => di.Item)
+1446:                 .Where(s => s.CustomerId == schedule.CustomerId &&
+1447:                            s.ScheduledDate.Date == schedule.ScheduledDate.Date &&
+1448:                            s.ScheduleId != schedule.ScheduleId)
+1449:                 .ToListAsync();
+1450: 
+1451:             // In-memory filter dengan logika effective-area yang sama dengan _ScheduleTablePartial
+1452:             var groupSchedules = candidateSchedules.Where(s => {
+1453:                 var sArea  = (string.IsNullOrWhiteSpace(s.Area)
+1454:                                  ? (s.Customer?.Docking ?? "")
+1455:                                  : s.Area).Trim().ToUpper();
+1456:                 var sCycle = (s.Cycle ?? "").Trim().ToUpper();
+1457:                 var sRoute = (s.Route ?? "").Trim().ToUpper();
+1458:                 return sArea == scheduleArea && sCycle == scheduleCycle && sRoute == scheduleRoute;
+1459:             }).ToList();
+1460: 
+1461:             ViewBag.GroupSchedules = groupSchedules;
+1462: 
+1463:             // Collect all ItemCodes/VINs from delivery items to fetch stock snapshots
+1464:             var allSchedulesForStock = new List<DeliverySchedule> { schedule };
+1465:             allSchedulesForStock.AddRange(groupSchedules);
+1466:             var itemCodesForStock = allSchedulesForStock
+1467:                 .SelectMany(s => s.DeliveryItems)
+1468:                 .Where(di => di.Item != null)
+1469:                 .Select(di => di.Item!.VIN ?? di.Item!.ItemCode)
+1470:                 .Distinct()
+1471:                 .ToList();
+1472: 
+1473:             // Get latest stock snapshot per item (today or most recent)
+1474:             var stockSnapshots = new Dictionary<string, int>();
+1475:             if (itemCodesForStock.Any())
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+Created At: 2026-06-18T07:02:11Z
+Completed At: 2026-06-18T07:04:08Z
+
+				The command failed with exit code: 1
+				Output:
+				Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "C:\Users\fio.vlt00122\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2705' in position 3493: character maps to <undefined>
+Created At: 2026-06-18T00:47:55Z
+Completed At: 2026-06-18T00:48:59Z
+
+				The command completed successfully.
+				Output:
+				DeliverySchedulesController.cs:        public async Task<IActionResult> GetTrendDeliveryData(DateTime? date)
+
+
+Created At: 2026-06-18T00:49:05Z
+Completed At: 2026-06-18T00:49:05Z
+File Path: `file:///c:/DeliveryControl_backup1/DeliveryControl/Controllers/DeliverySchedulesController.cs`
+Total Lines: 3135
+Total Bytes: 149162
+Showing lines 676 to 1475
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+676: 
+677:         [HttpGet]
+678:         public async Task<IActionResult> GetTrendDeliveryData(DateTime? date)
+679:         {
+680:             var targetDate = (date ?? GetBusinessNow()).Date;
+681:             var now = GetBusinessNow();
+682: 
+683:             // 1. Data Harian (Top Cards & Vendor List)
+684:             // Load schedules exactly like Dashboard Shipping to ensure Top Indicators match
+685:             var activeSchedules = await _context.DeliverySchedules
+686:                 .Include(s => s.Customer)
+687:                 .Include(s => s.DeliveryItems)
+688:                     .ThenInclude(di => di.Item)
+689:                 .Where(s => s.Status != "Cancelled" && (
+690:                   
+<truncated 914 bytes>
+     .ThenInclude(di => di.Item)
+1446:                 .Where(s => s.CustomerId == schedule.CustomerId &&
+1447:                            s.ScheduledDate.Date == schedule.ScheduledDate.Date &&
+1448:                            s.ScheduleId != schedule.ScheduleId)
+1449:                 .ToListAsync();
+1450: 
+1451:             // In-memory filter dengan logika effective-area yang sama dengan _ScheduleTablePartial
+1452:             var groupSchedules = candidateSchedules.Where(s => {
+1453:                 var sArea  = (string.IsNullOrWhiteSpace(s.Area)
+1454:                                  ? (s.Customer?.Docking ?? "")
+1455:                                  : s.Area).Trim().ToUpper();
+1456:                 var sCycle = (s.Cycle ?? "").Trim().ToUpper();
+1457:                 var sRoute = (s.Route ?? "").Trim().ToUpper();
+1458:                 return sArea == scheduleArea && sCycle == scheduleCycle && sRoute == scheduleRoute;
+1459:             }).ToList();
+1460: 
+1461:             ViewBag.GroupSchedules = groupSchedules;
+1462: 
+1463:             // Collect all ItemCodes/VINs from delivery items to fetch stock snapshots
+1464:             var allSchedulesForStock = new List<DeliverySchedule> { schedule };
+1465:             allSchedulesForStock.AddRange(groupSchedules);
+1466:             var itemCodesForStock = allSchedulesForStock
+1467:                 .SelectMany(s => s.DeliveryItems)
+1468:                 .Where(di => di.Item != null)
+1469:                 .Select(di => di.Item!.VIN ?? di.Item!.ItemCode)
+1470:                 .Distinct()
+1471:                 .ToList();
+1472: 
+1473:             // Get latest stock snapshot per item (today or most recent)
+1474:             var stockSnapshots = new Dictionary<string, int>();
+1475:             if (itemCodesForStock.Any())
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
